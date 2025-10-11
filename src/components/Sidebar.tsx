@@ -3,9 +3,12 @@ import { LayoutDashboard, Users, DollarSign, Calendar, Dumbbell, LogOut } from "
 import { Button } from "./ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
+import { useSession } from "@/contexts/SessionProvider";
 
 const Sidebar = () => {
   const navigate = useNavigate();
+  const { profile } = useSession();
+
   const navLinkClasses = ({ isActive }: { isActive: boolean }) =>
     `flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
       isActive
@@ -37,10 +40,12 @@ const Sidebar = () => {
           <Users className="w-5 h-5 mr-3" />
           Alunos
         </NavLink>
-        <NavLink to="/financeiro" className={navLinkClasses}>
-          <DollarSign className="w-5 h-5 mr-3" />
-          Financeiro
-        </NavLink>
+        {profile?.role === 'admin' && (
+          <NavLink to="/financeiro" className={navLinkClasses}>
+            <DollarSign className="w-5 h-5 mr-3" />
+            Financeiro
+          </NavLink>
+        )}
         <NavLink to="/agenda" className={navLinkClasses}>
           <Calendar className="w-5 h-5 mr-3" />
           Agenda
