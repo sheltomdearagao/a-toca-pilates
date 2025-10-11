@@ -1,3 +1,5 @@
+import { Student } from './student';
+
 export type ClassEvent = {
   id: string;
   user_id: string;
@@ -6,4 +8,12 @@ export type ClassEvent = {
   end_time: string; // ISO string
   notes: string | null;
   created_at: string;
+};
+
+export type AttendanceStatus = 'Agendado' | 'Presente' | 'Faltou';
+
+export type ClassAttendee = {
+  id: string;
+  status: AttendanceStatus;
+  students: Student;
 };
