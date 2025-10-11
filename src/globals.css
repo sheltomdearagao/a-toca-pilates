@@ -99,3 +99,33 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* FullCalendar Custom Styles */
+.fc {
+  --fc-border-color: hsl(var(--border));
+  --fc-today-bg-color: hsl(var(--accent));
+  --fc-event-bg-color: hsl(var(--primary));
+  --fc-event-border-color: hsl(var(--primary));
+  --fc-event-text-color: hsl(var(--primary-foreground));
+}
+.fc .fc-toolbar-title {
+  @apply text-lg font-bold text-foreground;
+}
+.fc .fc-button {
+  @apply bg-primary text-primary-foreground hover:bg-primary/90 focus:ring-0 shadow-none border-0;
+}
+.fc .fc-button:disabled {
+  @apply bg-muted text-muted-foreground;
+}
+.fc .fc-button-primary:not(:disabled).fc-button-active, .fc .fc-button-primary:not(:disabled):active {
+  @apply bg-primary/90;
+}
+.fc-theme-standard .fc-scrollgrid, .fc-theme-standard th, .fc-theme-standard td {
+  @apply border-border;
+}
+.fc .fc-daygrid-day-number {
+  @apply text-muted-foreground;
+}
+.fc .fc-col-header-cell-cushion {
+  @apply text-foreground;
+}
