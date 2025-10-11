@@ -9,27 +9,35 @@ import Dashboard from "./pages/Dashboard";
 import Students from "./pages/Students";
 import Financial from "./pages/Financial";
 import Schedule from "./pages/Schedule";
+import { SessionProvider } from "./contexts/SessionProvider";
+import Login from "./pages/Login";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/alunos" element={<Students />} />
-            <Route path="/financeiro" element={<Financial />} />
-            <Route path="/agenda" element={<Schedule />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <SessionProvider>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route element={<ProtectedRoute />}>
+              <Route element={<Layout />}>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/alunos" element={<Students />} />
+                <Route path="/financeiro" element={<Financial />} />
+                <Route path="/agenda" element={<Schedule />} />
+              </Route>
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </SessionProvider>
 );
 
 export default App;
