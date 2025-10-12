@@ -18,4 +18,5 @@ export type Student = {
   payment_method?: PaymentMethod;
   monthly_fee?: number;
   enrollment_type: EnrollmentType; // Novo campo
+  date_of_birth?: string | null; // Novo campo
 };

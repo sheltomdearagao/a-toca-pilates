@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Student } from '@/types/student';
 import { FinancialTransaction } from '@/types/financial';
-import { Loader2, ArrowLeft, User, Mail, Phone, StickyNote, DollarSign, Calendar, Calculator, MoreHorizontal, CheckCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Mail, Phone, StickyNote, DollarSign, Calendar, Calculator, MoreHorizontal, CheckCircle, Cake } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -125,7 +125,7 @@ const StudentProfile = () => {
               <h1 className="text-3xl font-bold">{student.name}</h1>
               <div className="flex items-center gap-2">
                 <Badge>{student.status}</Badge>
-                <Badge variant="secondary">{student.enrollment_type}</Badge> {/* Exibindo o novo campo */}
+                <Badge variant="secondary">{student.enrollment_type}</Badge>
               </div>
             </div>
           </div>
@@ -152,6 +152,12 @@ const StudentProfile = () => {
               <Phone className="w-4 h-4 mr-3 text-muted-foreground" />
               <span>{student.phone || 'Não informado'}</span>
             </div>
+            {student.date_of_birth && (
+              <div className="flex items-center">
+                <Cake className="w-4 h-4 mr-3 text-muted-foreground" />
+                <span>{format(parseISO(student.date_of_birth), 'dd/MM/yyyy')}</span>
+              </div>
+            )}
             {student.notes && (
               <div className="pt-2 border-t">
                 <p className="text-muted-foreground">{student.notes}</p>

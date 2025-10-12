@@ -51,6 +51,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { showError, showSuccess } from "@/utils/toast";
 import { Link } from "react-router-dom";
+import { format } from "date-fns";
 
 const studentSchema = z.object({
   name: z.string().min(3, "O nome deve ter pelo menos 3 caracteres."),
@@ -62,7 +63,8 @@ const studentSchema = z.object({
   plan_frequency: z.enum(["2x", "3x", "4x", "5x"]).optional(),
   payment_method: z.enum(["Cartão", "Espécie"]).optional(),
   monthly_fee: z.number().optional(),
-  enrollment_type: z.enum(["Particular", "Wellhub", "TotalPass"]).default("Particular"), // Novo campo
+  enrollment_type: z.enum(["Particular", "Wellhub", "TotalPass"]).default("Particular"),
+  date_of_birth: z.string().optional().nullable(), // Novo campo
 });
 
 type StudentFormData = z.infer<typeof studentSchema>;
@@ -96,7 +98,7 @@ const Students = () => {
 
   const { control, handleSubmit, reset, setValue, watch } = useForm<StudentFormData>({
     resolver: zodResolver(studentSchema),
-    defaultValues: { name: "", email: "", phone: "", status: "Experimental", notes: "", plan_type: "Avulso", enrollment_type: "Particular" },
+    defaultValues: { name: "", email: "", phone: "", status: "Experimental", notes: "", plan_type: "Avulso", enrollment_type: "Particular", date_of_birth: "" },
   });
 
   const planType = watch("plan_type");
@@ -125,6 +127,10 @@ const Students = () => {
         dataToSubmit.payment_method = undefined;
         dataToSubmit.monthly_fee = 0;
       }
+      // Ensure date_of_birth is null if empty string
+      if (dataToSubmit.date_of_birth === "") {
+        dataToSubmit.date_of_birth = null;
+      }
 
       if (selectedStudent) {
         const { error } = await supabase.from("students").update(dataToSubmit).eq("id", selectedStudent.id);
@@ -136,6 +142,7 @@ const Students = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboardStats"] }); // Invalidate dashboard to refresh birthday card
       showSuccess(`Aluno ${selectedStudent ? "atualizado" : "adicionado"} com sucesso!`);
       setFormOpen(false);
       setSelectedStudent(null);
@@ -151,6 +158,7 @@ const Students = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboardStats"] }); // Invalidate dashboard to refresh birthday card
       showSuccess("Aluno removido com sucesso!");
       setDeleteAlertOpen(false);
       setSelectedStudent(null);
@@ -160,13 +168,16 @@ const Students = () => {
 
   const handleAddNew = () => {
     setSelectedStudent(null);
-    reset({ name: "", email: "", phone: "", status: "Experimental", notes: "", plan_type: "Avulso", enrollment_type: "Particular" });
+    reset({ name: "", email: "", phone: "", status: "Experimental", notes: "", plan_type: "Avulso", enrollment_type: "Particular", date_of_birth: "" });
     setFormOpen(true);
   };
 
   const handleEdit = (student: Student) => {
     setSelectedStudent(student);
-    reset(student);
+    reset({
+      ...student,
+      date_of_birth: student.date_of_birth ? format(new Date(student.date_of_birth), 'yyyy-MM-dd') : "",
+    });
     setFormOpen(true);
   };
 
@@ -195,7 +206,7 @@ const Students = () => {
                 <TableRow key={student.id}>
                   <TableCell className="font-medium"><Link to={`/alunos/${student.id}`} className="hover:underline">{student.name}</Link></TableCell>
                   <TableCell>{student.plan_type !== 'Avulso' ? `${student.plan_type} ${student.plan_frequency}` : 'Avulso'}</TableCell>
-                  <TableCell>{student.enrollment_type}</TableCell> {/* Exibindo o novo campo */}
+                  <TableCell>{student.enrollment_type}</TableCell>
                   <TableCell>{student.status}</TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
@@ -240,6 +251,7 @@ const Students = () => {
                 </div>
               )}
               <div className="space-y-2"><Label>Tipo de Matrícula</Label><Controller name="enrollment_type" control={control} render={({ field }) => (<Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Particular">Particular</SelectItem><SelectItem value="Wellhub">Wellhub</SelectItem><SelectItem value="TotalPass">TotalPass</SelectItem></SelectContent></Select>)} /></div>
+              <div className="space-y-2"><Label htmlFor="date_of_birth">Data de Nascimento</Label><Controller name="date_of_birth" control={control} render={({ field }) => <Input id="date_of_birth" type="date" {...field} />} /></div>
               <div className="space-y-2"><Label>Notas</Label><Controller name="notes" control={control} render={({ field }) => <Textarea {...field} />} /></div>
             </div>
             <DialogFooter>
