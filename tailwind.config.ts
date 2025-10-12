@@ -61,6 +61,8 @@ export default {
           "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
+          "gradient-start": "hsl(var(--sidebar-gradient-start))", // New
+          "gradient-end": "hsl(var(--sidebar-gradient-end))",     // New
         },
         status: {
           active: "hsl(var(--status-active))",

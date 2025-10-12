@@ -4,17 +4,19 @@ import { Button } from "./ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
 import { useSession } from "@/contexts/SessionProvider";
+import { cn } from "@/lib/utils"; // Import cn for conditional classNames
 
 const Sidebar = () => {
   const navigate = useNavigate();
   const { profile } = useSession();
 
   const navLinkClasses = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ease-in-out ${ // Adicionado duration e ease
+    cn(
+      "flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ease-in-out",
       isActive
-        ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm" // Sombra sutil para o item ativo
+        ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-impressionist" // Use shadow-impressionist for active
         : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-    }`;
+    );
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -26,7 +28,7 @@ const Sidebar = () => {
   };
 
   return (
-    <aside className="w-64 h-screen p-4 border-r border-sidebar-border bg-sidebar flex flex-col">
+    <aside className="w-64 h-screen p-4 border-r border-sidebar-border flex flex-col bg-gradient-to-b from-sidebar-gradient-start to-sidebar-gradient-end"> {/* Apply gradient */}
       <div className="flex items-center mb-8">
         <Dumbbell className="w-8 h-8 mr-2 text-primary" />
         <h1 className="text-xl font-bold text-foreground">A Toca</h1>
@@ -54,7 +56,7 @@ const Sidebar = () => {
       <div className="mt-4">
         <Button
           variant="ghost"
-          className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors duration-200 ease-in-out" // Adicionado duration e ease
+          className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors duration-200 ease-in-out"
           onClick={handleLogout}
         >
           <LogOut className="w-5 h-5 mr-3" />

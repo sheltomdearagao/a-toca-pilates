@@ -44,6 +44,8 @@
     --sidebar-accent-foreground: 220 15% 20%;
     --sidebar-border: 210 20% 90%;
     --sidebar-ring: 175 60% 40%;
+    --sidebar-gradient-start: 210 30% 98%; /* Lighter than background */
+    --sidebar-gradient-end: 210 30% 94%;   /* Slightly darker than background */
 
     /* Novas Cores de Status (Recepção - Claro) */
     --status-active: 142 70% 45%; /* Verde Vibrante */
@@ -101,6 +103,8 @@
     --sidebar-accent-foreground: 220 15% 15%;
     --sidebar-border: 210 15% 85%;
     --sidebar-ring: 220 25% 30%;
+    --sidebar-gradient-start: 210 20% 95%; /* Lighter than background */
+    --sidebar-gradient-end: 210 20% 91%;   /* Slightly darker than background */
 
     /* Novas Cores de Status (Admin - Claro) */
     --status-active: 142 60% 35%; /* Verde Mais Profundo */
@@ -156,6 +160,8 @@
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-gradient-start: 240 5.9% 12%;
+    --sidebar-gradient-end: 240 5.9% 8%;
 
     /* Novas Cores de Status (Dark Theme) */
     --status-active: 142 70% 60%;
