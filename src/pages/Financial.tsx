@@ -59,9 +59,11 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { showError, showSuccess } from "@/utils/toast";
-import { format, startOfMonth, endOfMonth, differenceInDays, parseISO } from "date-fns";
+import { format, startOfMonth, endOfMonth, differenceInDays, parseISO, subMonths } from "date-fns";
+import { ptBR } from 'date-fns/locale';
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import MonthlyFinancialChart from "@/components/financial/MonthlyFinancialChart"; // Importar o novo componente
 
 const transactionSchema = z.object({
   description: z.string().min(3, "A descrição é obrigatória."),
@@ -135,6 +137,42 @@ const fetchOverdueTransactions = async (): Promise<FinancialTransaction[]> => {
   return data || [];
 }
 
+const fetchMonthlyChartData = async () => {
+  const chartData = [];
+  for (let i = 5; i >= 0; i--) { // Last 6 months
+    const date = subMonths(new Date(), i);
+    const monthStart = startOfMonth(date);
+    const monthEnd = endOfMonth(date);
+
+    const { data: revenueData, error: revenueError } = await supabase
+      .from('financial_transactions')
+      .select('amount')
+      .eq('type', 'revenue')
+      .eq('status', 'Pago')
+      .gte('paid_at', monthStart.toISOString())
+      .lte('paid_at', monthEnd.toISOString());
+    if (revenueError) throw new Error(revenueError.message);
+    const monthlyRevenue = revenueData?.reduce((sum, t) => sum + t.amount, 0) || 0;
+
+    const { data: expenseData, error: expenseError } = await supabase
+      .from('financial_transactions')
+      .select('amount')
+      .eq('type', 'expense')
+      .gte('created_at', monthStart.toISOString())
+      .lte('created_at', monthEnd.toISOString());
+    if (expenseError) throw new Error(expenseError.message);
+    const monthlyExpense = expenseData?.reduce((sum, t) => sum + t.amount, 0) || 0;
+
+    chartData.push({
+      month: format(date, 'MMM/yy', { locale: ptBR }),
+      Receita: monthlyRevenue,
+      Despesa: monthlyExpense,
+    });
+  }
+  return chartData;
+};
+
+
 const revenueCategories = ["Mensalidade", "Aula Avulsa", "Venda de Produto", "Outras Receitas"];
 const expenseCategories = ["Aluguel", "Salários", "Marketing", "Material", "Contas", "Outras Despesas"];
 
@@ -148,6 +186,8 @@ const Financial = () => {
   const { data: students, isLoading: isLoadingStudents } = useQuery({ queryKey: ["students"], queryFn: fetchStudents });
   const { data: stats, isLoading: isLoadingStats } = useQuery({ queryKey: ["financialStats"], queryFn: fetchFinancialStats });
   const { data: overdueTransactions, isLoading: isLoadingOverdue } = useQuery({ queryKey: ["overdueTransactions"], queryFn: fetchOverdueTransactions });
+  const { data: monthlyChartData, isLoading: isLoadingMonthlyChart } = useQuery({ queryKey: ["monthlyChartData"], queryFn: fetchMonthlyChartData });
+
 
   const { control, handleSubmit, reset, watch, setValue } = useForm<TransactionFormData>({
     resolver: zodResolver(transactionSchema),
@@ -187,6 +227,7 @@ const Financial = () => {
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["financialStats"] });
       queryClient.invalidateQueries({ queryKey: ["overdueTransactions"] });
+      queryClient.invalidateQueries({ queryKey: ["monthlyChartData"] }); // Invalidate chart data
       showSuccess(`Lançamento ${selectedTransaction ? "atualizado" : "adicionado"} com sucesso!`);
       setFormOpen(false);
       setSelectedTransaction(null);
@@ -204,6 +245,7 @@ const Financial = () => {
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["financialStats"] });
       queryClient.invalidateQueries({ queryKey: ["overdueTransactions"] });
+      queryClient.invalidateQueries({ queryKey: ["monthlyChartData"] }); // Invalidate chart data
       showSuccess("Lançamento removido com sucesso!");
       setDeleteAlertOpen(false);
       setSelectedTransaction(null);
@@ -223,6 +265,7 @@ const Financial = () => {
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["financialStats"] });
       queryClient.invalidateQueries({ queryKey: ["overdueTransactions"] });
+      queryClient.invalidateQueries({ queryKey: ["monthlyChartData"] }); // Invalidate chart data
       showSuccess('Transação marcada como paga com sucesso!');
     },
     onError: (error) => { showError(error.message); },
@@ -270,7 +313,7 @@ const Financial = () => {
           <TabsTrigger value="overdue">Inadimplência</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="mt-4">
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-3 mb-6">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Receita do Mês</CardTitle>
@@ -299,6 +342,7 @@ const Financial = () => {
               </CardContent>
             </Card>
           </div>
+          <MonthlyFinancialChart data={monthlyChartData || []} isLoading={isLoadingMonthlyChart} />
         </TabsContent>
         <TabsContent value="all" className="mt-4">
            {isLoadingTransactions ? (
