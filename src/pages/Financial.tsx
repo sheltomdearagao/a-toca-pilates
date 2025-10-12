@@ -30,15 +30,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, PlusCircle, TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Loader2, PlusCircle, TrendingUp, TrendingDown, AlertCircle, Repeat } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { showError, showSuccess } from "@/utils/toast";
 import { format, startOfMonth, endOfMonth, differenceInDays, parseISO } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 const transactionSchema = z.object({
   description: z.string().min(3, "A descrição é obrigatória."),
@@ -51,6 +58,7 @@ const transactionSchema = z.object({
   student_id: z.string().optional().nullable(),
   status: z.enum(["Pendente", "Pago", "Atrasado"]).optional().nullable(),
   due_date: z.date().optional().nullable(),
+  is_recurring: z.boolean().optional(),
 });
 
 type TransactionFormData = z.infer<typeof transactionSchema>;
@@ -126,7 +134,7 @@ const Financial = () => {
 
   const { control, handleSubmit, reset, watch } = useForm<TransactionFormData>({
     resolver: zodResolver(transactionSchema),
-    defaultValues: { description: "", amount: 0, type: "revenue", category: "", student_id: null, status: "Pendente", due_date: new Date() },
+    defaultValues: { description: "", amount: 0, type: "revenue", category: "", student_id: null, status: "Pendente", due_date: new Date(), is_recurring: false },
   });
 
   const transactionType = watch("type");
@@ -142,6 +150,7 @@ const Financial = () => {
         due_date: formData.due_date ? format(formData.due_date, "yyyy-MM-dd") : null,
         status: formData.type === 'revenue' ? formData.status : null,
         student_id: formData.type === 'revenue' ? formData.student_id : null,
+        is_recurring: formData.type === 'expense' ? formData.is_recurring : false,
       };
       if (formData.status === 'Pago') {
         dataToSubmit.paid_at = new Date().toISOString();
@@ -169,7 +178,7 @@ const Financial = () => {
 
   const handleAddNew = () => {
     setSelectedTransaction(null);
-    reset({ description: "", amount: 0, type: "revenue", category: "", student_id: null, status: "Pendente", due_date: new Date() });
+    reset({ description: "", amount: 0, type: "revenue", category: "", student_id: null, status: "Pendente", due_date: new Date(), is_recurring: false });
     setFormOpen(true);
   };
   
@@ -229,7 +238,19 @@ const Financial = () => {
                 <TableBody>
                   {transactions?.map((t) => (
                     <TableRow key={t.id}>
-                      <TableCell className="font-medium">{t.description}</TableCell>
+                      <TableCell className="font-medium flex items-center">
+                        {t.description}
+                        {t.is_recurring && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Repeat className="w-4 h-4 ml-2 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Despesa Recorrente</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </TableCell>
                       <TableCell>{t.type === 'revenue' ? 'Receita' : 'Despesa'}</TableCell>
                       <TableCell>{t.category}</TableCell>
                       <TableCell>{t.students?.name || '-'}</TableCell>
@@ -268,10 +289,18 @@ const Financial = () => {
       </Tabs>
 
       <Dialog open={isFormOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className={cn(
+          "sm:max-w-lg transition-all",
+          transactionType === 'revenue' && "border-t-4 border-green-300",
+          transactionType === 'expense' && "border-t-4 border-red-300"
+        )}>
           <DialogHeader><DialogTitle>{selectedTransaction ? "Editar Lançamento" : "Adicionar Novo Lançamento"}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)}>
-            <div className="grid gap-4 py-4">
+            <div className={cn(
+              "grid gap-4 py-4 rounded-lg p-4 transition-all",
+              transactionType === 'revenue' && "bg-green-50/30",
+              transactionType === 'expense' && "bg-red-50/30"
+            )}>
               <Controller name="type" control={control} render={({ field }) => (
                   <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="grid grid-cols-2 gap-4">
                     <div><RadioGroupItem value="revenue" id="r1" className="peer sr-only" /><Label htmlFor="r1" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">Receita</Label></div>
@@ -312,6 +341,22 @@ const Financial = () => {
                     </div>
                   </div>
                 </>
+              )}
+              {transactionType === 'expense' && (
+                <div className="flex items-center space-x-2 pt-2">
+                  <Controller
+                    name="is_recurring"
+                    control={control}
+                    render={({ field }) => (
+                      <Checkbox
+                        id="is_recurring"
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    )}
+                  />
+                  <Label htmlFor="is_recurring">Despesa Recorrente (mensal)</Label>
+                </div>
               )}
             </div>
             <DialogFooter>

@@ -14,6 +14,7 @@ export type FinancialTransaction = {
   status: PaymentStatus | null;
   due_date: string | null;
   paid_at: string | null;
+  is_recurring?: boolean;
   created_at: string;
   students?: Student; // For joining data
 };
