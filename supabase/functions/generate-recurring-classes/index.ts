@@ -3,7 +3,8 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 // Atualizado date-fns para a versão 3.6.0 para compatibilidade
 import { addDays, format, parseISO, isWithinInterval, startOfDay, endOfDay, setHours, setMinutes, setSeconds } from "https://esm.sh/date-fns@3.6.0";
-import { zonedTimeToUtc, utcToZonedTime } from "https://esm.sh/date-fns-tz@2.0.0"; // Mantido date-fns-tz@2.0.0
+// Forçando date-fns-tz a usar date-fns@3.6.0 como dependência
+import { zonedTimeToUtc, utcToZonedTime } from "https://esm.sh/date-fns-tz@2.0.0?deps=date-fns@3.6.0"; 
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
