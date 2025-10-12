@@ -90,6 +90,9 @@ export default {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
       },
+      boxShadow: {
+        'impressionist': '0 6px 18px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.02)', // Sombra mais suave e multi-camadas
+      },
     },
   },
   plugins: [require("tailwindcss-animate")],

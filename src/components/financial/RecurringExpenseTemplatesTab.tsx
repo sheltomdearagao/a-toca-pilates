@@ -218,7 +218,7 @@ const RecurringExpenseTemplatesTab = () => {
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       ) : templates && templates.length > 0 ? (
-        <div className="bg-card rounded-lg border">
+        <div className="bg-card rounded-lg border shadow-impressionist"> {/* Aplicando a nova sombra */}
           <Table>
             <TableHeader>
               <TableRow>
@@ -232,7 +232,7 @@ const RecurringExpenseTemplatesTab = () => {
             </TableHeader>
             <TableBody>
               {templates.map((template) => (
-                <TableRow key={template.id}>
+                <TableRow key={template.id} className="hover:bg-muted/50 transition-colors"> {/* Efeito de hover sutil */}
                   <TableCell className="font-medium">{template.description}</TableCell>
                   <TableCell>{template.category}</TableCell>
                   <TableCell>{formatCurrency(template.amount)}</TableCell>
@@ -265,7 +265,7 @@ const RecurringExpenseTemplatesTab = () => {
           </Table>
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-lg">
+        <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-lg shadow-impressionist"> {/* Aplicando a nova sombra */}
           <Repeat className="w-12 h-12 text-muted-foreground" />
           <h3 className="mt-4 text-lg font-semibold">Nenhum modelo de despesa recorrente encontrado</h3>
           <p className="mt-1 text-sm text-muted-foreground">Adicione seu primeiro modelo de despesa recorrente.</p>

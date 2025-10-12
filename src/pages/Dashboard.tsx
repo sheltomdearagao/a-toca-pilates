@@ -5,6 +5,7 @@ import { Users, DollarSign, AlertCircle, Calendar } from "lucide-react";
 import { startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
 import BirthdayCard from "@/components/BirthdayCard";
 import ColoredSeparator from "@/components/ColoredSeparator"; // Importar o novo componente
+import { Card } from "@/components/ui/card"; // Importar Card para usar a sombra
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -67,7 +68,7 @@ const Dashboard = () => {
   });
 
   return (
-    <div>
+    <div className="space-y-6"> {/* Adicionado espaçamento vertical */}
       <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -96,7 +97,9 @@ const Dashboard = () => {
         />
       </div>
       <ColoredSeparator color="accent" className="my-6" /> {/* Separador colorido */}
-      <BirthdayCard />
+      <Card className="shadow-impressionist"> {/* Aplicando a nova sombra ao BirthdayCard */}
+        <BirthdayCard />
+      </Card>
     </div>
   );
 };

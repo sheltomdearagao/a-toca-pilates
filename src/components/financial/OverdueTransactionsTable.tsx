@@ -40,7 +40,7 @@ const OverdueTransactionsTable = ({
   }
 
   return (
-    <div className="bg-card rounded-lg border">
+    <div className="bg-card rounded-lg border shadow-impressionist"> {/* Aplicando a nova sombra */}
       <Table>
         <TableHeader>
           <TableRow>
@@ -54,7 +54,7 @@ const OverdueTransactionsTable = ({
         </TableHeader>
         <TableBody>
           {overdueTransactions?.map((t) => (
-            <TableRow key={t.id} className="text-destructive">
+            <TableRow key={t.id} className="text-destructive hover:bg-red-50/30 transition-colors"> {/* Efeito de hover sutil */}
               <TableCell className="font-medium">{t.students?.name || 'N/A'}</TableCell>
               <TableCell>{t.description}</TableCell>
               <TableCell>{t.due_date ? format(parseISO(t.due_date), 'dd/MM/yyyy') : '-'}</TableCell>

@@ -42,7 +42,7 @@ const BirthdayCard = () => {
   });
 
   return (
-    <Card className="col-span-full lg:col-span-2">
+    <div className="col-span-full lg:col-span-2"> {/* Removido Card e shadow-impressionist daqui, pois será aplicado no pai */}
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">Aniversariantes do Mês</CardTitle>
         <Cake className="h-4 w-4 text-muted-foreground" />
@@ -56,17 +56,17 @@ const BirthdayCard = () => {
         ) : birthdaysThisMonth && birthdaysThisMonth.length > 0 ? (
           <ul className="space-y-2">
             {birthdaysThisMonth.map(student => (
-              <li key={student.id} className="flex items-center text-sm">
+              <li key={student.id} className="flex items-center text-sm p-2 rounded-md hover:bg-accent transition-colors"> {/* Adicionado hover e padding */}
                 <User className="h-4 w-4 mr-2 text-muted-foreground" />
                 <span>{student.name} - {format(parseISO(student.date_of_birth), 'dd/MM', { locale: ptBR })}</span>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-muted-foreground">Nenhum aniversariante este mês.</p>
+          <p className="text-sm text-muted-foreground p-2">Nenhum aniversariante este mês.</p> {/* Adicionado padding */}
         )}
       </CardContent>
-    </Card>
+    </div>
   );
 };
 

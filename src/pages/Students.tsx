@@ -236,7 +236,7 @@ const Students = () => {
   }
 
   return (
-    <div>
+    <div className="space-y-6"> {/* Adicionado espaçamento vertical */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Gestão de Alunos</h1>
         <Button onClick={handleAddNew}><PlusCircle className="w-4 h-4 mr-2" />Adicionar Aluno</Button>
@@ -247,12 +247,12 @@ const Students = () => {
       {isLoading ? (
         <div className="flex justify-center items-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
       ) : students && students.length > 0 ? (
-        <div className="bg-card rounded-lg border">
+        <div className="bg-card rounded-lg border shadow-impressionist"> {/* Aplicando a nova sombra */}
           <Table>
             <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Plano</TableHead><TableHead>Tipo Matrícula</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
             <TableBody>
               {students.map((student) => (
-                <TableRow key={student.id}>
+                <TableRow key={student.id} className="hover:bg-muted/50 transition-colors"> {/* Efeito de hover sutil */}
                   <TableCell className="font-medium"><Link to={`/alunos/${student.id}`} className="hover:underline">{student.name}</Link></TableCell>
                   <TableCell>{student.plan_type !== 'Avulso' ? `${student.plan_type} ${student.plan_frequency}` : 'Avulso'}</TableCell>
                   <TableCell>{student.enrollment_type}</TableCell>
@@ -272,7 +272,7 @@ const Students = () => {
           </Table>
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-lg">
+        <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-lg shadow-impressionist"> {/* Aplicando a nova sombra */}
           <UserX className="w-12 h-12 text-muted-foreground" /><h3 className="mt-4 text-lg font-semibold">Nenhum aluno encontrado</h3><p className="mt-1 text-sm text-muted-foreground">Comece adicionando o primeiro aluno.</p>
         </div>
       )}

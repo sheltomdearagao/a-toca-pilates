@@ -18,7 +18,7 @@ interface FinancialOverviewCardsProps {
 const FinancialOverviewCards = ({ stats, isLoading, formatCurrency }: FinancialOverviewCardsProps) => {
   return (
     <div className="grid gap-4 md:grid-cols-3 mb-6">
-      <Card>
+      <Card className="shadow-impressionist"> {/* Aplicando a nova sombra */}
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Receita do Mês</CardTitle>
           <TrendingUp className="h-4 w-4 text-muted-foreground" />
@@ -27,7 +27,7 @@ const FinancialOverviewCards = ({ stats, isLoading, formatCurrency }: FinancialO
           {isLoading ? <Skeleton className="h-8 w-24" /> : <div className="text-2xl font-bold">{formatCurrency(stats?.monthlyRevenue ?? 0)}</div>}
         </CardContent>
       </Card>
-      <Card>
+      <Card className="shadow-impressionist"> {/* Aplicando a nova sombra */}
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Despesa do Mês</CardTitle>
           <TrendingDown className="h-4 w-4 text-muted-foreground" />
@@ -36,7 +36,7 @@ const FinancialOverviewCards = ({ stats, isLoading, formatCurrency }: FinancialO
           {isLoading ? <Skeleton className="h-8 w-24" /> : <div className="text-2xl font-bold">{formatCurrency(stats?.monthlyExpense ?? 0)}</div>}
         </CardContent>
       </Card>
-      <Card>
+      <Card className="shadow-impressionist"> {/* Aplicando a nova sombra */}
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Inadimplência</CardTitle>
           <AlertCircle className="h-4 w-4 text-muted-foreground" />

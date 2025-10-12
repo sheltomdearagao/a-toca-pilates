@@ -205,7 +205,7 @@ const RecurringClassTemplatesTab = () => {
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       ) : templates && templates.length > 0 ? (
-        <div className="bg-card rounded-lg border">
+        <div className="bg-card rounded-lg border shadow-impressionist"> {/* Aplicando a nova sombra */}
           <Table>
             <TableHeader>
               <TableRow>
@@ -218,7 +218,7 @@ const RecurringClassTemplatesTab = () => {
             </TableHeader>
             <TableBody>
               {templates.map((template) => (
-                <TableRow key={template.id}>
+                <TableRow key={template.id} className="hover:bg-muted/50 transition-colors"> {/* Efeito de hover sutil */}
                   <TableCell className="font-medium">{template.title}</TableCell>
                   <TableCell>{template.start_time_of_day.substring(0, 5)} - {template.end_time_of_day.substring(0, 5)}</TableCell>
                   <TableCell>
@@ -252,7 +252,7 @@ const RecurringClassTemplatesTab = () => {
           </Table>
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-lg">
+        <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-lg shadow-impressionist"> {/* Aplicando a nova sombra */}
           <Repeat className="w-12 h-12 text-muted-foreground" />
           <h3 className="mt-4 text-lg font-semibold">Nenhum modelo de aula recorrente encontrado</h3>
           <p className="mt-1 text-sm text-muted-foreground">Crie um novo modelo na aba "Agenda" marcando a opção "Aula Recorrente".</p>
@@ -293,12 +293,12 @@ const RecurringClassTemplatesTab = () => {
                         id={`day-${day.value}`}
                         checked={recurrenceDays?.includes(day.value)}
                         onCheckedChange={(checked) => {
-                          const currentDays = recurrenceDays || [];
-                          if (checked) {
-                            setValue('recurrence_days_of_week', [...currentDays, day.value]);
-                          } else {
-                            setValue('recurrence_days_of_week', currentDays.filter(d => d !== day.value));
-                          }
+                            const currentDays = recurrenceDays || [];
+                            if (checked) {
+                              setValue('recurrence_days_of_week', [...currentDays, day.value]);
+                            } else {
+                              setValue('recurrence_days_of_week', currentDays.filter(d => d !== day.value));
+                            }
                         }}
                       />
                       <Label htmlFor={`day-${day.value}`}>{day.label}</Label>

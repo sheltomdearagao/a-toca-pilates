@@ -17,6 +17,7 @@ import DeleteTransactionAlertDialog from "@/components/financial/DeleteTransacti
 import RecurringExpenseTemplatesTab from "@/components/financial/RecurringExpenseTemplatesTab";
 import { showError, showSuccess } from "@/utils/toast";
 import ColoredSeparator from "@/components/ColoredSeparator"; // Importar o novo componente
+import { Card } from "@/components/ui/card"; // Importar Card para usar a sombra
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -213,7 +214,7 @@ const Financial = () => {
   const onSubmitTransaction = (data: TransactionFormData) => { mutation.mutate(data); };
 
   return (
-    <div>
+    <div className="space-y-6"> {/* Adicionado espaçamento vertical */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Módulo Financeiro</h1>
         <Button onClick={handleAddNew}><PlusCircle className="w-4 h-4 mr-2" />Adicionar Lançamento</Button>
@@ -227,7 +228,7 @@ const Financial = () => {
           <TabsTrigger value="all">Todos os Lançamentos</TabsTrigger>
           <TabsTrigger value="recurring-expenses">Modelos Recorrentes</TabsTrigger>
         </TabsList>
-        <TabsContent value="overview" className="mt-4">
+        <TabsContent value="overview" className="mt-4 space-y-6"> {/* Adicionado espaçamento vertical */}
           <FinancialOverviewCards stats={stats} isLoading={isLoadingStats} formatCurrency={formatCurrency} />
           <ColoredSeparator color="accent" className="my-6" /> {/* Separador colorido */}
           <MonthlyFinancialChart data={monthlyChartData || []} isLoading={isLoadingMonthlyChart} />

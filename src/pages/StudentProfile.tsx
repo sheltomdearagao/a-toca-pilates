@@ -157,7 +157,7 @@ const StudentProfile = () => {
       <ColoredSeparator color="primary" className="my-6" />
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
+        <Card className="lg:col-span-1 shadow-impressionist"> {/* Aplicando a nova sombra */}
           <CardHeader>
             <CardTitle className="flex items-center"><StickyNote className="w-5 h-5 mr-2" /> Detalhes</CardTitle>
           </CardHeader>
@@ -184,7 +184,7 @@ const StudentProfile = () => {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 shadow-impressionist"> {/* Aplicando a nova sombra */}
           <CardHeader>
             <CardTitle className="flex items-center"><DollarSign className="w-5 h-5 mr-2" /> Histórico Financeiro</CardTitle>
           </CardHeader>
@@ -201,7 +201,7 @@ const StudentProfile = () => {
               </TableHeader>
               <TableBody>
                 {transactions.length > 0 ? transactions.map(t => (
-                  <TableRow key={t.id}>
+                  <TableRow key={t.id} className="hover:bg-muted/50 transition-colors"> {/* Efeito de hover sutil */}
                     <TableCell>{t.description}</TableCell>
                     <TableCell><Badge variant={t.status === 'Pago' ? 'default' : t.status === 'Atrasado' ? 'destructive' : 'secondary'}>{t.status}</Badge></TableCell>
                     <TableCell>{t.due_date ? format(parseISO(t.due_date), 'dd/MM/yyyy') : '-'}</TableCell>
@@ -232,7 +232,7 @@ const StudentProfile = () => {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3">
+        <Card className="lg:col-span-3 shadow-impressionist"> {/* Aplicando a nova sombra */}
           <CardHeader>
             <CardTitle className="flex items-center"><Calendar className="w-5 h-5 mr-2" /> Histórico de Presença</CardTitle>
           </CardHeader>
@@ -247,7 +247,7 @@ const StudentProfile = () => {
               </TableHeader>
               <TableBody>
                 {attendance.length > 0 ? attendance.map(a => (
-                  <TableRow key={a.id}>
+                  <TableRow key={a.id} className="hover:bg-muted/50 transition-colors"> {/* Efeito de hover sutil */}
                     <TableCell>{a.classes.title}</TableCell>
                     <TableCell>{format(parseISO(a.classes.start_time), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</TableCell>
                     <TableCell><Badge variant={a.status === 'Presente' ? 'default' : a.status === 'Faltou' ? 'destructive' : 'secondary'}>{a.status}</Badge></TableCell>

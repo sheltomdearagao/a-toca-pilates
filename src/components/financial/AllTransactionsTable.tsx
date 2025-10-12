@@ -50,7 +50,7 @@ const AllTransactionsTable = ({
   }
 
   return (
-    <div className="bg-card rounded-lg border">
+    <div className="bg-card rounded-lg border shadow-impressionist"> {/* Aplicando a nova sombra */}
       <Table>
         <TableHeader>
           <TableRow>
@@ -66,7 +66,7 @@ const AllTransactionsTable = ({
         </TableHeader>
         <TableBody>
           {transactions?.map((t) => (
-            <TableRow key={t.id}>
+            <TableRow key={t.id} className="hover:bg-muted/50 transition-colors"> {/* Efeito de hover sutil */}
               <TableCell className="font-medium flex items-center">
                 {t.description}
                 {t.is_recurring && (

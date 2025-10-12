@@ -21,7 +21,7 @@ const Login = () => {
             A Toca Experience Platform
           </h1>
         </div>
-        <div className="p-8 bg-card rounded-lg shadow-xl border border-border"> {/* Sombra mais suave e borda sutil */}
+        <div className="p-8 bg-card rounded-lg shadow-impressionist border border-border"> {/* Sombra mais suave e borda sutil */}
           <Auth
             supabaseClient={supabase}
             appearance={{ theme: ThemeSupa }}
