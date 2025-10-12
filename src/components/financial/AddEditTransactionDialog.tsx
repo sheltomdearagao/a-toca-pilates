@@ -64,7 +64,7 @@ const AddEditTransactionDialog = ({
   onSubmit,
   isSubmitting,
 }: AddEditTransactionDialogProps) => {
-  const { control, handleSubmit, reset, watch, setValue } = useForm<TransactionFormData>({
+  const { control, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<TransactionFormData>({
     resolver: zodResolver(transactionSchema),
     defaultValues: { description: "", amount: 0, type: "revenue", category: "", student_id: null, status: "Pendente", due_date: new Date() },
   });
@@ -97,7 +97,7 @@ const AddEditTransactionDialog = ({
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className={cn(
-        "sm:max-w-lg transition-all",
+        "sm:max-w-lg transition-all max-h-[90vh] overflow-y-auto", // Adicionado max-h e overflow-y-auto
         transactionType === 'revenue' && "border-t-4 border-green-300",
         transactionType === 'expense' && "border-t-4 border-red-300"
       )}>
@@ -110,24 +110,38 @@ const AddEditTransactionDialog = ({
             transactionType === 'revenue' && "bg-green-50/30",
             transactionType === 'expense' && "bg-red-50/30"
           )}>
-            <Controller name="type" control={control} render={({ field }) => (
-                <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="grid grid-cols-2 gap-4">
-                  <div><RadioGroupItem value="revenue" id="r1" className="peer sr-only" /><Label htmlFor="r1" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">Receita</Label></div>
-                  <div><RadioGroupItem value="expense" id="r2" className="peer sr-only" /><Label htmlFor="r2" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">Despesa</Label></div>
-                </RadioGroup>
+            <Controller name="type" control={control} render={({ field, fieldState }) => (
+                <>
+                  <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="grid grid-cols-2 gap-4">
+                    <div><RadioGroupItem value="revenue" id="r1" className="peer sr-only" /><Label htmlFor="r1" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">Receita</Label></div>
+                    <div><RadioGroupItem value="expense" id="r2" className="peer sr-only" /><Label htmlFor="r2" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">Despesa</Label></div>
+                  </RadioGroup>
+                  {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                </>
             )} />
             <div className="space-y-2">
               <Label htmlFor="description">Descrição</Label>
-              <Controller name="description" control={control} render={({ field }) => <Input id="description" {...field} />} />
+              <Controller name="description" control={control} render={({ field, fieldState }) => (
+                <>
+                  <Input id="description" {...field} />
+                  {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                </>
+              )} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="amount">Valor</Label>
-                <Controller name="amount" control={control} render={({ field }) => <Input id="amount" type="number" step="0.01" {...field} />} />
+                <Controller name="amount" control={control} render={({ field, fieldState }) => (
+                  <>
+                    <Input id="amount" type="number" step="0.01" {...field} />
+                    {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                  </>
+                )} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="category">Categoria</Label>
-                <Controller name="category" control={control} render={({ field }) => (
+                <Controller name="category" control={control} render={({ field, fieldState }) => (
+                  <>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                       <SelectContent>
@@ -136,6 +150,8 @@ const AddEditTransactionDialog = ({
                         ) : (transactionType === 'revenue' ? revenueCategories : expenseCategories).map(cat => (<SelectItem key={cat} value={cat}>{cat}</SelectItem>))}
                       </SelectContent>
                     </Select>
+                    {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                  </>
                 )} />
               </div>
             </div>
@@ -143,25 +159,36 @@ const AddEditTransactionDialog = ({
               <>
                 <div className="space-y-2">
                   <Label htmlFor="student_id">Aluno (Opcional)</Label>
-                  <Controller name="student_id" control={control} render={({ field }) => (
+                  <Controller name="student_id" control={control} render={({ field, fieldState }) => (
+                    <>
                       <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
                         <SelectTrigger><SelectValue placeholder="Selecione um aluno..." /></SelectTrigger>
                         <SelectContent>{isLoadingStudents ? <SelectItem value="loading" disabled>Carregando...</SelectItem> : students?.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
                       </Select>
+                      {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                    </>
                   )} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="due_date">Data de Vencimento</Label>
-                    <Controller name="due_date" control={control} render={({ field }) => <Input id="due_date" type="date" value={field.value ? format(field.value, 'yyyy-MM-dd') : ''} onChange={(e) => field.onChange(e.target.valueAsDate)} />} />
+                    <Controller name="due_date" control={control} render={({ field, fieldState }) => (
+                      <>
+                        <Input id="due_date" type="date" value={field.value ? format(field.value, 'yyyy-MM-dd') : ''} onChange={(e) => field.onChange(e.target.valueAsDate)} />
+                        {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                      </>
+                    )} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="status">Status</Label>
-                    <Controller name="status" control={control} render={({ field }) => (
+                    <Controller name="status" control={control} render={({ field, fieldState }) => (
+                      <>
                         <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
                           <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                           <SelectContent><SelectItem value="Pendente">Pendente</SelectItem><SelectItem value="Pago">Pago</SelectItem><SelectItem value="Atrasado">Atrasado</SelectItem></SelectContent>
                         </Select>
+                        {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                      </>
                     )} />
                   </div>
                 </div>
