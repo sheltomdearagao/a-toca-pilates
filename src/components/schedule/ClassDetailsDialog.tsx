@@ -105,7 +105,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
   });
 
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ attendeeId, status }: { attendeeId: string, status: AttendanceStatus }) => {
+    mutationFn: async ({ attendeeId, status }: { attendeeId: string; status: AttendanceStatus }) => {
       const { error } = await supabase.from('class_attendees').update({ status }).eq('id', attendeeId);
       if (error) throw error;
     },
