@@ -1,17 +1,24 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Student } from '@/types/student';
 import { FinancialTransaction } from '@/types/financial';
-import { Loader2, ArrowLeft, User, Mail, Phone, StickyNote, DollarSign, Calendar, Calculator } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Mail, Phone, StickyNote, DollarSign, Calendar, Calculator, MoreHorizontal, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ProRataCalculator from '../components/students/ProRataCalculator';
+import { showError, showSuccess } from '@/utils/toast';
 
 type ClassAttendance = {
   id: string;
@@ -59,12 +66,31 @@ const formatCurrency = (value: number) => {
 
 const StudentProfile = () => {
   const { studentId } = useParams<{ studentId: string }>();
+  const queryClient = useQueryClient();
   const [isProRataOpen, setProRataOpen] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['studentProfile', studentId],
     queryFn: () => fetchStudentProfile(studentId!),
     enabled: !!studentId,
+  });
+
+  const markAsPaidMutation = useMutation({
+    mutationFn: async (transactionId: string) => {
+      const { error } = await supabase
+        .from('financial_transactions')
+        .update({ status: 'Pago', paid_at: new Date().toISOString() })
+        .eq('id', transactionId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['studentProfile', studentId] }); // Refresh student profile transactions
+      queryClient.invalidateQueries({ queryKey: ['transactions'] }); // Refresh all financial transactions
+      queryClient.invalidateQueries({ queryKey: ['financialStats'] }); // Refresh financial overview stats
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] }); // Refresh dashboard stats
+      showSuccess('Transação marcada como paga com sucesso!');
+    },
+    onError: (error) => { showError(error.message); },
   });
 
   if (isLoading) {
@@ -143,6 +169,7 @@ const StudentProfile = () => {
                   <TableHead>Status</TableHead>
                   <TableHead>Vencimento</TableHead>
                   <TableHead className="text-right">Valor</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -152,9 +179,26 @@ const StudentProfile = () => {
                     <TableCell><Badge variant={t.status === 'Pago' ? 'default' : t.status === 'Atrasado' ? 'destructive' : 'secondary'}>{t.status}</Badge></TableCell>
                     <TableCell>{t.due_date ? format(parseISO(t.due_date), 'dd/MM/yyyy') : '-'}</TableCell>
                     <TableCell className="text-right font-semibold">{formatCurrency(t.amount)}</TableCell>
+                    <TableCell className="text-right">
+                      {t.status !== 'Pago' && t.type === 'revenue' && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Abrir menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => markAsPaidMutation.mutate(t.id)}>
+                              <CheckCircle className="w-4 h-4 mr-2" /> Marcar como Pago
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </TableCell>
                   </TableRow>
                 )) : (
-                  <TableRow><TableCell colSpan={4} className="text-center">Nenhum lançamento financeiro.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="text-center">Nenhum lançamento financeiro.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
