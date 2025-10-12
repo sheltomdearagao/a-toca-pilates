@@ -60,7 +60,7 @@ serve(async (req) => {
             amount: template.amount,
             type: 'expense',
             category: template.category,
-            is_recurring: false, // The generated transaction is not a template itself
+            is_recurring: true, // Corrected: Mark as true for transactions generated from templates
             created_at: now.toISOString(),
           });
         }
