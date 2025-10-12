@@ -69,7 +69,7 @@ const fetchClassDetails = async (classId: string): Promise<Partial<ClassEvent> |
 };
 
 const fetchAttendees = async (classId: string): Promise<ClassAttendee[]> => {
-  const { data, error } = await supabase.from('class_attendees').select('id, status, students(*)').eq('class_id', classId);
+  const { data, error } = await supabase.from('class_attendees').select('id, status, students(id, name, enrollment_type)').eq('class_id', classId);
   if (error) throw new Error(error.message);
   return data as unknown as ClassAttendee[] || [];
 };
@@ -83,10 +83,14 @@ const fetchAllStudents = async (): Promise<Student[]> => {
 const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDialogProps) => {
   const queryClient = useQueryClient();
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
-  const [isDeleteClassAlertOpen, setDeleteClassAlertOpen] = useState(false); // Renamed for clarity
+  const [isDeleteClassAlertOpen, setDeleteClassAlertOpen] = useState(false);
   const [isDeleteAttendeeAlertOpen, setDeleteAttendeeAlertOpen] = useState(false);
   const [attendeeToDelete, setAttendeeToDelete] = useState<ClassAttendee | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isDisplaceConfirmationOpen, setDisplaceConfirmationOpen] = useState(false);
+  const [studentToDisplace, setStudentToDisplace] = useState<ClassAttendee | null>(null);
+  const [newStudentForDisplacement, setNewStudentForDisplacement] = useState<Student | null>(null);
+
 
   const classId = classEvent?.id;
 
@@ -126,25 +130,32 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
   }, [details, isEditMode, reset]);
 
   const addAttendeeMutation = useMutation({
-    mutationFn: async (studentId: string) => {
-      if ((attendees?.length || 0) >= CLASS_CAPACITY) {
-        throw new Error("A turma já está cheia.");
-      }
+    mutationFn: async ({ studentId, displaceAttendeeId }: { studentId: string, displaceAttendeeId?: string }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || !classId) throw new Error('Dados inválidos.');
-      const { error } = await supabase.from('class_attendees').insert({
+
+      if (displaceAttendeeId) {
+        // Perform a batch update: delete old, insert new
+        const { error: deleteError } = await supabase.from('class_attendees').delete().eq('id', displaceAttendeeId);
+        if (deleteError) throw deleteError;
+      }
+
+      const { error: insertError } = await supabase.from('class_attendees').insert({
         user_id: user.id,
         class_id: classId,
         status: 'Agendado',
         student_id: studentId,
       });
-      if (error) throw error;
+      if (insertError) throw insertError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['classAttendees', classId] });
       queryClient.invalidateQueries({ queryKey: ['classes'] });
       showSuccess('Aluno adicionado à aula!');
       setSelectedStudentId(null);
+      setDisplaceConfirmationOpen(false);
+      setStudentToDisplace(null);
+      setNewStudentForDisplacement(null);
     },
     onError: (error) => { showError(error.message); },
   });
@@ -223,6 +234,50 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
     setDeleteAttendeeAlertOpen(true);
   };
 
+  const handleAddStudentClick = () => {
+    if (!selectedStudentId) {
+      showError("Selecione um aluno para adicionar.");
+      return;
+    }
+
+    const studentToAdd = allStudents?.find(s => s.id === selectedStudentId);
+    if (!studentToAdd) {
+      showError("Aluno não encontrado.");
+      return;
+    }
+
+    if (!isClassFull) {
+      addAttendeeMutation.mutate({ studentId: studentToAdd.id });
+    } else {
+      // Class is full, check for priority displacement
+      if (studentToAdd.enrollment_type === 'Particular') {
+        const displaceableStudents = attendees?.filter(
+          a => a.students.enrollment_type === 'Wellhub' || a.students.enrollment_type === 'TotalPass'
+        );
+
+        if (displaceableStudents && displaceableStudents.length > 0) {
+          // Found a student to displace
+          setStudentToDisplace(displaceableStudents[0]); // Displace the first found
+          setNewStudentForDisplacement(studentToAdd);
+          setDisplaceConfirmationOpen(true);
+        } else {
+          showError("Turma cheia e não há alunos de menor prioridade para deslocar.");
+        }
+      } else {
+        showError("Turma cheia. Apenas alunos 'Particulares' podem deslocar outros alunos.");
+      }
+    }
+  };
+
+  const handleConfirmDisplacement = () => {
+    if (newStudentForDisplacement && studentToDisplace) {
+      addAttendeeMutation.mutate({
+        studentId: newStudentForDisplacement.id,
+        displaceAttendeeId: studentToDisplace.id,
+      });
+    }
+  };
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => { onOpenChange(open); setIsEditMode(false); }}>
@@ -282,7 +337,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
                         {isLoadingAttendees ? <Loader2 className="w-5 h-5 animate-spin" /> :
                           attendees?.map(attendee => (
                             <div key={attendee.id} className="flex items-center justify-between p-2 rounded-md bg-secondary">
-                              <span>{attendee.students.name}</span>
+                              <span>{attendee.students.name} <Badge variant="outline" className="ml-2">{attendee.students.enrollment_type}</Badge></span>
                               <div className="flex items-center gap-2">
                                 <Badge variant={
                                   attendee.status === 'Presente' ? 'default' :
@@ -305,23 +360,17 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
                     </div>
                     <div>
                       <h4 className="font-semibold mb-2">Adicionar Aluno à Aula</h4>
-                      {isClassFull ? (
-                        <div className="text-center p-4 bg-red-100 text-red-700 rounded-md">
-                          <p className="font-bold">Turma cheia!</p>
-                        </div>
-                      ) : (
-                        <div className="flex gap-2">
-                          <Select onValueChange={setSelectedStudentId} value={selectedStudentId || ''} disabled={isClassFull}>
-                            <SelectTrigger><SelectValue placeholder="Selecione um aluno..." /></SelectTrigger>
-                            <SelectContent>
-                              {availableStudents?.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                          <Button onClick={() => selectedStudentId && addAttendeeMutation.mutate(selectedStudentId)} disabled={!selectedStudentId || addAttendeeMutation.isPending || isClassFull}>
-                            <UserPlus className="w-4 h-4 mr-2" /> Adicionar
-                          </Button>
-                        </div>
-                      )}
+                      <div className="flex gap-2">
+                        <Select onValueChange={setSelectedStudentId} value={selectedStudentId || ''}>
+                          <SelectTrigger><SelectValue placeholder="Selecione um aluno..." /></SelectTrigger>
+                          <SelectContent>
+                            {availableStudents?.map(s => <SelectItem key={s.id} value={s.id}>{s.name} ({s.enrollment_type})</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Button onClick={handleAddStudentClick} disabled={!selectedStudentId || addAttendeeMutation.isPending}>
+                          <UserPlus className="w-4 h-4 mr-2" /> Adicionar
+                        </Button>
+                      </div>
                     </div>
                   </div>
                   <DialogFooter className="sm:justify-between">
@@ -373,6 +422,23 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={() => attendeeToDelete && removeAttendeeMutation.mutate(attendeeToDelete.id)} disabled={removeAttendeeMutation.isPending} className="bg-destructive hover:bg-destructive/90">
               {removeAttendeeMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Sim, remover"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isDisplaceConfirmationOpen} onOpenChange={setDisplaceConfirmationOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Turma Cheia - Deslocar Aluno?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A turma está cheia. O aluno **{newStudentForDisplacement?.name}** (Particular) pode ocupar a vaga de **{studentToDisplace?.students.name}** ({studentToDisplace?.students.enrollment_type}). Deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setDisplaceConfirmationOpen(false); setSelectedStudentId(null); }}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDisplacement} disabled={addAttendeeMutation.isPending}>
+              {addAttendeeMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Sim, deslocar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
