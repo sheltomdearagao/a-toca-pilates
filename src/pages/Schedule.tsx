@@ -13,10 +13,11 @@ import ClassDetailsDialog from '@/components/schedule/ClassDetailsDialog';
 import RecurringClassTemplatesTab from '@/components/schedule/RecurringClassTemplatesTab';
 import { ClassEvent } from '@/types/schedule';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAppSettings } from '@/hooks/useAppSettings'; // Importar o hook
+import { useAppSettings } from '@/hooks/useAppSettings';
+import ColoredSeparator from "@/components/ColoredSeparator"; // Importar o novo componente
 
 const fetchClasses = async (): Promise<ClassEvent[]> => {
-  const { data, error } = await supabase.from('classes').select('*, class_attendees(count), students(name)'); // Fetch student name
+  const { data, error } = await supabase.from('classes').select('*, class_attendees(count), students(name)');
   if (error) throw new Error(error.message);
   return (data as any) || [];
 };
@@ -25,7 +26,7 @@ const Schedule = () => {
   const [isAddFormOpen, setAddFormOpen] = useState(false);
   const [isDetailsOpen, setDetailsOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Partial<ClassEvent> | null>(null);
-  const [calendarView, setCalendarView] = useState('timeGridDay'); // Estado para controlar a visualização
+  const [calendarView, setCalendarView] = useState('timeGridDay');
 
   const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
   const CLASS_CAPACITY = appSettings?.class_capacity ?? 10;
@@ -39,7 +40,7 @@ const Schedule = () => {
 
   const calendarEvents = classes?.map(c => {
     const attendeeCount = c.class_attendees[0]?.count ?? 0;
-    const eventTitle = c.student_id && c.students ? `Aula com ${c.students.name}` : c.title; // Use student name if available
+    const eventTitle = c.student_id && c.students ? `Aula com ${c.students.name}` : c.title;
     return {
       id: c.id,
       title: eventTitle,
@@ -97,6 +98,8 @@ const Schedule = () => {
         </Button>
       </div>
 
+      <ColoredSeparator color="primary" className="my-6" /> {/* Separador colorido */}
+
       <Tabs defaultValue="calendar">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="calendar">Calendário</TabsTrigger>
@@ -111,7 +114,7 @@ const Schedule = () => {
             <div className="bg-card p-4 rounded-lg border">
               <FullCalendar
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-                initialView={calendarView} // Usar o estado para a visualização inicial
+                initialView={calendarView}
                 views={{
                   timeGridTwoWeeks: {
                     type: 'timeGrid',
@@ -122,7 +125,7 @@ const Schedule = () => {
                 headerToolbar={{
                   left: 'prev,next today',
                   center: 'title',
-                  right: 'timeGridDay,timeGridWeek,timeGridTwoWeeks', // Adicionar botão de 15 dias
+                  right: 'timeGridDay,timeGridWeek,timeGridTwoWeeks',
                 }}
                 buttonText={{
                   today:    'Hoje',

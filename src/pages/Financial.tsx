@@ -14,8 +14,9 @@ import AllTransactionsTable from "@/components/financial/AllTransactionsTable";
 import OverdueTransactionsTable from "@/components/financial/OverdueTransactionsTable";
 import AddEditTransactionDialog, { TransactionFormData } from "@/components/financial/AddEditTransactionDialog";
 import DeleteTransactionAlertDialog from "@/components/financial/DeleteTransactionAlertDialog";
-import RecurringExpenseTemplatesTab from "@/components/financial/RecurringExpenseTemplatesTab"; // Importar o novo componente
+import RecurringExpenseTemplatesTab from "@/components/financial/RecurringExpenseTemplatesTab";
 import { showError, showSuccess } from "@/utils/toast";
+import ColoredSeparator from "@/components/ColoredSeparator"; // Importar o novo componente
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -218,14 +219,17 @@ const Financial = () => {
         <Button onClick={handleAddNew}><PlusCircle className="w-4 h-4 mr-2" />Adicionar Lançamento</Button>
       </div>
 
+      <ColoredSeparator color="primary" className="my-6" /> {/* Separador colorido */}
+
       <Tabs defaultValue="overview">
-        <TabsList className="grid w-full grid-cols-3"> {/* Adjusted grid-cols for 3 tabs */}
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="all">Todos os Lançamentos</TabsTrigger>
-          <TabsTrigger value="recurring-expenses">Modelos Recorrentes</TabsTrigger> {/* New Tab */}
+          <TabsTrigger value="recurring-expenses">Modelos Recorrentes</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="mt-4">
           <FinancialOverviewCards stats={stats} isLoading={isLoadingStats} formatCurrency={formatCurrency} />
+          <ColoredSeparator color="accent" className="my-6" /> {/* Separador colorido */}
           <MonthlyFinancialChart data={monthlyChartData || []} isLoading={isLoadingMonthlyChart} />
         </TabsContent>
         <TabsContent value="all" className="mt-4">
@@ -238,7 +242,7 @@ const Financial = () => {
              onMarkAsPaid={markAsPaidMutation.mutate}
            />
         </TabsContent>
-        <TabsContent value="recurring-expenses" className="mt-4"> {/* New Tab Content */}
+        <TabsContent value="recurring-expenses" className="mt-4">
           <RecurringExpenseTemplatesTab />
         </TabsContent>
       </Tabs>

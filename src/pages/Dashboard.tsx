@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Users, DollarSign, AlertCircle, Calendar } from "lucide-react";
 import { startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
-import BirthdayCard from "@/components/BirthdayCard"; // Importar o novo componente
+import BirthdayCard from "@/components/BirthdayCard";
+import ColoredSeparator from "@/components/ColoredSeparator"; // Importar o novo componente
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -93,8 +94,9 @@ const Dashboard = () => {
           icon={<Calendar className="h-4 w-4 text-muted-foreground" />}
           isLoading={isLoading}
         />
-        <BirthdayCard /> {/* Adicionando o card de aniversariantes */}
       </div>
+      <ColoredSeparator color="accent" className="my-6" /> {/* Separador colorido */}
+      <BirthdayCard />
     </div>
   );
 };

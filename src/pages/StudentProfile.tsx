@@ -18,8 +18,9 @@ import {
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ProRataCalculator from '../components/students/ProRataCalculator';
-import AddClassDialog from '@/components/schedule/AddClassDialog'; // Importar o AddClassDialog
+import AddClassDialog from '@/components/schedule/AddClassDialog';
 import { showError, showSuccess } from '@/utils/toast';
+import ColoredSeparator from "@/components/ColoredSeparator"; // Importar o novo componente
 
 type ClassAttendance = {
   id: string;
@@ -69,7 +70,7 @@ const StudentProfile = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const queryClient = useQueryClient();
   const [isProRataOpen, setProRataOpen] = useState(false);
-  const [isAddClassOpen, setAddClassOpen] = useState(false); // Novo estado para o diálogo de aula
+  const [isAddClassOpen, setAddClassOpen] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['studentProfile', studentId],
@@ -86,10 +87,10 @@ const StudentProfile = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['studentProfile', studentId] }); // Refresh student profile transactions
-      queryClient.invalidateQueries({ queryKey: ['transactions'] }); // Refresh all financial transactions
-      queryClient.invalidateQueries({ queryKey: ['financialStats'] }); // Refresh financial overview stats
-      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] }); // Refresh dashboard stats
+      queryClient.invalidateQueries({ queryKey: ['studentProfile', studentId] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['financialStats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
       showSuccess('Transação marcada como paga com sucesso!');
     },
     onError: (error) => { showError(error.message); },
@@ -138,13 +139,15 @@ const StudentProfile = () => {
                 Gerar 1ª Cobrança
               </Button>
             )}
-            <Button onClick={() => setAddClassOpen(true)}> {/* Botão para agendar aula */}
+            <Button onClick={() => setAddClassOpen(true)}>
               <PlusCircle className="w-4 h-4 mr-2" />
               Agendar Aula
             </Button>
           </div>
         </div>
       </div>
+
+      <ColoredSeparator color="primary" className="my-6" /> {/* Separador colorido */}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-1">
@@ -251,7 +254,7 @@ const StudentProfile = () => {
         </Card>
       </div>
       {student && <ProRataCalculator isOpen={isProRataOpen} onOpenChange={setProRataOpen} student={student} />}
-      {student && <AddClassDialog isOpen={isAddClassOpen} onOpenChange={setAddClassOpen} initialStudentId={student.id} />} {/* Passar initialStudentId */}
+      {student && <AddClassDialog isOpen={isAddClassOpen} onOpenChange={setAddClassOpen} initialStudentId={student.id} />}
     </div>
   );
 };

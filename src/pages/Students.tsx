@@ -52,7 +52,8 @@ import { z } from "zod";
 import { showError, showSuccess } from "@/utils/toast";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
-import { useAppSettings } from '@/hooks/useAppSettings'; // Importar o hook
+import { useAppSettings } from '@/hooks/useAppSettings';
+import ColoredSeparator from "@/components/ColoredSeparator"; // Importar o novo componente
 
 const studentSchema = z.object({
   name: z.string().min(3, "O nome deve ter pelo menos 3 caracteres."),
@@ -240,6 +241,8 @@ const Students = () => {
         <h1 className="text-3xl font-bold">Gestão de Alunos</h1>
         <Button onClick={handleAddNew}><PlusCircle className="w-4 h-4 mr-2" />Adicionar Aluno</Button>
       </div>
+
+      <ColoredSeparator color="primary" className="my-6" /> {/* Separador colorido */}
 
       {isLoading ? (
         <div className="flex justify-center items-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
