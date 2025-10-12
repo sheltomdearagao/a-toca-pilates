@@ -18,3 +18,15 @@ export type FinancialTransaction = {
   created_at: string;
   students?: Student; // For joining data
 };
+
+export type RecurringExpenseTemplate = {
+  id: string;
+  user_id: string;
+  description: string;
+  category: string;
+  amount: number;
+  recurrence_interval: 'monthly' | 'quarterly' | 'yearly';
+  start_date: string; // YYYY-MM-DD
+  end_date: string | null; // YYYY-MM-DD
+  created_at: string;
+};
