@@ -38,7 +38,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Loader2, PlusCircle, TrendingUp, TrendingDown, AlertCircle, Repeat } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Loader2, PlusCircle, TrendingUp, TrendingDown, AlertCircle, Repeat, MoreHorizontal, CheckCircle } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -176,6 +182,23 @@ const Financial = () => {
     onError: (error) => { showError(error.message); },
   });
 
+  const markAsPaidMutation = useMutation({
+    mutationFn: async (transactionId: string) => {
+      const { error } = await supabase
+        .from('financial_transactions')
+        .update({ status: 'Pago', paid_at: new Date().toISOString() })
+        .eq('id', transactionId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["financialStats"] });
+      queryClient.invalidateQueries({ queryKey: ["overdueTransactions"] });
+      showSuccess('Transação marcada como paga com sucesso!');
+    },
+    onError: (error) => { showError(error.message); },
+  });
+
   const handleAddNew = () => {
     setSelectedTransaction(null);
     reset({ description: "", amount: 0, type: "revenue", category: "", student_id: null, status: "Pendente", due_date: new Date(), is_recurring: false });
@@ -234,7 +257,7 @@ const Financial = () => {
            ) : (
             <div className="bg-card rounded-lg border">
               <Table>
-                <TableHeader><TableRow><TableHead>Descrição</TableHead><TableHead>Tipo</TableHead><TableHead>Categoria</TableHead><TableHead>Aluno</TableHead><TableHead>Vencimento</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Valor</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>Descrição</TableHead><TableHead>Tipo</TableHead><TableHead>Categoria</TableHead><TableHead>Aluno</TableHead><TableHead>Vencimento</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Valor</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
                 <TableBody>
                   {transactions?.map((t) => (
                     <TableRow key={t.id}>
@@ -257,6 +280,23 @@ const Financial = () => {
                       <TableCell>{t.due_date ? format(parseISO(t.due_date), 'dd/MM/yyyy') : '-'}</TableCell>
                       <TableCell>{t.status || '-'}</TableCell>
                       <TableCell className={`text-right font-bold ${t.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(t.amount)}</TableCell>
+                      <TableCell className="text-right">
+                        {t.status !== 'Pago' && t.type === 'revenue' && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0">
+                                <span className="sr-only">Abrir menu</span>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => markAsPaidMutation.mutate(t.id)}>
+                                <CheckCircle className="w-4 h-4 mr-2" /> Marcar como Pago
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -270,7 +310,7 @@ const Financial = () => {
           ) : (
             <div className="bg-card rounded-lg border">
               <Table>
-                <TableHeader><TableRow><TableHead>Aluno</TableHead><TableHead>Descrição</TableHead><TableHead>Vencimento</TableHead><TableHead>Dias Atrasado</TableHead><TableHead className="text-right">Valor</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>Aluno</TableHead><TableHead>Descrição</TableHead><TableHead>Vencimento</TableHead><TableHead>Dias Atrasado</TableHead><TableHead className="text-right">Valor</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
                 <TableBody>
                   {overdueTransactions?.map((t) => (
                     <TableRow key={t.id} className="text-destructive">
@@ -279,6 +319,21 @@ const Financial = () => {
                       <TableCell>{t.due_date ? format(parseISO(t.due_date), 'dd/MM/yyyy') : '-'}</TableCell>
                       <TableCell>{t.due_date ? differenceInDays(new Date(), parseISO(t.due_date)) : '-'}</TableCell>
                       <TableCell className="text-right font-bold">{formatCurrency(t.amount)}</TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Abrir menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => markAsPaidMutation.mutate(t.id)}>
+                              <CheckCircle className="w-4 h-4 mr-2" /> Marcar como Pago
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
