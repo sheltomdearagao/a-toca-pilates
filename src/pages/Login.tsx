@@ -13,15 +13,15 @@ const Login = () => {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background to-secondary"> {/* Fundo com gradiente suave */}
       <div className="w-full max-w-md p-8 space-y-8">
         <div className="flex flex-col items-center">
-          <Dumbbell className="w-12 h-12 text-primary" />
-          <h1 className="mt-4 text-3xl font-bold text-center text-gray-900">
+          <Dumbbell className="w-12 h-12 text-primary" /> {/* Usando a nova cor primary */}
+          <h1 className="mt-4 text-3xl font-bold text-center text-foreground">
             A Toca Experience Platform
           </h1>
         </div>
-        <div className="p-8 bg-white rounded-lg shadow-lg">
+        <div className="p-8 bg-card rounded-lg shadow-xl border border-border"> {/* Sombra mais suave e borda sutil */}
           <Auth
             supabaseClient={supabase}
             appearance={{ theme: ThemeSupa }}

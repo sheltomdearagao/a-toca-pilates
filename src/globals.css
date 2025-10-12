@@ -4,87 +4,87 @@
 
 @layer base {
   :root {
-    /* Tema Padrão (Recepção - Claro) */
-    --background: 210 20% 98%; /* Um branco levemente azulado para um fundo mais suave */
-    --foreground: 222.2 84% 4.9%; /* Texto escuro */
+    /* Tema Padrão (Recepção - Claro) - Inspirado em tons de céu e água, com toques de verde e lavanda */
+    --background: 210 30% 98%; /* Um branco muito suave, quase um azul-claro pálido */
+    --foreground: 220 15% 20%; /* Um cinza-azulado profundo para o texto, menos harsh que preto */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%; /* Cartões brancos para contraste e leveza */
+    --card-foreground: 220 15% 20%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 220 15% 20%;
 
-    --primary: 210 90% 50%; /* Azul vibrante e energético para ações principais */
+    --primary: 175 60% 40%; /* Um verde-água vibrante, como a vegetação em Monet */
     --primary-foreground: 0 0% 100%; /* Texto branco para contraste */
 
-    --secondary: 210 40% 96.1%; /* Cinza/azul claro */
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 210 40% 94%; /* Um cinza-azul claro e arejado */
+    --secondary-foreground: 220 15% 25%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 210 40% 96%; /* Um tom ainda mais suave para elementos secundários */
+    --muted-foreground: 215 15% 55%; /* Cinza médio para texto muted */
 
-    --accent: 210 40% 92%; /* Um acento um pouco mais escuro para estados de hover/ativo */
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 210 40% 90%; /* Um acento um pouco mais escuro para hover/ativo, mas ainda suave */
+    --accent-foreground: 220 15% 20%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 80% 55%; /* Vermelho para ações destrutivas, mantendo clareza */
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 210 90% 50%; /* Anel de foco com a cor primária */
+    --border: 210 20% 90%; /* Borda muito sutil, quase imperceptível */
+    --input: 210 20% 90%;
+    --ring: 175 60% 40%; /* Anel de foco com a cor primária */
 
     --radius: 0.5rem;
 
-    /* Cores específicas do Sidebar (Recepção) */
-    --sidebar-background: 210 30% 94%; /* Levemente mais escuro e azulado que o fundo principal */
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 210 90% 50%; /* Cor primária do sidebar (igual ao primary) */
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 210 40% 92%;
-    --sidebar-accent-foreground: 222.2 47.4% 11.2%;
-    --sidebar-border: 214.3 31.8% 91.4%;
-    --sidebar-ring: 210 90% 50%;
+    /* Cores específicas do Sidebar (Recepção) - Integrado à paleta principal */
+    --sidebar-background: 210 30% 96%; /* Um fundo levemente mais escuro que o principal */
+    --sidebar-foreground: 220 15% 20%;
+    --sidebar-primary: 175 60% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 40% 90%;
+    --sidebar-accent-foreground: 220 15% 20%;
+    --sidebar-border: 210 20% 90%;
+    --sidebar-ring: 175 60% 40%;
   }
 
-  /* Tema Admin (Claro) */
+  /* Tema Admin (Claro) - Tons mais sóbrios e profissionais, mas ainda com a leveza impressionista */
   .theme-admin {
-    --background: 210 15% 96%; /* Cinza-azul claro e profissional para o admin */
-    --foreground: 222.2 84% 4.9%;
+    --background: 210 20% 95%; /* Um cinza-azul claro e profissional */
+    --foreground: 220 15% 15%;
 
-    --card: 0 0% 100%; /* Cartões brancos para contraste */
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 15% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 220 15% 15%;
 
-    --primary: 220 30% 20%; /* Azul mais formal e profundo para ações do admin */
-    --primary-foreground: 210 40% 98%;
+    --primary: 220 25% 30%; /* Um azul marinho profundo, elegante */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 210 30% 92%;
+    --secondary-foreground: 220 15% 20%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 210 30% 94%;
+    --muted-foreground: 215 15% 50%;
 
-    --accent: 210 40% 92%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 210 30% 88%;
+    --accent-foreground: 220 15% 15%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 80% 55%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 220 30% 20%;
+    --border: 210 15% 85%;
+    --input: 210 15% 85%;
+    --ring: 220 25% 30%;
 
     /* Cores específicas do Sidebar (Admin) */
-    --sidebar-background: 210 15% 92%; /* Cinza-azul um pouco mais escuro para o sidebar admin */
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 220 30% 20%; /* Cor primária do sidebar (igual ao primary) */
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 210 40% 92%;
-    --sidebar-accent-foreground: 222.2 47.4% 11.2%;
-    --sidebar-border: 214.3 31.8% 91.4%;
-    --sidebar-ring: 220 30% 20%;
+    --sidebar-background: 210 20% 93%;
+    --sidebar-foreground: 220 15% 15%;
+    --sidebar-primary: 220 25% 30%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 30% 88%;
+    --sidebar-accent-foreground: 220 15% 15%;
+    --sidebar-border: 210 15% 85%;
+    --sidebar-ring: 220 25% 30%;
   }
 
   .dark {
@@ -169,14 +169,14 @@
 
 /* Custom Event Colors */
 .fc-event.event-available {
-  background-color: #22c55e; /* green-500 */
-  border-color: #16a34a; /* green-600 */
+  background-color: #60a5fa; /* blue-400, um azul mais suave */
+  border-color: #3b82f6; /* blue-500 */
 }
 .fc-event.event-few-spots {
-  background-color: #f59e0b; /* amber-500 */
-  border-color: #d97706; /* amber-600 */
+  background-color: #fcd34d; /* amber-300, um amarelo mais ensolarado */
+  border-color: #fbbf24; /* amber-400 */
 }
 .fc-event.event-full {
-  background-color: #ef4444; /* red-500 */
-  border-color: #dc2626; /* red-600 */
+  background-color: #f87171; /* red-400, um vermelho mais suave */
+  border-color: #ef4444; /* red-500 */
 }
