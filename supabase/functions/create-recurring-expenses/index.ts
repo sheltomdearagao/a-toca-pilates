@@ -1,6 +1,6 @@
 // @ts-nocheck
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts"; // Updated Deno std version
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0'; // Updated Supabase client version
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { startOfMonth, endOfMonth } from "https://esm.sh/date-fns@2.30.0";
 
 const corsHeaders = {
@@ -15,19 +15,15 @@ serve(async (req) => {
   }
 
   try {
+    // Use SUPABASE_SERVICE_ROLE_KEY for elevated permissions
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
-      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, // Corrected to use SERVICE_ROLE_KEY
+      { auth: { persistSession: false } } // No user session needed for service role
     );
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    // No need to call supabase.auth.getUser() as we are using the service role key
+    // and this function is meant to run as a background job.
 
     const now = new Date();
     const monthStart = startOfMonth(now);
@@ -61,7 +57,7 @@ serve(async (req) => {
       // 3. If it doesn't exist, create it
       if (existing === null || existing.length === 0) {
         newTransactions.push({
-          user_id: expense.user_id,
+          user_id: expense.user_id, // Keep user_id from the template
           description: expense.description,
           amount: expense.amount,
           type: 'expense',
