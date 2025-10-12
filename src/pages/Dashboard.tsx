@@ -74,25 +74,25 @@ const Dashboard = () => {
         <StatCard
           title="Alunos Ativos"
           value={stats?.activeStudents ?? 0}
-          icon={<Users className="h-4 w-4 text-muted-foreground" />}
+          icon={<Users className="h-4 w-4" />}
           isLoading={isLoading}
         />
         <StatCard
           title="Receita do Mês"
           value={stats?.monthlyRevenue ?? formatCurrency(0)}
-          icon={<DollarSign className="h-4 w-4 text-muted-foreground" />}
+          icon={<DollarSign className="h-4 w-4" />}
           isLoading={isLoading}
         />
         <StatCard
           title="Inadimplência"
           value={stats?.totalOverdue ?? formatCurrency(0)}
-          icon={<AlertCircle className="h-4 w-4 text-muted-foreground" />}
+          icon={<AlertCircle className="h-4 w-4" />}
           isLoading={isLoading}
         />
         <StatCard
           title="Aulas Hoje"
           value={stats?.todayClasses ?? 0}
-          icon={<Calendar className="h-4 w-4 text-muted-foreground" />}
+          icon={<Calendar className="h-4 w-4" />}
           isLoading={isLoading}
         />
       </div>
@@ -100,6 +100,7 @@ const Dashboard = () => {
       <Card className="shadow-impressionist"> {/* Aplicando a nova sombra ao BirthdayCard */}
         <BirthdayCard />
       </Card>
+      <ColoredSeparator color="secondary" className="my-6" /> {/* Novo separador colorido */}
     </div>
   );
 };

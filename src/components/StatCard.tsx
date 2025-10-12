@@ -15,7 +15,7 @@ const StatCard = ({ title, value, description, icon, isLoading }: StatCardProps)
     <Card className="shadow-impressionist"> {/* Aplicando a nova sombra */}
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        {icon}
+        {React.cloneElement(icon as React.ReactElement, { className: "h-4 w-4 text-primary" })} {/* Ícone agora usa a cor primária */}
       </CardHeader>
       <CardContent>
         {isLoading ? (
