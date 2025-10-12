@@ -1,4 +1,5 @@
 export type StudentStatus = 'Ativo' | 'Inativo' | 'Experimental' | 'Bloqueado';
+export type PlanType = 'Mensal' | 'Avulso';
 
 export type Student = {
   id: string;
@@ -9,4 +10,6 @@ export type Student = {
   notes: string | null;
   created_at: string;
   user_id: string;
+  plan_type?: PlanType;
+  monthly_fee?: number;
 };
