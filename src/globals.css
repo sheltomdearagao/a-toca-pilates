@@ -5,7 +5,7 @@
 @layer base {
   :root {
     /* Tema Padrão (Recepção - Claro) */
-    --background: 0 0% 100%; /* Branco */
+    --background: 210 20% 98%; /* Um branco levemente azulado para um fundo mais suave */
     --foreground: 222.2 84% 4.9%; /* Texto escuro */
 
     --card: 0 0% 100%;
@@ -14,8 +14,8 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 217.2 91.2% 59.8%; /* Azul vibrante para ações da recepção */
-    --primary-foreground: 210 40% 98%; /* Texto claro */
+    --primary: 210 90% 50%; /* Azul vibrante e energético para ações principais */
+    --primary-foreground: 0 0% 100%; /* Texto branco para contraste */
 
     --secondary: 210 40% 96.1%; /* Cinza/azul claro */
     --secondary-foreground: 222.2 47.4% 11.2%;
@@ -23,7 +23,7 @@
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 210 40% 96.1%;
+    --accent: 210 40% 92%; /* Um acento um pouco mais escuro para estados de hover/ativo */
     --accent-foreground: 222.2 47.4% 11.2%;
 
     --destructive: 0 84.2% 60.2%;
@@ -31,24 +31,24 @@
 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --ring: 210 90% 50%; /* Anel de foco com a cor primária */
 
     --radius: 0.5rem;
 
     /* Cores específicas do Sidebar (Recepção) */
-    --sidebar-background: 210 36% 95%; /* Levemente mais escuro que o fundo principal */
+    --sidebar-background: 210 30% 94%; /* Levemente mais escuro e azulado que o fundo principal */
     --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 217.2 91.2% 59.8%; /* Cor primária do sidebar (igual ao primary) */
+    --sidebar-primary: 210 90% 50%; /* Cor primária do sidebar (igual ao primary) */
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 210 40% 96.1%;
+    --sidebar-accent: 210 40% 92%;
     --sidebar-accent-foreground: 222.2 47.4% 11.2%;
     --sidebar-border: 214.3 31.8% 91.4%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-ring: 210 90% 50%;
   }
 
   /* Tema Admin (Claro) */
   .theme-admin {
-    --background: 220 13% 95%; /* Cinza-azul claro para o admin */
+    --background: 210 15% 96%; /* Cinza-azul claro e profissional para o admin */
     --foreground: 222.2 84% 4.9%;
 
     --card: 0 0% 100%; /* Cartões brancos para contraste */
@@ -57,7 +57,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 222.2 47.4% 11.2%; /* Azul mais formal para ações do admin */
+    --primary: 220 30% 20%; /* Azul mais formal e profundo para ações do admin */
     --primary-foreground: 210 40% 98%;
 
     --secondary: 210 40% 96.1%;
@@ -66,7 +66,7 @@
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 210 40% 96.1%;
+    --accent: 210 40% 92%;
     --accent-foreground: 222.2 47.4% 11.2%;
 
     --destructive: 0 84.2% 60.2%;
@@ -74,17 +74,17 @@
 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --ring: 220 30% 20%;
 
     /* Cores específicas do Sidebar (Admin) */
-    --sidebar-background: 220 13% 90%; /* Cinza-azul um pouco mais escuro para o sidebar admin */
+    --sidebar-background: 210 15% 92%; /* Cinza-azul um pouco mais escuro para o sidebar admin */
     --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 222.2 47.4% 11.2%; /* Cor primária do sidebar (igual ao primary) */
+    --sidebar-primary: 220 30% 20%; /* Cor primária do sidebar (igual ao primary) */
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 210 40% 96.1%;
+    --sidebar-accent: 210 40% 92%;
     --sidebar-accent-foreground: 222.2 47.4% 11.2%;
     --sidebar-border: 214.3 31.8% 91.4%;
-    --sidebar-ring: 222.2 84% 4.9%;
+    --sidebar-ring: 220 30% 20%;
   }
 
   .dark {
