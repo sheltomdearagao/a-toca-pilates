@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { startOfMonth, endOfMonth, format } from "https://deno.land/x/date_fns@v2.29.3/index.js";
+import { startOfMonth, endOfMonth } from "https://esm.sh/date-fns@2.30.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
