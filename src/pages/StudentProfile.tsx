@@ -134,7 +134,12 @@ const StudentProfile = () => {
             <div>
               <h1 className="text-3xl font-bold">{student.name}</h1>
               <div className="flex items-center gap-2">
-                <Badge>{student.status}</Badge>
+                <Badge variant={
+                  student.status === 'Ativo' ? 'status-active' :
+                  student.status === 'Inativo' ? 'status-inactive' :
+                  student.status === 'Experimental' ? 'status-experimental' :
+                  'status-blocked'
+                }>{student.status}</Badge>
                 <Badge variant="secondary">{student.enrollment_type}</Badge>
               </div>
             </div>
@@ -203,7 +208,13 @@ const StudentProfile = () => {
                 {transactions.length > 0 ? transactions.map(t => (
                   <TableRow key={t.id} className="hover:bg-muted/50 transition-colors"> {/* Efeito de hover sutil */}
                     <TableCell>{t.description}</TableCell>
-                    <TableCell><Badge variant={t.status === 'Pago' ? 'default' : t.status === 'Atrasado' ? 'destructive' : 'secondary'}>{t.status}</Badge></TableCell>
+                    <TableCell>
+                      <Badge variant={
+                        t.status === 'Pago' ? 'payment-paid' :
+                        t.status === 'Atrasado' ? 'payment-overdue' :
+                        'payment-pending'
+                      }>{t.status}</Badge>
+                    </TableCell>
                     <TableCell>{t.due_date ? format(parseISO(t.due_date), 'dd/MM/yyyy') : '-'}</TableCell>
                     <TableCell className="text-right font-semibold">{formatCurrency(t.amount)}</TableCell>
                     <TableCell className="text-right">
@@ -250,7 +261,13 @@ const StudentProfile = () => {
                   <TableRow key={a.id} className="hover:bg-muted/50 transition-colors"> {/* Efeito de hover sutil */}
                     <TableCell>{a.classes.title}</TableCell>
                     <TableCell>{format(parseISO(a.classes.start_time), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</TableCell>
-                    <TableCell><Badge variant={a.status === 'Presente' ? 'default' : a.status === 'Faltou' ? 'destructive' : 'secondary'}>{a.status}</Badge></TableCell>
+                    <TableCell>
+                      <Badge variant={
+                        a.status === 'Presente' ? 'attendance-present' :
+                        a.status === 'Faltou' ? 'attendance-absent' :
+                        'attendance-scheduled'
+                      }>{a.status}</Badge>
+                    </TableCell>
                   </TableRow>
                 )) : (
                   <TableRow><TableCell colSpan={3} className="text-center">Nenhum registro de presença.</TableCell></TableRow>

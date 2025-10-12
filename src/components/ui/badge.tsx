@@ -15,12 +15,25 @@ const badgeVariants = cva(
         destructive:
           "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
         outline: "text-foreground",
+        // New variants for student status
+        "status-active": "border-transparent bg-status-active text-white",
+        "status-inactive": "border-transparent bg-status-inactive text-white",
+        "status-experimental": "border-transparent bg-status-experimental text-white",
+        "status-blocked": "border-transparent bg-status-blocked text-white",
+        // New variants for attendance status
+        "attendance-scheduled": "border-transparent bg-attendance-scheduled text-white",
+        "attendance-present": "border-transparent bg-attendance-present text-white",
+        "attendance-absent": "border-transparent bg-attendance-absent text-white",
+        // New variants for payment status
+        "payment-pending": "border-transparent bg-payment-pending text-white",
+        "payment-paid": "border-transparent bg-payment-paid text-white",
+        "payment-overdue": "border-transparent bg-payment-overdue text-white",
       },
     },
     defaultVariants: {
       variant: "default",
     },
-  },
+  }
 );
 
 export interface BadgeProps
@@ -28,9 +41,7 @@ export interface BadgeProps
     VariantProps<typeof badgeVariants> {}
 
 function Badge({ className, variant, ...props }: BadgeProps) {
-  return (
-    <div className={cn(badgeVariants({ variant }), className)} {...props} />
-  );
+  return <div className={cn(badgeVariants({ variant }), className)} {...props} />;
 }
 
 export { Badge, badgeVariants };

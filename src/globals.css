@@ -44,6 +44,22 @@
     --sidebar-accent-foreground: 220 15% 20%;
     --sidebar-border: 210 20% 90%;
     --sidebar-ring: 175 60% 40%;
+
+    /* Novas Cores de Status (Recepção - Claro) */
+    --status-active: 142 70% 45%; /* Verde Vibrante */
+    --status-inactive: 210 10% 60%; /* Cinza-Azul Suave */
+    --status-experimental: 40 90% 60%; /* Amarelo-Laranja Quente */
+    --status-blocked: 0 80% 55%; /* Vermelho Destrutivo */
+
+    /* Novas Cores de Presença (Recepção - Claro) */
+    --attendance-scheduled: 210 60% 70%; /* Azul Suave */
+    --attendance-present: 142 70% 45%; /* Verde Vibrante */
+    --attendance-absent: 0 80% 55%; /* Vermelho Destrutivo */
+
+    /* Novas Cores de Pagamento (Recepção - Claro) */
+    --payment-pending: 40 90% 60%; /* Amarelo-Laranja Quente */
+    --payment-paid: 142 70% 45%; /* Verde Vibrante */
+    --payment-overdue: 0 80% 55%; /* Vermelho Destrutivo */
   }
 
   /* Tema Admin (Claro) - Tons mais sóbrios e profissionais, mas ainda com a leveza impressionista */
@@ -85,6 +101,22 @@
     --sidebar-accent-foreground: 220 15% 15%;
     --sidebar-border: 210 15% 85%;
     --sidebar-ring: 220 25% 30%;
+
+    /* Novas Cores de Status (Admin - Claro) */
+    --status-active: 142 60% 35%; /* Verde Mais Profundo */
+    --status-inactive: 210 10% 50%; /* Cinza-Azul Ligeiramente Mais Escuro */
+    --status-experimental: 40 80% 50%; /* Amarelo-Laranja Mais Profundo */
+    --status-blocked: 0 70% 45%; /* Vermelho Mais Profundo */
+
+    /* Novas Cores de Presença (Admin - Claro) */
+    --attendance-scheduled: 210 50% 60%; /* Azul Mais Profundo */
+    --attendance-present: 142 60% 35%; /* Verde Mais Profundo */
+    --attendance-absent: 0 70% 45%; /* Vermelho Mais Profundo */
+
+    /* Novas Cores de Pagamento (Admin - Claro) */
+    --payment-pending: 40 80% 50%; /* Amarelo-Laranja Mais Profundo */
+    --payment-paid: 142 60% 35%; /* Verde Mais Profundo */
+    --payment-overdue: 0 70% 45%; /* Vermelho Mais Profundo */
   }
 
   .dark {
@@ -124,6 +156,22 @@
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Novas Cores de Status (Dark Theme) */
+    --status-active: 142 70% 60%;
+    --status-inactive: 210 10% 70%;
+    --status-experimental: 40 90% 70%;
+    --status-blocked: 0 80% 65%;
+
+    /* Novas Cores de Presença (Dark Theme) */
+    --attendance-scheduled: 210 60% 80%;
+    --attendance-present: 142 70% 60%;
+    --attendance-absent: 0 80% 65%;
+
+    /* Novas Cores de Pagamento (Dark Theme) */
+    --payment-pending: 40 90% 70%;
+    --payment-paid: 142 70% 60%;
+    --payment-overdue: 0 80% 65%;
   }
 }
 

@@ -62,6 +62,22 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        status: {
+          active: "hsl(var(--status-active))",
+          inactive: "hsl(var(--status-inactive))",
+          experimental: "hsl(var(--status-experimental))",
+          blocked: "hsl(var(--status-blocked))",
+        },
+        attendance: {
+          scheduled: "hsl(var(--attendance-scheduled))",
+          present: "hsl(var(--attendance-present))",
+          absent: "hsl(var(--attendance-absent))",
+        },
+        payment: {
+          pending: "hsl(var(--payment-pending))",
+          paid: "hsl(var(--payment-paid))",
+          overdue: "hsl(var(--payment-overdue))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

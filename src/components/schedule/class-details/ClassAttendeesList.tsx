@@ -29,8 +29,9 @@ const ClassAttendeesList = ({
               <span>{attendee.students.name} <Badge variant="outline" className="ml-2">{attendee.students.enrollment_type}</Badge></span>
               <div className="flex items-center gap-2">
                 <Badge variant={
-                  attendee.status === 'Presente' ? 'default' :
-                  attendee.status === 'Faltou' ? 'destructive' : 'secondary'
+                  attendee.status === 'Presente' ? 'attendance-present' :
+                  attendee.status === 'Faltou' ? 'attendance-absent' :
+                  'attendance-scheduled'
                 }>{attendee.status}</Badge>
                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onUpdateStatus(attendee.id, 'Presente')}>
                   <Check className="h-4 w-4 text-green-600" />

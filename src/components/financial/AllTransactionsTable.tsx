@@ -23,6 +23,7 @@ import { Loader2, MoreHorizontal, Repeat, CheckCircle, Edit, Trash2 } from "luci
 import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import React from "react";
+import { Badge } from "@/components/ui/badge"; // Importar Badge
 
 interface AllTransactionsTableProps {
   transactions: FinancialTransaction[] | undefined;
@@ -84,7 +85,13 @@ const AllTransactionsTable = ({
               <TableCell>{t.category}</TableCell>
               <TableCell>{t.students?.name || '-'}</TableCell>
               <TableCell>{t.due_date ? format(parseISO(t.due_date), 'dd/MM/yyyy') : '-'}</TableCell>
-              <TableCell>{t.status || '-'}</TableCell>
+              <TableCell>
+                <Badge variant={
+                  t.status === 'Pago' ? 'payment-paid' :
+                  t.status === 'Atrasado' ? 'payment-overdue' :
+                  'payment-pending'
+                }>{t.status || '-'}</Badge>
+              </TableCell>
               <TableCell className={cn(
                 "text-right font-bold",
                 t.type === 'revenue' ? 'text-green-600' : 'text-red-600'
