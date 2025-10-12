@@ -39,7 +39,7 @@ const transactionSchema = z.object({
   student_id: z.string().optional().nullable(),
   status: z.enum(["Pendente", "Pago", "Atrasado"]).optional().nullable(),
   due_date: z.date().optional().nullable(),
-  is_recurring: z.boolean().optional(),
+  // is_recurring field removed as it's now managed by templates
 });
 
 export type TransactionFormData = z.infer<typeof transactionSchema>;
@@ -68,7 +68,7 @@ const AddEditTransactionDialog = ({
 }: AddEditTransactionDialogProps) => {
   const { control, handleSubmit, reset, watch, setValue } = useForm<TransactionFormData>({
     resolver: zodResolver(transactionSchema),
-    defaultValues: { description: "", amount: 0, type: "revenue", category: "", student_id: null, status: "Pendente", due_date: new Date(), is_recurring: false },
+    defaultValues: { description: "", amount: 0, type: "revenue", category: "", student_id: null, status: "Pendente", due_date: new Date() },
   });
 
   const transactionType = watch("type");
@@ -84,10 +84,10 @@ const AddEditTransactionDialog = ({
           student_id: selectedTransaction.student_id,
           status: selectedTransaction.status,
           due_date: selectedTransaction.due_date ? parseISO(selectedTransaction.due_date) : null,
-          is_recurring: selectedTransaction.is_recurring,
+          // is_recurring is not part of the form anymore
         });
       } else {
-        reset({ description: "", amount: 0, type: "revenue", category: "", student_id: null, status: "Pendente", due_date: new Date(), is_recurring: false });
+        reset({ description: "", amount: 0, type: "revenue", category: "", student_id: null, status: "Pendente", due_date: new Date() });
       }
     }
   }, [isOpen, selectedTransaction, reset]);
@@ -161,22 +161,7 @@ const AddEditTransactionDialog = ({
                 </div>
               </>
             )}
-            {transactionType === 'expense' && (
-              <div className="flex items-center space-x-2 pt-2">
-                <Controller
-                  name="is_recurring"
-                  control={control}
-                  render={({ field }) => (
-                    <Checkbox
-                      id="is_recurring"
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  )}
-                />
-                <Label htmlFor="is_recurring">Despesa Recorrente (mensal)</Label>
-              </div>
-            )}
+            {/* is_recurring checkbox removed for expenses */}
           </div>
           <DialogFooter>
             <DialogClose asChild>

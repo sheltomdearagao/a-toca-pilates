@@ -14,6 +14,7 @@ import AllTransactionsTable from "@/components/financial/AllTransactionsTable";
 import OverdueTransactionsTable from "@/components/financial/OverdueTransactionsTable";
 import AddEditTransactionDialog, { TransactionFormData } from "@/components/financial/AddEditTransactionDialog";
 import DeleteTransactionAlertDialog from "@/components/financial/DeleteTransactionAlertDialog";
+import RecurringExpenseTemplatesTab from "@/components/financial/RecurringExpenseTemplatesTab"; // Importar o novo componente
 import { showError, showSuccess } from "@/utils/toast";
 
 const formatCurrency = (value: number) => {
@@ -130,7 +131,7 @@ const Financial = () => {
         due_date: formData.due_date ? format(formData.due_date, "yyyy-MM-dd") : null,
         status: formData.type === 'revenue' ? formData.status : null,
         student_id: formData.type === 'revenue' ? formData.student_id : null,
-        is_recurring: formData.type === 'expense' ? formData.is_recurring : false,
+        is_recurring: false, // is_recurring is now managed by templates
       };
       if (formData.status === 'Pago') {
         dataToSubmit.paid_at = new Date().toISOString();
@@ -218,10 +219,10 @@ const Financial = () => {
       </div>
 
       <Tabs defaultValue="overview">
-        <TabsList>
+        <TabsList className="grid w-full grid-cols-3"> {/* Adjusted grid-cols for 3 tabs */}
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="all">Todos os Lançamentos</TabsTrigger>
-          <TabsTrigger value="overdue">Inadimplência</TabsTrigger>
+          <TabsTrigger value="recurring-expenses">Modelos Recorrentes</TabsTrigger> {/* New Tab */}
         </TabsList>
         <TabsContent value="overview" className="mt-4">
           <FinancialOverviewCards stats={stats} isLoading={isLoadingStats} formatCurrency={formatCurrency} />
@@ -237,13 +238,8 @@ const Financial = () => {
              onMarkAsPaid={markAsPaidMutation.mutate}
            />
         </TabsContent>
-        <TabsContent value="overdue" className="mt-4">
-          <OverdueTransactionsTable
-            overdueTransactions={overdueTransactions}
-            isLoading={isLoadingOverdue}
-            formatCurrency={formatCurrency}
-            onMarkAsPaid={markAsPaidMutation.mutate}
-          />
+        <TabsContent value="recurring-expenses" className="mt-4"> {/* New Tab Content */}
+          <RecurringExpenseTemplatesTab />
         </TabsContent>
       </Tabs>
 
