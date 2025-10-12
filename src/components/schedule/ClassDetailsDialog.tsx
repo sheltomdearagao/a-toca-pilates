@@ -235,7 +235,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                       attendees={attendees}
                       isLoadingAttendees={isLoadingAttendees}
                       classCapacity={classCapacity}
-                      onUpdateStatus={updateStatusMutation.mutate}
+                      onUpdateStatus={(attendeeId, status) => updateStatusMutation.mutate({ attendeeId, status })}
                       onRemoveAttendee={confirmRemoveAttendee}
                     />
                     <AddAttendeeSection
