@@ -21,7 +21,7 @@ const formatCurrency = (value: number) => {
 
 const MonthlyFinancialChart = ({ data, isLoading }: MonthlyFinancialChartProps) => {
   return (
-    <Card className="col-span-full">
+    <Card className="col-span-full shadow-impressionist"> {/* Aplicando a nova sombra */}
       <CardHeader>
         <CardTitle>Receitas e Despesas Mensais (Últimos 6 meses)</CardTitle>
       </CardHeader>

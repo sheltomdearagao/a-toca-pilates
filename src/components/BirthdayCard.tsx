@@ -63,7 +63,7 @@ const BirthdayCard = () => {
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-muted-foreground p-2">Nenhum aniversariante este mês.</p> {/* Adicionado padding */}
+          <p className="text-sm text-muted-foreground p-2">Nenhum aniversariante este mês.</p>
         )}
       </CardContent>
     </div>
