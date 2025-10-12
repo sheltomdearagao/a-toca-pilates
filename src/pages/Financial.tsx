@@ -44,7 +44,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Loader2, PlusCircle, TrendingUp, TrendingDown, AlertCircle, Repeat, MoreHorizontal, CheckCircle } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Loader2, PlusCircle, TrendingUp, TrendingDown, AlertCircle, Repeat, MoreHorizontal, CheckCircle, Edit, Trash2 } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -131,6 +141,7 @@ const expenseCategories = ["Aluguel", "Salários", "Marketing", "Material", "Con
 const Financial = () => {
   const queryClient = useQueryClient();
   const [isFormOpen, setFormOpen] = useState(false);
+  const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<FinancialTransaction | null>(null);
 
   const { data: transactions, isLoading: isLoadingTransactions } = useQuery({ queryKey: ["transactions"], queryFn: fetchTransactions });
@@ -138,7 +149,7 @@ const Financial = () => {
   const { data: stats, isLoading: isLoadingStats } = useQuery({ queryKey: ["financialStats"], queryFn: fetchFinancialStats });
   const { data: overdueTransactions, isLoading: isLoadingOverdue } = useQuery({ queryKey: ["overdueTransactions"], queryFn: fetchOverdueTransactions });
 
-  const { control, handleSubmit, reset, watch } = useForm<TransactionFormData>({
+  const { control, handleSubmit, reset, watch, setValue } = useForm<TransactionFormData>({
     resolver: zodResolver(transactionSchema),
     defaultValues: { description: "", amount: 0, type: "revenue", category: "", student_id: null, status: "Pendente", due_date: new Date(), is_recurring: false },
   });
@@ -160,6 +171,8 @@ const Financial = () => {
       };
       if (formData.status === 'Pago') {
         dataToSubmit.paid_at = new Date().toISOString();
+      } else {
+        dataToSubmit.paid_at = null; // Clear paid_at if status is not 'Pago'
       }
 
       if (selectedTransaction) {
@@ -178,6 +191,22 @@ const Financial = () => {
       setFormOpen(false);
       setSelectedTransaction(null);
       reset();
+    },
+    onError: (error) => { showError(error.message); },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (transactionId: string) => {
+      const { error } = await supabase.from("financial_transactions").delete().eq("id", transactionId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["financialStats"] });
+      queryClient.invalidateQueries({ queryKey: ["overdueTransactions"] });
+      showSuccess("Lançamento removido com sucesso!");
+      setDeleteAlertOpen(false);
+      setSelectedTransaction(null);
     },
     onError: (error) => { showError(error.message); },
   });
@@ -203,6 +232,26 @@ const Financial = () => {
     setSelectedTransaction(null);
     reset({ description: "", amount: 0, type: "revenue", category: "", student_id: null, status: "Pendente", due_date: new Date(), is_recurring: false });
     setFormOpen(true);
+  };
+
+  const handleEdit = (transaction: FinancialTransaction) => {
+    setSelectedTransaction(transaction);
+    reset({
+      description: transaction.description,
+      amount: transaction.amount,
+      type: transaction.type,
+      category: transaction.category,
+      student_id: transaction.student_id,
+      status: transaction.status,
+      due_date: transaction.due_date ? parseISO(transaction.due_date) : null,
+      is_recurring: transaction.is_recurring,
+    });
+    setFormOpen(true);
+  };
+
+  const handleDelete = (transaction: FinancialTransaction) => {
+    setSelectedTransaction(transaction);
+    setDeleteAlertOpen(true);
   };
   
   const onSubmit = (data: TransactionFormData) => { mutation.mutate(data); };
@@ -281,21 +330,27 @@ const Financial = () => {
                       <TableCell>{t.status || '-'}</TableCell>
                       <TableCell className={`text-right font-bold ${t.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(t.amount)}</TableCell>
                       <TableCell className="text-right">
-                        {t.status !== 'Pago' && t.type === 'revenue' && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Abrir menu</span>
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Abrir menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEdit(t)}>
+                              <Edit className="w-4 h-4 mr-2" /> Editar
+                            </DropdownMenuItem>
+                            {t.status !== 'Pago' && t.type === 'revenue' && (
                               <DropdownMenuItem onClick={() => markAsPaidMutation.mutate(t.id)}>
                                 <CheckCircle className="w-4 h-4 mr-2" /> Marcar como Pago
                               </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
+                            )}
+                            <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(t)}>
+                              <Trash2 className="w-4 h-4 mr-2" /> Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -421,6 +476,13 @@ const Financial = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={isDeleteAlertOpen} onOpenChange={setDeleteAlertOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Você tem certeza?</AlertDialogTitle><AlertDialogDescription>Essa ação não pode ser desfeita. Isso irá remover permanentemente o lançamento "{selectedTransaction?.description}" do banco de dados.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => selectedTransaction && deleteMutation.mutate(selectedTransaction.id)} disabled={deleteMutation.isPending} className="bg-destructive hover:bg-destructive/90">{deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Sim, excluir</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
