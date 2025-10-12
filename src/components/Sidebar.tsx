@@ -26,10 +26,10 @@ const Sidebar = () => {
   };
 
   return (
-    <aside className="w-64 h-screen p-4 border-r bg-background flex flex-col">
+    <aside className="w-64 h-screen p-4 border-r bg-sidebar flex flex-col">
       <div className="flex items-center mb-8">
         <Dumbbell className="w-8 h-8 mr-2 text-primary" />
-        <h1 className="text-xl font-bold">A Toca</h1>
+        <h1 className="text-xl font-bold text-foreground">A Toca</h1>
       </div>
       <nav className="flex flex-col space-y-2 flex-grow">
         <NavLink to="/" className={navLinkClasses} end>
@@ -52,9 +52,9 @@ const Sidebar = () => {
         </NavLink>
       </nav>
       <div className="mt-4">
-        <Button 
-          variant="ghost" 
-          className="w-full justify-start text-muted-foreground hover:bg-accent hover:text-accent-foreground" 
+        <Button
+          variant="ghost"
+          className="w-full justify-start text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           onClick={handleLogout}
         >
           <LogOut className="w-5 h-5 mr-3" />

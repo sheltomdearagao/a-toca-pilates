@@ -4,8 +4,9 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Tema Padrão (Recepção - Claro) */
+    --background: 0 0% 100%; /* Branco */
+    --foreground: 222.2 84% 4.9%; /* Texto escuro */
 
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
@@ -13,7 +14,50 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 222.2 47.4% 11.2%;
+    --primary: 217.2 91.2% 59.8%; /* Azul vibrante para ações da recepção */
+    --primary-foreground: 210 40% 98%; /* Texto claro */
+
+    --secondary: 210 40% 96.1%; /* Cinza/azul claro */
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.5rem;
+
+    /* Cores específicas do Sidebar (Recepção) */
+    --sidebar-background: 210 36% 95%; /* Levemente mais escuro que o fundo principal */
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 217.2 91.2% 59.8%; /* Cor primária do sidebar (igual ao primary) */
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 210 40% 96.1%;
+    --sidebar-accent-foreground: 222.2 47.4% 11.2%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  /* Tema Admin (Claro) */
+  .theme-admin {
+    --background: 220 13% 95%; /* Cinza-azul claro para o admin */
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%; /* Cartões brancos para contraste */
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%; /* Azul mais formal para ações do admin */
     --primary-foreground: 210 40% 98%;
 
     --secondary: 210 40% 96.1%;
@@ -32,26 +76,19 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
 
-    --radius: 0.5rem;
-
-    --sidebar-background: 0 0% 98%;
-
+    /* Cores específicas do Sidebar (Admin) */
+    --sidebar-background: 220 13% 90%; /* Cinza-azul um pouco mais escuro para o sidebar admin */
     --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
+    --sidebar-primary: 222.2 47.4% 11.2%; /* Cor primária do sidebar (igual ao primary) */
     --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 210 40% 96.1%;
+    --sidebar-accent-foreground: 222.2 47.4% 11.2%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-ring: 222.2 84% 4.9%;
   }
 
   .dark {
+    /* Tema Escuro (Global) - Mantido como está para sobrepor se ativado */
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
 
