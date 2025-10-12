@@ -22,6 +22,7 @@ import AddClassDialog from '@/components/schedule/AddClassDialog';
 import { showError, showSuccess } from '@/utils/toast';
 import ColoredSeparator from "@/components/ColoredSeparator";
 import { useSession } from '@/contexts/SessionProvider'; // Importar useSession
+import { cn } from '@/lib/utils'; // Importar cn
 
 type ClassAttendance = {
   id: string;
@@ -162,7 +163,7 @@ const StudentProfile = () => {
       <ColoredSeparator color="primary" className="my-6" />
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1 shadow-impressionist"> {/* Aplicando a nova sombra */}
+        <Card className="lg:col-span-1 shadow-impressionist border-l-4 border-primary/50"> {/* Aplicando a nova sombra e borda colorida */}
           <CardHeader>
             <CardTitle className="flex items-center"><StickyNote className="w-5 h-5 mr-2" /> Detalhes</CardTitle>
           </CardHeader>
@@ -206,7 +207,15 @@ const StudentProfile = () => {
               </TableHeader>
               <TableBody>
                 {transactions.length > 0 ? transactions.map(t => (
-                  <TableRow key={t.id} className="hover:bg-muted/50 transition-colors"> {/* Efeito de hover sutil */}
+                  <TableRow 
+                    key={t.id} 
+                    className={cn(
+                      "hover:bg-muted/50 transition-colors",
+                      t.status === 'Pago' && "bg-green-50/10",
+                      t.status === 'Atrasado' && "bg-red-50/10",
+                      t.status === 'Pendente' && "bg-yellow-50/10"
+                    )}
+                  > {/* Efeito de hover sutil e cores de fundo */}
                     <TableCell>{t.description}</TableCell>
                     <TableCell>
                       <Badge variant={
@@ -258,7 +267,15 @@ const StudentProfile = () => {
               </TableHeader>
               <TableBody>
                 {attendance.length > 0 ? attendance.map(a => (
-                  <TableRow key={a.id} className="hover:bg-muted/50 transition-colors"> {/* Efeito de hover sutil */}
+                  <TableRow 
+                    key={a.id} 
+                    className={cn(
+                      "hover:bg-muted/50 transition-colors",
+                      a.status === 'Presente' && "bg-green-50/10",
+                      a.status === 'Faltou' && "bg-red-50/10",
+                      a.status === 'Agendado' && "bg-blue-50/10"
+                    )}
+                  > {/* Efeito de hover sutil e cores de fundo */}
                     <TableCell>{a.classes.title}</TableCell>
                     <TableCell>{format(parseISO(a.classes.start_time), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</TableCell>
                     <TableCell>

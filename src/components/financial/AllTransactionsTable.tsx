@@ -67,7 +67,14 @@ const AllTransactionsTable = ({
         </TableHeader>
         <TableBody>
           {transactions?.map((t) => (
-            <TableRow key={t.id} className="hover:bg-muted/50 transition-colors"> {/* Efeito de hover sutil */}
+            <TableRow 
+              key={t.id} 
+              className={cn(
+                "hover:bg-muted/50 transition-colors",
+                t.type === 'revenue' && "bg-green-50/10", // Fundo sutil para receita
+                t.type === 'expense' && "bg-red-50/10"    // Fundo sutil para despesa
+              )}
+            > {/* Efeito de hover sutil */}
               <TableCell className="font-medium flex items-center">
                 {t.description}
                 {t.is_recurring && (

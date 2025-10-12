@@ -280,7 +280,7 @@ const Students = () => {
           </Table>
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-lg shadow-impressionist"> {/* Aplicando a nova sombra */}
+        <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-lg shadow-impressionist border-primary/50"> {/* Aplicando a nova sombra e borda colorida */}
           <UserX className="w-12 h-12 text-muted-foreground" /><h3 className="mt-4 text-lg font-semibold">Nenhum aluno encontrado</h3><p className="mt-1 text-sm text-muted-foreground">Comece adicionando o primeiro aluno.</p>
         </div>
       )}
