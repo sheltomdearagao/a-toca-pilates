@@ -4,7 +4,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { EventClickArg } from '@fullcalendar/core';
+import { EventClickArg, EventContentArg } from '@fullcalendar/core';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Loader2 } from 'lucide-react';
@@ -12,10 +12,12 @@ import AddClassDialog from '@/components/schedule/AddClassDialog';
 import ClassDetailsDialog from '@/components/schedule/ClassDetailsDialog';
 import { ClassEvent } from '@/types/schedule';
 
+const CLASS_CAPACITY = 10;
+
 const fetchClasses = async (): Promise<ClassEvent[]> => {
-  const { data, error } = await supabase.from('classes').select('*');
+  const { data, error } = await supabase.from('classes').select('*, class_attendees(count)');
   if (error) throw new Error(error.message);
-  return data || [];
+  return (data as any) || [];
 };
 
 const Schedule = () => {
@@ -28,13 +30,19 @@ const Schedule = () => {
     queryFn: fetchClasses,
   });
 
-  const calendarEvents = classes?.map(c => ({
-    id: c.id,
-    title: c.title,
-    start: c.start_time,
-    end: c.end_time,
-    notes: c.notes,
-  })) || [];
+  const calendarEvents = classes?.map(c => {
+    const attendeeCount = c.class_attendees[0]?.count ?? 0;
+    return {
+      id: c.id,
+      title: c.title,
+      start: c.start_time,
+      end: c.end_time,
+      notes: c.notes,
+      extendedProps: {
+        attendeeCount,
+      },
+    };
+  }) || [];
 
   const handleEventClick = (clickInfo: EventClickArg) => {
     setSelectedEvent({
@@ -45,6 +53,28 @@ const Schedule = () => {
       notes: clickInfo.event.extendedProps.notes,
     });
     setDetailsOpen(true);
+  };
+
+  const renderEventContent = (eventInfo: EventContentArg) => {
+    const { attendeeCount } = eventInfo.event.extendedProps;
+    return (
+      <div className="p-1 overflow-hidden">
+        <b>{eventInfo.timeText}</b>
+        <p className="truncate">{eventInfo.event.title}</p>
+        <p className="text-sm font-semibold">({attendeeCount}/{CLASS_CAPACITY})</p>
+      </div>
+    );
+  };
+
+  const getEventClassNames = (eventInfo: EventContentArg) => {
+    const { attendeeCount } = eventInfo.event.extendedProps;
+    if (attendeeCount >= CLASS_CAPACITY) {
+      return 'event-full';
+    }
+    if (attendeeCount >= CLASS_CAPACITY - 3) {
+      return 'event-few-spots';
+    }
+    return 'event-available';
   };
 
   return (
@@ -84,6 +114,8 @@ const Schedule = () => {
             slotMaxTime="22:00:00"
             height="auto"
             eventClick={handleEventClick}
+            eventContent={renderEventContent}
+            eventClassNames={getEventClassNames}
           />
         </div>
       )}

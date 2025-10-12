@@ -8,6 +8,7 @@ export type ClassEvent = {
   end_time: string; // ISO string
   notes: string | null;
   created_at: string;
+  class_attendees: { count: number }[];
 };
 
 export type AttendanceStatus = 'Agendado' | 'Presente' | 'Faltou';

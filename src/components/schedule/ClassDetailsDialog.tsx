@@ -36,13 +36,15 @@ import { showError, showSuccess } from '@/utils/toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+const CLASS_CAPACITY = 10;
+
 interface ClassDetailsDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   classEvent: Partial<ClassEvent> | null;
 }
 
-const fetchClassDetails = async (classId: string): Promise<ClassEvent | null> => {
+const fetchClassDetails = async (classId: string): Promise<Partial<ClassEvent> | null> => {
   const { data, error } = await supabase.from('classes').select('*').eq('id', classId).single();
   if (error) throw new Error(error.message);
   return data;
@@ -83,6 +85,9 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
 
   const addAttendeeMutation = useMutation({
     mutationFn: async (studentId: string) => {
+      if ((attendees?.length || 0) >= CLASS_CAPACITY) {
+        throw new Error("A turma já está cheia.");
+      }
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || !classId) throw new Error('Dados inválidos.');
       const { error } = await supabase.from('class_attendees').insert({
@@ -95,6 +100,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['classAttendees', classId] });
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
       showSuccess('Aluno adicionado à aula!');
       setSelectedStudentId(null);
     },
@@ -128,6 +134,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
   });
 
   const availableStudents = allStudents?.filter(s => !attendees?.some(a => a.students.id === s.id));
+  const isClassFull = (attendees?.length || 0) >= CLASS_CAPACITY;
 
   return (
     <>
@@ -138,13 +145,13 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
               <DialogHeader>
                 <DialogTitle className="text-2xl">{details?.title}</DialogTitle>
                 <DialogDescription>
-                  {details && `${format(new Date(details.start_time), "eeee, dd 'de' MMMM", { locale: ptBR })} das ${format(new Date(details.start_time), 'HH:mm')} às ${format(new Date(details.end_time), 'HH:mm')}`}
+                  {details && details.start_time && details.end_time && `${format(new Date(details.start_time), "eeee, dd 'de' MMMM", { locale: ptBR })} das ${format(new Date(details.start_time), 'HH:mm')} às ${format(new Date(details.end_time), 'HH:mm')}`}
                 </DialogDescription>
               </DialogHeader>
               <div className="py-4 space-y-6">
                 <div>
-                  <h4 className="font-semibold mb-2">Controle de Presença</h4>
-                  <div className="space-y-2">
+                  <h4 className="font-semibold mb-2">Controle de Presença ({attendees?.length || 0}/{CLASS_CAPACITY})</h4>
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
                     {isLoadingAttendees ? <Loader2 className="w-5 h-5 animate-spin" /> :
                       attendees?.map(attendee => (
                         <div key={attendee.id} className="flex items-center justify-between p-2 rounded-md bg-secondary">
@@ -168,17 +175,23 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
                 </div>
                 <div>
                   <h4 className="font-semibold mb-2">Adicionar Aluno à Aula</h4>
-                  <div className="flex gap-2">
-                    <Select onValueChange={setSelectedStudentId} value={selectedStudentId || ''}>
-                      <SelectTrigger><SelectValue placeholder="Selecione um aluno..." /></SelectTrigger>
-                      <SelectContent>
-                        {availableStudents?.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Button onClick={() => selectedStudentId && addAttendeeMutation.mutate(selectedStudentId)} disabled={!selectedStudentId || addAttendeeMutation.isPending}>
-                      <UserPlus className="w-4 h-4 mr-2" /> Adicionar
-                    </Button>
-                  </div>
+                  {isClassFull ? (
+                    <div className="text-center p-4 bg-red-100 text-red-700 rounded-md">
+                      <p className="font-bold">Turma cheia!</p>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Select onValueChange={setSelectedStudentId} value={selectedStudentId || ''} disabled={isClassFull}>
+                        <SelectTrigger><SelectValue placeholder="Selecione um aluno..." /></SelectTrigger>
+                        <SelectContent>
+                          {availableStudents?.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <Button onClick={() => selectedStudentId && addAttendeeMutation.mutate(selectedStudentId)} disabled={!selectedStudentId || addAttendeeMutation.isPending || isClassFull}>
+                        <UserPlus className="w-4 h-4 mr-2" /> Adicionar
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
               <DialogFooter className="sm:justify-between">

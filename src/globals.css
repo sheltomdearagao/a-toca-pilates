@@ -129,3 +129,17 @@
 .fc .fc-col-header-cell-cushion {
   @apply text-foreground;
 }
+
+/* Custom Event Colors */
+.fc-event.event-available {
+  background-color: #22c55e; /* green-500 */
+  border-color: #16a34a; /* green-600 */
+}
+.fc-event.event-few-spots {
+  background-color: #f59e0b; /* amber-500 */
+  border-color: #d97706; /* amber-600 */
+}
+.fc-event.event-full {
+  background-color: #ef4444; /* red-500 */
+  border-color: #dc2626; /* red-600 */
+}
