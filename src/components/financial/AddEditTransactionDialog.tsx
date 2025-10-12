@@ -27,6 +27,7 @@ import { z } from "zod";
 import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import React, { useEffect } from "react";
+import { useAppSettings } from '@/hooks/useAppSettings'; // Importar o hook
 
 const transactionSchema = z.object({
   description: z.string().min(3, "A descrição é obrigatória."),
@@ -54,9 +55,6 @@ interface AddEditTransactionDialogProps {
   isSubmitting: boolean;
 }
 
-const revenueCategories = ["Mensalidade", "Aula Avulsa", "Venda de Produto", "Outras Receitas"];
-const expenseCategories = ["Aluguel", "Salários", "Marketing", "Material", "Contas", "Outras Despesas"];
-
 const AddEditTransactionDialog = ({
   isOpen,
   onOpenChange,
@@ -72,6 +70,10 @@ const AddEditTransactionDialog = ({
   });
 
   const transactionType = watch("type");
+  const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
+
+  const revenueCategories = appSettings?.revenue_categories || ["Mensalidade", "Aula Avulsa", "Venda de Produto", "Outras Receitas"];
+  const expenseCategories = appSettings?.expense_categories || ["Aluguel", "Salários", "Marketing", "Material", "Contas", "Outras Despesas"];
 
   useEffect(() => {
     if (isOpen) {
@@ -128,7 +130,11 @@ const AddEditTransactionDialog = ({
                 <Controller name="category" control={control} render={({ field }) => (
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                      <SelectContent>{(transactionType === 'revenue' ? revenueCategories : expenseCategories).map(cat => (<SelectItem key={cat} value={cat}>{cat}</SelectItem>))}</SelectContent>
+                      <SelectContent>
+                        {isLoadingSettings ? (
+                          <SelectItem value="loading" disabled>Carregando...</SelectItem>
+                        ) : (transactionType === 'revenue' ? revenueCategories : expenseCategories).map(cat => (<SelectItem key={cat} value={cat}>{cat}</SelectItem>))}
+                      </SelectContent>
                     </Select>
                 )} />
               </div>

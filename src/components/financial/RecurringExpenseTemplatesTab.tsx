@@ -51,8 +51,8 @@ import { Loader2, MoreHorizontal, Edit, Trash2, Repeat, PlusCircle } from 'lucid
 import { showError, showSuccess } from '@/utils/toast';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useAppSettings } from '@/hooks/useAppSettings'; // Importar o hook
 
-const expenseCategories = ["Aluguel", "Salários", "Marketing", "Material", "Contas", "Outras Despesas"];
 const recurrenceIntervals = [
   { label: 'Mensal', value: 'monthly' },
   { label: 'Trimestral', value: 'quarterly' },
@@ -104,6 +104,9 @@ const RecurringExpenseTemplatesTab = () => {
       end_date: '',
     },
   });
+
+  const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
+  const expenseCategories = appSettings?.expense_categories || ["Aluguel", "Salários", "Marketing", "Material", "Contas", "Outras Despesas"];
 
   const { data: templates, isLoading } = useQuery({
     queryKey: ['recurringExpenseTemplates'],
@@ -292,7 +295,11 @@ const RecurringExpenseTemplatesTab = () => {
                   <Controller name="category" control={control} render={({ field }) => (
                       <Select onValueChange={field.onChange} value={field.value}>
                         <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                        <SelectContent>{expenseCategories.map(cat => (<SelectItem key={cat} value={cat}>{cat}</SelectItem>))}</SelectContent>
+                        <SelectContent>
+                          {isLoadingSettings ? (
+                            <SelectItem value="loading" disabled>Carregando...</SelectItem>
+                          ) : (expenseCategories.map(cat => (<SelectItem key={cat} value={cat}>{cat}</SelectItem>)))}
+                        </SelectContent>
                       </Select>
                   )} />
                   {errors.category && <p className="text-sm text-destructive mt-1">{errors.category.message}</p>}
