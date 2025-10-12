@@ -15,19 +15,17 @@ import { ClassEvent } from '@/types/schedule';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import ColoredSeparator from "@/components/ColoredSeparator";
-import { parseISO, format } from 'date-fns'; // Importar format
-import { toZonedTime } from 'date-fns-tz'; // Importar toZonedTime
+import { parseISO, format } from 'date-fns'; // Importar format e parseISO
 
 const fetchClasses = async (): Promise<ClassEvent[]> => {
   const { data, error } = await supabase.from('classes').select('*, class_attendees(count), students(name)');
   if (error) throw new Error(error.message);
   
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  // Retorna os dados diretamente como strings ISO. Supabase já os fornece neste formato.
   return (data as any[] || []).map(c => ({
     ...c,
-    // Converter de ISO string UTC para Date object no fuso horário local
-    start_time: toZonedTime(parseISO(c.start_time), timeZone),
-    end_time: toZonedTime(parseISO(c.end_time), timeZone),
+    start_time: c.start_time, // Já é string ISO
+    end_time: c.end_time,     // Já é string ISO
   }));
 };
 
@@ -53,8 +51,8 @@ const Schedule = () => {
     return {
       id: c.id,
       title: eventTitle,
-      start: c.start_time.toISOString(), // FullCalendar espera ISO string
-      end: c.end_time.toISOString(), // FullCalendar espera ISO string
+      start: c.start_time, // Usar diretamente a string ISO do DB
+      end: c.end_time,     // Usar diretamente a string ISO do DB
       notes: c.notes,
       extendedProps: {
         attendeeCount,
@@ -64,13 +62,12 @@ const Schedule = () => {
   }) || [];
 
   const handleEventClick = (clickInfo: EventClickArg) => {
-    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    // Ao definir selectedEvent, usar as strings ISO do FullCalendar diretamente
     setSelectedEvent({
       id: clickInfo.event.id,
       title: clickInfo.event.title,
-      // Converter de ISO string (do FullCalendar) para Date object no fuso horário local
-      start_time: toZonedTime(parseISO(clickInfo.event.startStr), timeZone),
-      end_time: toZonedTime(parseISO(clickInfo.event.endStr), timeZone),
+      start_time: clickInfo.event.startStr, // String ISO
+      end_time: clickInfo.event.endStr,     // String ISO
       notes: clickInfo.event.extendedProps.notes,
       student_id: clickInfo.event.extendedProps.student_id,
     });

@@ -14,8 +14,8 @@ import {
 } from '@/components/ui/dialog';
 import { Loader2, Edit, Trash2 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { parseISO, format } from 'date-fns'; // Importar format
-import { toZonedTime, fromZonedTime } from 'date-fns-tz'; // Importar toZonedTime e fromZonedTime
+import { parseISO, format } from 'date-fns'; // Importar format e parseISO
+import { fromZonedTime } from 'date-fns-tz'; // Importar fromZonedTime
 
 // Importar os novos componentes modulares
 import ClassInfoDisplay from './class-details/ClassInfoDisplay';
@@ -37,13 +37,10 @@ const fetchClassDetails = async (classId: string): Promise<Partial<ClassEvent> |
   const { data, error } = await supabase.from('classes').select('*, students(name)').eq('id', classId).single();
   if (error) throw new Error(error.message);
   if (data) {
-    // Converter start_time e end_time de ISO string para Date objects no fuso horário local
-    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    return {
-      ...data,
-      start_time: toZonedTime(parseISO(data.start_time), timeZone),
-      end_time: toZonedTime(parseISO(data.end_time), timeZone),
-    };
+    // start_time e end_time já são strings ISO do Supabase.
+    // Não é necessário toZonedTime aqui, pois o componente ClassInfoDisplay e ClassEditForm
+    // farão o parse e formatação conforme necessário.
+    return data;
   }
   return data;
 };

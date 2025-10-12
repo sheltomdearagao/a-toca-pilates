@@ -75,9 +75,9 @@ const ClassEditForm = ({
     if (classEvent) {
       reset({
         title: classEvent.title || '',
-        // Formatar Date objects para o formato datetime-local esperado pelo input
-        start_time: classEvent.start_time ? format(classEvent.start_time, "yyyy-MM-dd'T'HH:mm") : '',
-        end_time: classEvent.end_time ? format(classEvent.end_time, "yyyy-MM-dd'T'HH:mm") : '',
+        // Formatar string ISO para o formato datetime-local esperado pelo input
+        start_time: classEvent.start_time ? format(parseISO(classEvent.start_time), "yyyy-MM-dd'T'HH:mm") : '',
+        end_time: classEvent.end_time ? format(parseISO(classEvent.end_time), "yyyy-MM-dd'T'HH:mm") : '',
         notes: classEvent.notes || '',
         student_id: classEvent.student_id || null,
       });

@@ -198,6 +198,7 @@
   --fc-event-bg-color: hsl(var(--primary));
   --fc-event-border-color: hsl(var(--primary));
   --fc-event-text-color: hsl(var(--primary-foreground));
+  background-color: hsl(var(--card)); /* Fundo branco para o calendário */
 }
 .fc .fc-toolbar-title {
   @apply text-lg font-bold text-foreground;
@@ -223,14 +224,14 @@
 
 /* Custom Event Colors */
 .fc-event.event-available {
-  background-color: #60a5fa; /* blue-400, um azul mais suave */
-  border-color: #3b82f6; /* blue-500 */
+  background-color: hsl(var(--primary));
+  border-color: hsl(var(--primary));
 }
 .fc-event.event-few-spots {
-  background-color: #fcd34d; /* amber-300, um amarelo mais ensolarado */
-  border-color: #fbbf24; /* amber-400 */
+  background-color: hsl(var(--payment-pending)); /* Usando a cor de pagamento pendente para 'poucas vagas' */
+  border-color: hsl(var(--payment-pending));
 }
 .fc-event.event-full {
-  background-color: #f87171; /* red-400, um vermelho mais suave */
-  border-color: #ef4444; /* red-500 */
+  background-color: hsl(var(--destructive)); /* Usando a cor destrutiva para 'turma cheia' */
+  border-color: hsl(var(--destructive));
 }
