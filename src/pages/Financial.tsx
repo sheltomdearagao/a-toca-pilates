@@ -4,82 +4,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { FinancialTransaction } from "@/types/financial";
 import { Student } from "@/types/student";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Loader2, PlusCircle, TrendingUp, TrendingDown, AlertCircle, Repeat, MoreHorizontal, CheckCircle, Edit, Trash2 } from "lucide-react";
-import { useForm, Controller } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { showError, showSuccess } from "@/utils/toast";
-import { format, startOfMonth, endOfMonth, differenceInDays, parseISO, subMonths } from "date-fns";
+import { PlusCircle } from "lucide-react";
+import { format, startOfMonth, endOfMonth, parseISO, subMonths } from "date-fns";
 import { ptBR } from 'date-fns/locale';
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
-import MonthlyFinancialChart from "@/components/financial/MonthlyFinancialChart"; // Importar o novo componente
-
-const transactionSchema = z.object({
-  description: z.string().min(3, "A descrição é obrigatória."),
-  amount: z.preprocess(
-    (a) => parseFloat(z.string().parse(a)),
-    z.number().positive("O valor deve ser positivo.")
-  ),
-  type: z.enum(["revenue", "expense"]),
-  category: z.string().min(1, "A categoria é obrigatória."),
-  student_id: z.string().optional().nullable(),
-  status: z.enum(["Pendente", "Pago", "Atrasado"]).optional().nullable(),
-  due_date: z.date().optional().nullable(),
-  is_recurring: z.boolean().optional(),
-});
-
-type TransactionFormData = z.infer<typeof transactionSchema>;
+import FinancialOverviewCards from "@/components/financial/FinancialOverviewCards";
+import MonthlyFinancialChart from "@/components/financial/MonthlyFinancialChart";
+import AllTransactionsTable from "@/components/financial/AllTransactionsTable";
+import OverdueTransactionsTable from "@/components/financial/OverdueTransactionsTable";
+import AddEditTransactionDialog, { TransactionFormData } from "@/components/financial/AddEditTransactionDialog";
+import DeleteTransactionAlertDialog from "@/components/financial/DeleteTransactionAlertDialog";
+import { showError, showSuccess } from "@/utils/toast";
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -172,10 +107,6 @@ const fetchMonthlyChartData = async () => {
   return chartData;
 };
 
-
-const revenueCategories = ["Mensalidade", "Aula Avulsa", "Venda de Produto", "Outras Receitas"];
-const expenseCategories = ["Aluguel", "Salários", "Marketing", "Material", "Contas", "Outras Despesas"];
-
 const Financial = () => {
   const queryClient = useQueryClient();
   const [isFormOpen, setFormOpen] = useState(false);
@@ -187,14 +118,6 @@ const Financial = () => {
   const { data: stats, isLoading: isLoadingStats } = useQuery({ queryKey: ["financialStats"], queryFn: fetchFinancialStats });
   const { data: overdueTransactions, isLoading: isLoadingOverdue } = useQuery({ queryKey: ["overdueTransactions"], queryFn: fetchOverdueTransactions });
   const { data: monthlyChartData, isLoading: isLoadingMonthlyChart } = useQuery({ queryKey: ["monthlyChartData"], queryFn: fetchMonthlyChartData });
-
-
-  const { control, handleSubmit, reset, watch, setValue } = useForm<TransactionFormData>({
-    resolver: zodResolver(transactionSchema),
-    defaultValues: { description: "", amount: 0, type: "revenue", category: "", student_id: null, status: "Pendente", due_date: new Date(), is_recurring: false },
-  });
-
-  const transactionType = watch("type");
 
   const mutation = useMutation({
     mutationFn: async (formData: TransactionFormData) => {
@@ -227,11 +150,10 @@ const Financial = () => {
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["financialStats"] });
       queryClient.invalidateQueries({ queryKey: ["overdueTransactions"] });
-      queryClient.invalidateQueries({ queryKey: ["monthlyChartData"] }); // Invalidate chart data
+      queryClient.invalidateQueries({ queryKey: ["monthlyChartData"] });
       showSuccess(`Lançamento ${selectedTransaction ? "atualizado" : "adicionado"} com sucesso!`);
       setFormOpen(false);
       setSelectedTransaction(null);
-      reset();
     },
     onError: (error) => { showError(error.message); },
   });
@@ -245,7 +167,7 @@ const Financial = () => {
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["financialStats"] });
       queryClient.invalidateQueries({ queryKey: ["overdueTransactions"] });
-      queryClient.invalidateQueries({ queryKey: ["monthlyChartData"] }); // Invalidate chart data
+      queryClient.invalidateQueries({ queryKey: ["monthlyChartData"] });
       showSuccess("Lançamento removido com sucesso!");
       setDeleteAlertOpen(false);
       setSelectedTransaction(null);
@@ -265,7 +187,7 @@ const Financial = () => {
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["financialStats"] });
       queryClient.invalidateQueries({ queryKey: ["overdueTransactions"] });
-      queryClient.invalidateQueries({ queryKey: ["monthlyChartData"] }); // Invalidate chart data
+      queryClient.invalidateQueries({ queryKey: ["monthlyChartData"] });
       showSuccess('Transação marcada como paga com sucesso!');
     },
     onError: (error) => { showError(error.message); },
@@ -273,22 +195,11 @@ const Financial = () => {
 
   const handleAddNew = () => {
     setSelectedTransaction(null);
-    reset({ description: "", amount: 0, type: "revenue", category: "", student_id: null, status: "Pendente", due_date: new Date(), is_recurring: false });
     setFormOpen(true);
   };
 
   const handleEdit = (transaction: FinancialTransaction) => {
     setSelectedTransaction(transaction);
-    reset({
-      description: transaction.description,
-      amount: transaction.amount,
-      type: transaction.type,
-      category: transaction.category,
-      student_id: transaction.student_id,
-      status: transaction.status,
-      due_date: transaction.due_date ? parseISO(transaction.due_date) : null,
-      is_recurring: transaction.is_recurring,
-    });
     setFormOpen(true);
   };
 
@@ -297,7 +208,7 @@ const Financial = () => {
     setDeleteAlertOpen(true);
   };
   
-  const onSubmit = (data: TransactionFormData) => { mutation.mutate(data); };
+  const onSubmitTransaction = (data: TransactionFormData) => { mutation.mutate(data); };
 
   return (
     <div>
@@ -313,220 +224,46 @@ const Financial = () => {
           <TabsTrigger value="overdue">Inadimplência</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="mt-4">
-          <div className="grid gap-4 md:grid-cols-3 mb-6">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Receita do Mês</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {isLoadingStats ? <Skeleton className="h-8 w-24" /> : <div className="text-2xl font-bold">{formatCurrency(stats?.monthlyRevenue ?? 0)}</div>}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Despesa do Mês</CardTitle>
-                <TrendingDown className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {isLoadingStats ? <Skeleton className="h-8 w-24" /> : <div className="text-2xl font-bold">{formatCurrency(stats?.monthlyExpense ?? 0)}</div>}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Inadimplência</CardTitle>
-                <AlertCircle className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {isLoadingStats ? <Skeleton className="h-8 w-24" /> : <div className="text-2xl font-bold">{formatCurrency(stats?.totalOverdue ?? 0)}</div>}
-              </CardContent>
-            </Card>
-          </div>
+          <FinancialOverviewCards stats={stats} isLoading={isLoadingStats} formatCurrency={formatCurrency} />
           <MonthlyFinancialChart data={monthlyChartData || []} isLoading={isLoadingMonthlyChart} />
         </TabsContent>
         <TabsContent value="all" className="mt-4">
-           {isLoadingTransactions ? (
-             <div className="flex justify-center items-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-           ) : (
-            <div className="bg-card rounded-lg border">
-              <Table>
-                <TableHeader><TableRow><TableHead>Descrição</TableHead><TableHead>Tipo</TableHead><TableHead>Categoria</TableHead><TableHead>Aluno</TableHead><TableHead>Vencimento</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Valor</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
-                <TableBody>
-                  {transactions?.map((t) => (
-                    <TableRow key={t.id}>
-                      <TableCell className="font-medium flex items-center">
-                        {t.description}
-                        {t.is_recurring && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Repeat className="w-4 h-4 ml-2 text-muted-foreground" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Despesa Recorrente</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
-                      </TableCell>
-                      <TableCell>{t.type === 'revenue' ? 'Receita' : 'Despesa'}</TableCell>
-                      <TableCell>{t.category}</TableCell>
-                      <TableCell>{t.students?.name || '-'}</TableCell>
-                      <TableCell>{t.due_date ? format(parseISO(t.due_date), 'dd/MM/yyyy') : '-'}</TableCell>
-                      <TableCell>{t.status || '-'}</TableCell>
-                      <TableCell className={`text-right font-bold ${t.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(t.amount)}</TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <span className="sr-only">Abrir menu</span>
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleEdit(t)}>
-                              <Edit className="w-4 h-4 mr-2" /> Editar
-                            </DropdownMenuItem>
-                            {t.status !== 'Pago' && t.type === 'revenue' && (
-                              <DropdownMenuItem onClick={() => markAsPaidMutation.mutate(t.id)}>
-                                <CheckCircle className="w-4 h-4 mr-2" /> Marcar como Pago
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(t)}>
-                              <Trash2 className="w-4 h-4 mr-2" /> Excluir
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-           )}
+           <AllTransactionsTable
+             transactions={transactions}
+             isLoading={isLoadingTransactions}
+             formatCurrency={formatCurrency}
+             onEdit={handleEdit}
+             onDelete={handleDelete}
+             onMarkAsPaid={markAsPaidMutation.mutate}
+           />
         </TabsContent>
         <TabsContent value="overdue" className="mt-4">
-          {isLoadingOverdue ? (
-            <div className="flex justify-center items-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-          ) : (
-            <div className="bg-card rounded-lg border">
-              <Table>
-                <TableHeader><TableRow><TableHead>Aluno</TableHead><TableHead>Descrição</TableHead><TableHead>Vencimento</TableHead><TableHead>Dias Atrasado</TableHead><TableHead className="text-right">Valor</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
-                <TableBody>
-                  {overdueTransactions?.map((t) => (
-                    <TableRow key={t.id} className="text-destructive">
-                      <TableCell className="font-medium">{t.students?.name || 'N/A'}</TableCell>
-                      <TableCell>{t.description}</TableCell>
-                      <TableCell>{t.due_date ? format(parseISO(t.due_date), 'dd/MM/yyyy') : '-'}</TableCell>
-                      <TableCell>{t.due_date ? differenceInDays(new Date(), parseISO(t.due_date)) : '-'}</TableCell>
-                      <TableCell className="text-right font-bold">{formatCurrency(t.amount)}</TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <span className="sr-only">Abrir menu</span>
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => markAsPaidMutation.mutate(t.id)}>
-                              <CheckCircle className="w-4 h-4 mr-2" /> Marcar como Pago
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+          <OverdueTransactionsTable
+            overdueTransactions={overdueTransactions}
+            isLoading={isLoadingOverdue}
+            formatCurrency={formatCurrency}
+            onMarkAsPaid={markAsPaidMutation.mutate}
+          />
         </TabsContent>
       </Tabs>
 
-      <Dialog open={isFormOpen} onOpenChange={setFormOpen}>
-        <DialogContent className={cn(
-          "sm:max-w-lg transition-all",
-          transactionType === 'revenue' && "border-t-4 border-green-300",
-          transactionType === 'expense' && "border-t-4 border-red-300"
-        )}>
-          <DialogHeader><DialogTitle>{selectedTransaction ? "Editar Lançamento" : "Adicionar Novo Lançamento"}</DialogTitle></DialogHeader>
-          <form onSubmit={handleSubmit(onSubmit)}>
-            <div className={cn(
-              "grid gap-4 py-4 rounded-lg p-4 transition-all",
-              transactionType === 'revenue' && "bg-green-50/30",
-              transactionType === 'expense' && "bg-red-50/30"
-            )}>
-              <Controller name="type" control={control} render={({ field }) => (
-                  <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="grid grid-cols-2 gap-4">
-                    <div><RadioGroupItem value="revenue" id="r1" className="peer sr-only" /><Label htmlFor="r1" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">Receita</Label></div>
-                    <div><RadioGroupItem value="expense" id="r2" className="peer sr-only" /><Label htmlFor="r2" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">Despesa</Label></div>
-                  </RadioGroup>
-              )} />
-              <div className="space-y-2"><Label htmlFor="description">Descrição</Label><Controller name="description" control={control} render={({ field }) => <Input id="description" {...field} />} /></div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><Label htmlFor="amount">Valor</Label><Controller name="amount" control={control} render={({ field }) => <Input id="amount" type="number" step="0.01" {...field} />} /></div>
-                <div className="space-y-2"><Label htmlFor="category">Categoria</Label>
-                  <Controller name="category" control={control} render={({ field }) => (
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                        <SelectContent>{(transactionType === 'revenue' ? revenueCategories : expenseCategories).map(cat => (<SelectItem key={cat} value={cat}>{cat}</SelectItem>))}</SelectContent>
-                      </Select>
-                  )} />
-                </div>
-              </div>
-              {transactionType === 'revenue' && (
-                <>
-                  <div className="space-y-2"><Label htmlFor="student_id">Aluno (Opcional)</Label>
-                    <Controller name="student_id" control={control} render={({ field }) => (
-                        <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
-                          <SelectTrigger><SelectValue placeholder="Selecione um aluno..." /></SelectTrigger>
-                          <SelectContent>{isLoadingStudents ? <SelectItem value="loading" disabled>Carregando...</SelectItem> : students?.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
-                        </Select>
-                    )} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2"><Label htmlFor="due_date">Data de Vencimento</Label><Controller name="due_date" control={control} render={({ field }) => <Input id="due_date" type="date" value={field.value ? format(field.value, 'yyyy-MM-dd') : ''} onChange={(e) => field.onChange(e.target.valueAsDate)} />} /></div>
-                    <div className="space-y-2"><Label htmlFor="status">Status</Label>
-                      <Controller name="status" control={control} render={({ field }) => (
-                          <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
-                            <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                            <SelectContent><SelectItem value="Pendente">Pendente</SelectItem><SelectItem value="Pago">Pago</SelectItem><SelectItem value="Atrasado">Atrasado</SelectItem></SelectContent>
-                          </Select>
-                      )} />
-                    </div>
-                  </div>
-                </>
-              )}
-              {transactionType === 'expense' && (
-                <div className="flex items-center space-x-2 pt-2">
-                  <Controller
-                    name="is_recurring"
-                    control={control}
-                    render={({ field }) => (
-                      <Checkbox
-                        id="is_recurring"
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    )}
-                  />
-                  <Label htmlFor="is_recurring">Despesa Recorrente (mensal)</Label>
-                </div>
-              )}
-            </div>
-            <DialogFooter>
-              <DialogClose asChild><Button type="button" variant="secondary">Cancelar</Button></DialogClose>
-              <Button type="submit" disabled={mutation.isPending}>{mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Salvar</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <AddEditTransactionDialog
+        isOpen={isFormOpen}
+        onOpenChange={setFormOpen}
+        selectedTransaction={selectedTransaction}
+        students={students}
+        isLoadingStudents={isLoadingStudents}
+        onSubmit={onSubmitTransaction}
+        isSubmitting={mutation.isPending}
+      />
 
-      <AlertDialog open={isDeleteAlertOpen} onOpenChange={setDeleteAlertOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Você tem certeza?</AlertDialogTitle><AlertDialogDescription>Essa ação não pode ser desfeita. Isso irá remover permanentemente o lançamento "{selectedTransaction?.description}" do banco de dados.</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => selectedTransaction && deleteMutation.mutate(selectedTransaction.id)} disabled={deleteMutation.isPending} className="bg-destructive hover:bg-destructive/90">{deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Sim, excluir</AlertDialogAction></AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteTransactionAlertDialog
+        isOpen={isDeleteAlertOpen}
+        onOpenChange={setDeleteAlertOpen}
+        selectedTransaction={selectedTransaction}
+        onConfirmDelete={deleteMutation.mutate}
+        isDeleting={deleteMutation.isPending}
+      />
     </div>
   );
 };
