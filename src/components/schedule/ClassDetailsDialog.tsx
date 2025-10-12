@@ -83,7 +83,9 @@ const fetchAllStudents = async (): Promise<Student[]> => {
 const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDialogProps) => {
   const queryClient = useQueryClient();
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
-  const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
+  const [isDeleteClassAlertOpen, setDeleteClassAlertOpen] = useState(false); // Renamed for clarity
+  const [isDeleteAttendeeAlertOpen, setDeleteAttendeeAlertOpen] = useState(false);
+  const [attendeeToDelete, setAttendeeToDelete] = useState<ClassAttendee | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
 
   const classId = classEvent?.id;
@@ -159,6 +161,21 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
     onError: (error) => { showError(error.message); },
   });
 
+  const removeAttendeeMutation = useMutation({
+    mutationFn: async (attendeeId: string) => {
+      const { error } = await supabase.from('class_attendees').delete().eq('id', attendeeId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['classAttendees', classId] });
+      queryClient.invalidateQueries({ queryKey: ['classes'] }); // To update attendee count on calendar
+      showSuccess('Aluno removido da aula!');
+      setDeleteAttendeeAlertOpen(false);
+      setAttendeeToDelete(null);
+    },
+    onError: (error) => { showError(error.message); },
+  });
+
   const updateClassMutation = useMutation({
     mutationFn: async (formData: ClassFormData) => {
       if (!classId) throw new Error("ID da aula não encontrado.");
@@ -199,6 +216,11 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
 
   const handleEditSubmit = (data: ClassFormData) => {
     updateClassMutation.mutate(data);
+  };
+
+  const confirmRemoveAttendee = (attendee: ClassAttendee) => {
+    setAttendeeToDelete(attendee);
+    setDeleteAttendeeAlertOpen(true);
   };
 
   return (
@@ -272,6 +294,9 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
                                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => updateStatusMutation.mutate({ attendeeId: attendee.id, status: 'Faltou' })}>
                                   <X className="h-4 w-4 text-red-600" />
                                 </Button>
+                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => confirmRemoveAttendee(attendee)}>
+                                  <Trash2 className="h-4 w-4 text-muted-foreground" />
+                                </Button>
                               </div>
                             </div>
                           ))
@@ -304,7 +329,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
                       <Button variant="outline" onClick={() => setIsEditMode(true)}>
                         <Edit className="w-4 h-4 mr-2" /> Editar Aula
                       </Button>
-                      <Button variant="destructive" onClick={() => setDeleteAlertOpen(true)}>
+                      <Button variant="destructive" onClick={() => setDeleteClassAlertOpen(true)}>
                         <Trash2 className="w-4 h-4 mr-2" /> Excluir Aula
                       </Button>
                     </div>
@@ -319,7 +344,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={isDeleteAlertOpen} onOpenChange={setDeleteAlertOpen}>
+      <AlertDialog open={isDeleteClassAlertOpen} onOpenChange={setDeleteClassAlertOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
@@ -331,6 +356,23 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={() => deleteClassMutation.mutate()} className="bg-destructive hover:bg-destructive/90">
               {deleteClassMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Sim, excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isDeleteAttendeeAlertOpen} onOpenChange={setDeleteAttendeeAlertOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover aluno da aula?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja remover "{attendeeToDelete?.students.name}" desta aula?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => attendeeToDelete && removeAttendeeMutation.mutate(attendeeToDelete.id)} disabled={removeAttendeeMutation.isPending} className="bg-destructive hover:bg-destructive/90">
+              {removeAttendeeMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Sim, remover"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
