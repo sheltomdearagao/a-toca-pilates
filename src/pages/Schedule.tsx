@@ -10,7 +10,9 @@ import { Button } from '@/components/ui/button';
 import { PlusCircle, Loader2 } from 'lucide-react';
 import AddClassDialog from '@/components/schedule/AddClassDialog';
 import ClassDetailsDialog from '@/components/schedule/ClassDetailsDialog';
+import RecurringClassTemplatesTab from '@/components/schedule/RecurringClassTemplatesTab'; // Importar o novo componente
 import { ClassEvent } from '@/types/schedule';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const CLASS_CAPACITY = 10;
 
@@ -87,38 +89,49 @@ const Schedule = () => {
         </Button>
       </div>
 
-      {isLoading ? (
-        <div className="flex justify-center items-center h-[60vh]">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      ) : (
-        <div className="bg-card p-4 rounded-lg border">
-          <FullCalendar
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-            initialView="timeGridWeek"
-            headerToolbar={{
-              left: 'prev,next today',
-              center: 'title',
-              right: 'dayGridMonth,timeGridWeek,timeGridDay',
-            }}
-            buttonText={{
-              today:    'Hoje',
-              month:    'Mês',
-              week:     'Semana',
-              day:      'Dia',
-            }}
-            events={calendarEvents}
-            locale="pt-br"
-            allDaySlot={false}
-            slotMinTime="06:00:00"
-            slotMaxTime="22:00:00"
-            height="auto"
-            eventClick={handleEventClick}
-            eventContent={renderEventContent}
-            eventClassNames={getEventClassNames}
-          />
-        </div>
-      )}
+      <Tabs defaultValue="calendar">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="calendar">Calendário</TabsTrigger>
+          <TabsTrigger value="recurring-templates">Modelos Recorrentes</TabsTrigger>
+        </TabsList>
+        <TabsContent value="calendar" className="mt-4">
+          {isLoading ? (
+            <div className="flex justify-center items-center h-[60vh]">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="bg-card p-4 rounded-lg border">
+              <FullCalendar
+                plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+                initialView="timeGridWeek"
+                headerToolbar={{
+                  left: 'prev,next today',
+                  center: 'title',
+                  right: 'dayGridMonth,timeGridWeek,timeGridDay',
+                }}
+                buttonText={{
+                  today:    'Hoje',
+                  month:    'Mês',
+                  week:     'Semana',
+                  day:      'Dia',
+                }}
+                events={calendarEvents}
+                locale="pt-br"
+                allDaySlot={false}
+                slotMinTime="06:00:00"
+                slotMaxTime="22:00:00"
+                height="auto"
+                eventClick={handleEventClick}
+                eventContent={renderEventContent}
+                eventClassNames={getEventClassNames}
+              />
+            </div>
+          )}
+        </TabsContent>
+        <TabsContent value="recurring-templates" className="mt-4">
+          <RecurringClassTemplatesTab />
+        </TabsContent>
+      </Tabs>
       
       <AddClassDialog isOpen={isAddFormOpen} onOpenChange={setAddFormOpen} />
       <ClassDetailsDialog isOpen={isDetailsOpen} onOpenChange={setDetailsOpen} classEvent={selectedEvent} />
