@@ -5,8 +5,21 @@ interface AppSettings {
   class_capacity: number;
   revenue_categories: string[];
   expense_categories: string[];
+  plan_types: string[];
+  plan_frequencies: string[];
+  payment_methods: string[];
+  enrollment_types: string[];
   // Add other settings here as they become configurable
 }
+
+const parseJsonSetting = (value: string, defaultValue: string[], key: string) => {
+  try {
+    return JSON.parse(value);
+  } catch (e) {
+    console.error(`Failed to parse ${key} from app_settings:`, e);
+    return defaultValue;
+  }
+};
 
 const fetchAppSettings = async (): Promise<AppSettings> => {
   const { data, error } = await supabase
@@ -20,19 +33,17 @@ const fetchAppSettings = async (): Promise<AppSettings> => {
     if (setting.key === 'class_capacity') {
       settings.class_capacity = parseInt(setting.value, 10);
     } else if (setting.key === 'revenue_categories') {
-      try {
-        settings.revenue_categories = JSON.parse(setting.value);
-      } catch (e) {
-        console.error("Failed to parse revenue_categories from app_settings:", e);
-        settings.revenue_categories = ["Mensalidade", "Aula Avulsa", "Venda de Produto", "Outras Receitas"]; // Default fallback
-      }
+      settings.revenue_categories = parseJsonSetting(setting.value, ["Mensalidade", "Aula Avulsa", "Venda de Produto", "Outras Receitas"], 'revenue_categories');
     } else if (setting.key === 'expense_categories') {
-      try {
-        settings.expense_categories = JSON.parse(setting.value);
-      } catch (e) {
-        console.error("Failed to parse expense_categories from app_settings:", e);
-        settings.expense_categories = ["Aluguel", "Salários", "Marketing", "Material", "Contas", "Outras Despesas"]; // Default fallback
-      }
+      settings.expense_categories = parseJsonSetting(setting.value, ["Aluguel", "Salários", "Marketing", "Material", "Contas", "Outras Despesas"], 'expense_categories');
+    } else if (setting.key === 'plan_types') {
+      settings.plan_types = parseJsonSetting(setting.value, ["Mensal", "Trimestral", "Avulso"], 'plan_types');
+    } else if (setting.key === 'plan_frequencies') {
+      settings.plan_frequencies = parseJsonSetting(setting.value, ["2x", "3x", "4x", "5x"], 'plan_frequencies');
+    } else if (setting.key === 'payment_methods') {
+      settings.payment_methods = parseJsonSetting(setting.value, ["Cartão", "Espécie"], 'payment_methods');
+    } else if (setting.key === 'enrollment_types') {
+      settings.enrollment_types = parseJsonSetting(setting.value, ["Particular", "Wellhub", "TotalPass"], 'enrollment_types');
     }
     // Handle other settings here
   });
@@ -42,6 +53,10 @@ const fetchAppSettings = async (): Promise<AppSettings> => {
     class_capacity: settings.class_capacity ?? 10,
     revenue_categories: settings.revenue_categories ?? ["Mensalidade", "Aula Avulsa", "Venda de Produto", "Outras Receitas"],
     expense_categories: settings.expense_categories ?? ["Aluguel", "Salários", "Marketing", "Material", "Contas", "Outras Despesas"],
+    plan_types: settings.plan_types ?? ["Mensal", "Trimestral", "Avulso"],
+    plan_frequencies: settings.plan_frequencies ?? ["2x", "3x", "4x", "5x"],
+    payment_methods: settings.payment_methods ?? ["Cartão", "Espécie"],
+    enrollment_types: settings.enrollment_types ?? ["Particular", "Wellhub", "TotalPass"],
     // ... other defaults
   } as AppSettings;
 };
