@@ -1,5 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 import { ClassEvent, ClassAttendee, AttendanceStatus } from '@/types/schedule';
 import { Student } from '@/types/student';
@@ -30,13 +33,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Trash2, UserPlus, Check, X } from 'lucide-react';
+import { Loader2, Trash2, UserPlus, Check, X, Edit } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 const CLASS_CAPACITY = 10;
+
+const classSchema = z.object({
+  title: z.string().min(3, 'O título é obrigatório.'),
+  start_time: z.string().min(1, 'A data e hora de início são obrigatórias.'),
+  end_time: z.string().min(1, 'A data e hora de fim são obrigatórias.'),
+  notes: z.string().optional(),
+}).refine(data => new Date(data.end_time) > new Date(data.start_time), {
+  message: 'A hora de fim deve ser posterior à hora de início.',
+  path: ['end_time'],
+});
+
+type ClassFormData = z.infer<typeof classSchema>;
 
 interface ClassDetailsDialogProps {
   isOpen: boolean;
@@ -66,6 +84,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
   const queryClient = useQueryClient();
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
 
   const classId = classEvent?.id;
 
@@ -83,6 +102,27 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
 
   const { data: allStudents } = useQuery({ queryKey: ['students'], queryFn: fetchAllStudents });
 
+  const { control, handleSubmit, reset, formState: { errors } } = useForm<ClassFormData>({
+    resolver: zodResolver(classSchema),
+    defaultValues: {
+      title: '',
+      start_time: '',
+      end_time: '',
+      notes: '',
+    },
+  });
+
+  useEffect(() => {
+    if (details && isEditMode) {
+      reset({
+        title: details.title || '',
+        start_time: details.start_time ? format(parseISO(details.start_time), "yyyy-MM-dd'T'HH:mm") : '',
+        end_time: details.end_time ? format(parseISO(details.end_time), "yyyy-MM-dd'T'HH:mm") : '',
+        notes: details.notes || '',
+      });
+    }
+  }, [details, isEditMode, reset]);
+
   const addAttendeeMutation = useMutation({
     mutationFn: async (studentId: string) => {
       if ((attendees?.length || 0) >= CLASS_CAPACITY) {
@@ -93,8 +133,8 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
       const { error } = await supabase.from('class_attendees').insert({
         user_id: user.id,
         class_id: classId,
-        student_id: studentId,
         status: 'Agendado',
+        student_id: studentId,
       });
       if (error) throw error;
     },
@@ -119,6 +159,27 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
     onError: (error) => { showError(error.message); },
   });
 
+  const updateClassMutation = useMutation({
+    mutationFn: async (formData: ClassFormData) => {
+      if (!classId) throw new Error("ID da aula não encontrado.");
+      const dataToSubmit = {
+        title: formData.title,
+        start_time: new Date(formData.start_time).toISOString(),
+        end_time: new Date(formData.end_time).toISOString(),
+        notes: formData.notes,
+      };
+      const { error } = await supabase.from('classes').update(dataToSubmit).eq('id', classId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
+      queryClient.invalidateQueries({ queryKey: ['classDetails', classId] });
+      showSuccess('Aula atualizada com sucesso!');
+      setIsEditMode(false);
+    },
+    onError: (error) => { showError(error.message); },
+  });
+
   const deleteClassMutation = useMutation({
     mutationFn: async () => {
       if (!classId) throw new Error("ID da aula não encontrado.");
@@ -136,72 +197,123 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
   const availableStudents = allStudents?.filter(s => !attendees?.some(a => a.students.id === s.id));
   const isClassFull = (attendees?.length || 0) >= CLASS_CAPACITY;
 
+  const handleEditSubmit = (data: ClassFormData) => {
+    updateClassMutation.mutate(data);
+  };
+
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <Dialog open={isOpen} onOpenChange={(open) => { onOpenChange(open); setIsEditMode(false); }}>
         <DialogContent className="sm:max-w-lg">
           {isLoadingDetails ? <Loader2 className="w-8 h-8 animate-spin" /> : (
             <>
               <DialogHeader>
-                <DialogTitle className="text-2xl">{details?.title}</DialogTitle>
-                <DialogDescription>
-                  {details && details.start_time && details.end_time && `${format(new Date(details.start_time), "eeee, dd 'de' MMMM", { locale: ptBR })} das ${format(new Date(details.start_time), 'HH:mm')} às ${format(new Date(details.end_time), 'HH:mm')}`}
-                </DialogDescription>
+                <DialogTitle className="text-2xl">
+                  {isEditMode ? "Editar Aula" : details?.title}
+                </DialogTitle>
+                {!isEditMode && (
+                  <DialogDescription>
+                    {details && details.start_time && details.end_time && `${format(new Date(details.start_time), "eeee, dd 'de' MMMM", { locale: ptBR })} das ${format(new Date(details.start_time), 'HH:mm')} às ${format(new Date(details.end_time), 'HH:mm')}`}
+                  </DialogDescription>
+                )}
               </DialogHeader>
-              <div className="py-4 space-y-6">
-                <div>
-                  <h4 className="font-semibold mb-2">Controle de Presença ({attendees?.length || 0}/{CLASS_CAPACITY})</h4>
-                  <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                    {isLoadingAttendees ? <Loader2 className="w-5 h-5 animate-spin" /> :
-                      attendees?.map(attendee => (
-                        <div key={attendee.id} className="flex items-center justify-between p-2 rounded-md bg-secondary">
-                          <span>{attendee.students.name}</span>
-                          <div className="flex items-center gap-2">
-                            <Badge variant={
-                              attendee.status === 'Presente' ? 'default' :
-                              attendee.status === 'Faltou' ? 'destructive' : 'secondary'
-                            }>{attendee.status}</Badge>
-                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => updateStatusMutation.mutate({ attendeeId: attendee.id, status: 'Presente' })}>
-                              <Check className="h-4 w-4 text-green-600" />
-                            </Button>
-                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => updateStatusMutation.mutate({ attendeeId: attendee.id, status: 'Faltou' })}>
-                              <X className="h-4 w-4 text-red-600" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))
-                    }
-                  </div>
-                </div>
-                <div>
-                  <h4 className="font-semibold mb-2">Adicionar Aluno à Aula</h4>
-                  {isClassFull ? (
-                    <div className="text-center p-4 bg-red-100 text-red-700 rounded-md">
-                      <p className="font-bold">Turma cheia!</p>
+
+              {isEditMode ? (
+                <form onSubmit={handleSubmit(handleEditSubmit)}>
+                  <div className="grid gap-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="title">Título da Aula</Label>
+                      <Controller name="title" control={control} render={({ field }) => <Input id="title" {...field} />} />
+                      {errors.title && <p className="text-sm text-destructive mt-1">{errors.title.message}</p>}
                     </div>
-                  ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="start_time">Início</Label>
+                        <Controller name="start_time" control={control} render={({ field }) => <Input id="start_time" type="datetime-local" {...field} />} />
+                        {errors.start_time && <p className="text-sm text-destructive mt-1">{errors.start_time.message}</p>}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="end_time">Fim</Label>
+                        <Controller name="end_time" control={control} render={({ field }) => <Input id="end_time" type="datetime-local" {...field} />} />
+                        {errors.end_time && <p className="text-sm text-destructive mt-1">{errors.end_time.message}</p>}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="notes">Notas (Opcional)</Label>
+                      <Controller name="notes" control={control} render={({ field }) => <Textarea id="notes" {...field} />} />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button type="button" variant="secondary" onClick={() => setIsEditMode(false)}>Cancelar</Button>
+                    <Button type="submit" disabled={updateClassMutation.isPending}>
+                      {updateClassMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Salvar Alterações
+                    </Button>
+                  </DialogFooter>
+                </form>
+              ) : (
+                <>
+                  <div className="py-4 space-y-6">
+                    <div>
+                      <h4 className="font-semibold mb-2">Controle de Presença ({attendees?.length || 0}/{CLASS_CAPACITY})</h4>
+                      <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                        {isLoadingAttendees ? <Loader2 className="w-5 h-5 animate-spin" /> :
+                          attendees?.map(attendee => (
+                            <div key={attendee.id} className="flex items-center justify-between p-2 rounded-md bg-secondary">
+                              <span>{attendee.students.name}</span>
+                              <div className="flex items-center gap-2">
+                                <Badge variant={
+                                  attendee.status === 'Presente' ? 'default' :
+                                  attendee.status === 'Faltou' ? 'destructive' : 'secondary'
+                                }>{attendee.status}</Badge>
+                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => updateStatusMutation.mutate({ attendeeId: attendee.id, status: 'Presente' })}>
+                                  <Check className="h-4 w-4 text-green-600" />
+                                </Button>
+                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => updateStatusMutation.mutate({ attendeeId: attendee.id, status: 'Faltou' })}>
+                                  <X className="h-4 w-4 text-red-600" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))
+                        }
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold mb-2">Adicionar Aluno à Aula</h4>
+                      {isClassFull ? (
+                        <div className="text-center p-4 bg-red-100 text-red-700 rounded-md">
+                          <p className="font-bold">Turma cheia!</p>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Select onValueChange={setSelectedStudentId} value={selectedStudentId || ''} disabled={isClassFull}>
+                            <SelectTrigger><SelectValue placeholder="Selecione um aluno..." /></SelectTrigger>
+                            <SelectContent>
+                              {availableStudents?.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <Button onClick={() => selectedStudentId && addAttendeeMutation.mutate(selectedStudentId)} disabled={!selectedStudentId || addAttendeeMutation.isPending || isClassFull}>
+                            <UserPlus className="w-4 h-4 mr-2" /> Adicionar
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <DialogFooter className="sm:justify-between">
                     <div className="flex gap-2">
-                      <Select onValueChange={setSelectedStudentId} value={selectedStudentId || ''} disabled={isClassFull}>
-                        <SelectTrigger><SelectValue placeholder="Selecione um aluno..." /></SelectTrigger>
-                        <SelectContent>
-                          {availableStudents?.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      <Button onClick={() => selectedStudentId && addAttendeeMutation.mutate(selectedStudentId)} disabled={!selectedStudentId || addAttendeeMutation.isPending || isClassFull}>
-                        <UserPlus className="w-4 h-4 mr-2" /> Adicionar
+                      <Button variant="outline" onClick={() => setIsEditMode(true)}>
+                        <Edit className="w-4 h-4 mr-2" /> Editar Aula
+                      </Button>
+                      <Button variant="destructive" onClick={() => setDeleteAlertOpen(true)}>
+                        <Trash2 className="w-4 h-4 mr-2" /> Excluir Aula
                       </Button>
                     </div>
-                  )}
-                </div>
-              </div>
-              <DialogFooter className="sm:justify-between">
-                <Button variant="destructive" onClick={() => setDeleteAlertOpen(true)}>
-                  <Trash2 className="w-4 h-4 mr-2" /> Excluir Aula
-                </Button>
-                <DialogClose asChild>
-                  <Button type="button" variant="secondary">Fechar</Button>
-                </DialogClose>
-              </DialogFooter>
+                    <DialogClose asChild>
+                      <Button type="button" variant="secondary">Fechar</Button>
+                    </DialogClose>
+                  </DialogFooter>
+                </>
+              )}
             </>
           )}
         </DialogContent>
