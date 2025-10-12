@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import ColoredSeparator from "@/components/ColoredSeparator";
 import { parseISO, format } from 'date-fns'; // Importar format
-import { utcToZonedTime } from 'date-fns-tz'; // Importar utcToZonedTime
+import { toZonedTime } from 'date-fns-tz'; // Importar toZonedTime
 
 const fetchClasses = async (): Promise<ClassEvent[]> => {
   const { data, error } = await supabase.from('classes').select('*, class_attendees(count), students(name)');
@@ -26,8 +26,8 @@ const fetchClasses = async (): Promise<ClassEvent[]> => {
   return (data as any[] || []).map(c => ({
     ...c,
     // Converter de ISO string UTC para Date object no fuso horário local
-    start_time: utcToZonedTime(parseISO(c.start_time), timeZone),
-    end_time: utcToZonedTime(parseISO(c.end_time), timeZone),
+    start_time: toZonedTime(parseISO(c.start_time), timeZone),
+    end_time: toZonedTime(parseISO(c.end_time), timeZone),
   }));
 };
 
@@ -69,8 +69,8 @@ const Schedule = () => {
       id: clickInfo.event.id,
       title: clickInfo.event.title,
       // Converter de ISO string (do FullCalendar) para Date object no fuso horário local
-      start_time: utcToZonedTime(parseISO(clickInfo.event.startStr), timeZone),
-      end_time: utcToZonedTime(parseISO(clickInfo.event.endStr), timeZone),
+      start_time: toZonedTime(parseISO(clickInfo.event.startStr), timeZone),
+      end_time: toZonedTime(parseISO(clickInfo.event.endStr), timeZone),
       notes: clickInfo.event.extendedProps.notes,
       student_id: clickInfo.event.extendedProps.student_id,
     });

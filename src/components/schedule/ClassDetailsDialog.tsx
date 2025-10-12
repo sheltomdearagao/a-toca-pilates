@@ -15,7 +15,7 @@ import {
 import { Loader2, Edit, Trash2 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { parseISO, format } from 'date-fns'; // Importar format
-import { utcToZonedTime, zonedTimeToUtc } from 'date-fns-tz'; // Importar date-fns-tz
+import { toZonedTime, fromZonedTime } from 'date-fns-tz'; // Importar toZonedTime e fromZonedTime
 
 // Importar os novos componentes modulares
 import ClassInfoDisplay from './class-details/ClassInfoDisplay';
@@ -41,8 +41,8 @@ const fetchClassDetails = async (classId: string): Promise<Partial<ClassEvent> |
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     return {
       ...data,
-      start_time: utcToZonedTime(parseISO(data.start_time), timeZone),
-      end_time: utcToZonedTime(parseISO(data.end_time), timeZone),
+      start_time: toZonedTime(parseISO(data.start_time), timeZone),
+      end_time: toZonedTime(parseISO(data.end_time), timeZone),
     };
   }
   return data;
@@ -150,8 +150,8 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
         : formData.title;
 
       // Converter para UTC antes de enviar ao Supabase
-      const startUtc = zonedTimeToUtc(parseISO(formData.start_time), Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
-      const endUtc = zonedTimeToUtc(parseISO(formData.end_time), Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
+      const startUtc = fromZonedTime(parseISO(formData.start_time), Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
+      const endUtc = fromZonedTime(parseISO(formData.end_time), Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
 
       const dataToSubmit = {
         title: classTitle,

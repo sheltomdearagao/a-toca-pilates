@@ -20,7 +20,7 @@ import { Loader2, Check, ChevronsUpDown } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { format, parseISO } from 'date-fns';
-import { utcToZonedTime, zonedTimeToUtc } from 'date-fns-tz'; // Importar date-fns-tz
+import { toZonedTime, fromZonedTime } from 'date-fns-tz'; // Importar toZonedTime e fromZonedTime
 import { Student, StudentOption } from '@/types/student';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
@@ -180,8 +180,8 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
         if (error) throw error;
       } else {
         // Converter para UTC antes de enviar ao Supabase
-        const startUtc = zonedTimeToUtc(parseISO(formData.start_time), Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
-        const endUtc = zonedTimeToUtc(parseISO(formData.end_time), Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
+        const startUtc = fromZonedTime(parseISO(formData.start_time), Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
+        const endUtc = fromZonedTime(parseISO(formData.end_time), Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
 
         const dataToSubmit = {
           user_id: user.id,
