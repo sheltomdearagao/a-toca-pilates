@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Student, StudentStatus } from "@/types/student";
+import { Student } from "@/types/student";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -22,7 +22,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
@@ -51,6 +50,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { showError, showSuccess } from "@/utils/toast";
+import { Link } from "react-router-dom";
 
 const studentSchema = z.object({
   name: z.string().min(3, "O nome deve ter pelo menos 3 caracteres."),
@@ -199,7 +199,11 @@ const Students = () => {
             <TableBody>
               {students.map((student) => (
                 <TableRow key={student.id}>
-                  <TableCell className="font-medium">{student.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <Link to={`/alunos/${student.id}`} className="hover:underline">
+                      {student.name}
+                    </Link>
+                  </TableCell>
                   <TableCell>{student.email || "-"}</TableCell>
                   <TableCell>{student.phone || "-"}</TableCell>
                   <TableCell>{student.status}</TableCell>

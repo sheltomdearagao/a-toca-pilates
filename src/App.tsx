@@ -12,6 +12,7 @@ import Schedule from "./pages/Schedule";
 import { SessionProvider } from "./contexts/SessionProvider";
 import Login from "./pages/Login";
 import ProtectedRoute from "./components/ProtectedRoute";
+import StudentProfile from "./pages/StudentProfile";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +29,7 @@ const App = () => (
               <Route element={<Layout />}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/alunos" element={<Students />} />
+                <Route path="/alunos/:studentId" element={<StudentProfile />} />
                 <Route path="/financeiro" element={<Financial />} />
                 <Route path="/agenda" element={<Schedule />} />
               </Route>
