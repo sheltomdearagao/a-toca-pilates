@@ -19,25 +19,28 @@ import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Check, ChevronsUpDown } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { Checkbox } from '@/components/ui/checkbox';
-import { format } from 'date-fns';
-import { Student, StudentOption } from '@/types/student'; // Importar StudentOption
+import { format, parseISO } from 'date-fns';
+import { utcToZonedTime, zonedTimeToUtc } from 'date-fns-tz'; // Importar date-fns-tz
+import { Student, StudentOption } from '@/types/student';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
 
 const classSchema = z.object({
-  student_id: z.string().optional().nullable(), // Optional for general classes, but required if selected
-  title: z.string().min(3, 'O título é obrigatório.').optional(), // Keep title for general classes
+  student_id: z.string().optional().nullable(),
+  title: z.string().min(3, 'O título é obrigatório.').optional(),
   start_time: z.string().min(1, 'A data e hora de início são obrigatórias.'),
   end_time: z.string().min(1, 'A data e hora de fim são obrigatórias.'),
   notes: z.string().optional(),
   is_recurring: z.boolean().optional(),
   recurrence_days_of_week: z.array(z.string()).optional(),
   recurrence_start_date: z.string().optional(),
-  recurrence_end_date: z.string().optional(),
+  recurrence_end_date: z.string().optional().nullable(), // Permitir null
 }).superRefine((data, ctx) => {
   if (!data.is_recurring) {
-    if (new Date(data.end_time) <= new Date(data.start_time)) {
+    const startTime = parseISO(data.start_time);
+    const endTime = parseISO(data.end_time);
+    if (endTime <= startTime) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'A hora de fim deve ser posterior à hora de início.',
@@ -82,7 +85,7 @@ type ClassFormData = z.infer<typeof classSchema>;
 interface AddClassDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  initialStudentId?: string; // New prop for pre-selecting student
+  initialStudentId?: string;
 }
 
 const daysOfWeek = [
@@ -95,8 +98,8 @@ const daysOfWeek = [
   { label: 'Dom', value: 'sunday' },
 ];
 
-const fetchAllStudents = async (): Promise<StudentOption[]> => { // Usar StudentOption
-  const { data, error } = await supabase.from('students').select('id, name, enrollment_type').order('name'); // Selecionar enrollment_type
+const fetchAllStudents = async (): Promise<StudentOption[]> => {
+  const { data, error } = await supabase.from('students').select('id, name, enrollment_type').order('name');
   if (error) throw new Error(error.message);
   return data || [];
 };
@@ -114,7 +117,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
       is_recurring: false,
       recurrence_days_of_week: [],
       recurrence_start_date: format(new Date(), 'yyyy-MM-dd'),
-      recurrence_end_date: '',
+      recurrence_end_date: null, // Definir como null
     },
   });
 
@@ -122,23 +125,27 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
   const recurrenceDays = watch('recurrence_days_of_week');
   const selectedStudentId = watch('student_id');
 
-  const { data: students, isLoading: isLoadingStudents } = useQuery<StudentOption[]>({ // Usar StudentOption
+  const { data: students, isLoading: isLoadingStudents } = useQuery<StudentOption[]>({
     queryKey: ['allStudents'],
     queryFn: fetchAllStudents,
   });
 
   useEffect(() => {
     if (isOpen) {
+      const now = new Date();
+      const defaultStartTime = format(now, "yyyy-MM-dd'T'HH:mm");
+      const defaultEndTime = format(new Date(now.getTime() + 60 * 60 * 1000), "yyyy-MM-dd'T'HH:mm"); // 1 hour later
+
       reset({
         student_id: initialStudentId || null,
         title: '',
-        start_time: '',
-        end_time: '',
+        start_time: defaultStartTime,
+        end_time: defaultEndTime,
         notes: '',
         is_recurring: false,
         recurrence_days_of_week: [],
-        recurrence_start_date: format(new Date(), 'yyyy-MM-dd'),
-        recurrence_end_date: '',
+        recurrence_start_date: format(now, 'yyyy-MM-dd'),
+        recurrence_end_date: null,
       });
       if (initialStudentId && students) {
         const student = students.find(s => s.id === initialStudentId);
@@ -162,8 +169,8 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
         const dataToSubmit = {
           user_id: user.id,
           title: classTitle,
-          start_time_of_day: format(new Date(formData.start_time), 'HH:mm:ss'),
-          end_time_of_day: format(new Date(formData.end_time), 'HH:mm:ss'),
+          start_time_of_day: format(parseISO(formData.start_time), 'HH:mm:ss'), // Apenas a hora
+          end_time_of_day: format(parseISO(formData.end_time), 'HH:mm:ss'), // Apenas a hora
           notes: formData.notes,
           recurrence_days_of_week: formData.recurrence_days_of_week,
           recurrence_start_date: formData.recurrence_start_date,
@@ -172,11 +179,15 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
         const { error } = await supabase.from('recurring_class_templates').insert([dataToSubmit]);
         if (error) throw error;
       } else {
+        // Converter para UTC antes de enviar ao Supabase
+        const startUtc = zonedTimeToUtc(parseISO(formData.start_time), Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
+        const endUtc = zonedTimeToUtc(parseISO(formData.end_time), Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
+
         const dataToSubmit = {
           user_id: user.id,
           title: classTitle,
-          start_time: new Date(formData.start_time).toISOString(),
-          end_time: new Date(formData.end_time).toISOString(),
+          start_time: startUtc,
+          end_time: endUtc,
           notes: formData.notes,
           student_id: formData.student_id || null,
         };
@@ -242,7 +253,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
                               key={student.id}
                               onSelect={() => {
                                 field.onChange(student.id);
-                                setValue('title', `Aula com ${student.name}`); // Set title based on student
+                                setValue('title', `Aula com ${student.name}`);
                               }}
                             >
                               <Check
@@ -263,7 +274,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
               {errors.student_id && <p className="text-sm text-destructive mt-1">{errors.student_id.message}</p>}
             </div>
 
-            {!selectedStudentId && ( // Only show title input if no student is selected
+            {!selectedStudentId && (
               <div className="space-y-2">
                 <Label htmlFor="title">Título da Aula (Obrigatório se nenhum aluno for selecionado)</Label>
                 <Controller name="title" control={control} render={({ field }) => <Input id="title" {...field} />} />

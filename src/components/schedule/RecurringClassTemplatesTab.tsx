@@ -56,8 +56,10 @@ const templateSchema = z.object({
   recurrence_start_date: z.string().min(1, 'A data de início da recorrência é obrigatória.'),
   recurrence_end_date: z.string().optional().nullable(),
 }).superRefine((data, ctx) => {
-  const startTime = parseISO(`2000-01-01T${data.start_time_of_day}`);
-  const endTime = parseISO(`2000-01-01T${data.end_time_of_day}`);
+  // Para validação de tempo, podemos criar objetos Date temporários com uma data arbitrária
+  const dummyDate = '2000-01-01T';
+  const startTime = parseISO(`${dummyDate}${data.start_time_of_day}`);
+  const endTime = parseISO(`${dummyDate}${data.end_time_of_day}`);
   if (endTime <= startTime) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -107,7 +109,7 @@ const RecurringClassTemplatesTab = () => {
       notes: '',
       recurrence_days_of_week: [],
       recurrence_start_date: format(new Date(), 'yyyy-MM-dd'),
-      recurrence_end_date: '',
+      recurrence_end_date: null, // Definir como null
     },
   });
 
@@ -138,14 +140,13 @@ const RecurringClassTemplatesTab = () => {
         const { error } = await supabase.from('recurring_class_templates').update(dataToSubmit).eq('id', selectedTemplate.id);
         if (error) throw error;
       } else {
-        // This path is typically handled by AddClassDialog, but kept for completeness if needed
         const { error } = await supabase.from('recurring_class_templates').insert([dataToSubmit]);
         if (error) throw error;
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recurringClassTemplates'] });
-      queryClient.invalidateQueries({ queryKey: ['classes'] }); // Invalidate actual classes to reflect potential changes
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
       showSuccess(`Modelo de aula recorrente ${selectedTemplate ? 'atualizado' : 'adicionado'} com sucesso!`);
       setFormOpen(false);
       setSelectedTemplate(null);
@@ -163,7 +164,7 @@ const RecurringClassTemplatesTab = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recurringClassTemplates'] });
-      queryClient.invalidateQueries({ queryKey: ['classes'] }); // Invalidate actual classes that might have been generated from this template
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
       showSuccess('Modelo de aula recorrente excluído com sucesso!');
       setDeleteAlertOpen(false);
       setSelectedTemplate(null);
@@ -177,12 +178,12 @@ const RecurringClassTemplatesTab = () => {
     setSelectedTemplate(template);
     reset({
       title: template.title,
-      start_time_of_day: template.start_time_of_day,
-      end_time_of_day: template.end_time_of_day,
+      start_time_of_day: template.start_time_of_day.substring(0, 5), // Apenas HH:mm
+      end_time_of_day: template.end_time_of_day.substring(0, 5), // Apenas HH:mm
       notes: template.notes || '',
       recurrence_days_of_week: template.recurrence_days_of_week,
       recurrence_start_date: template.recurrence_start_date,
-      recurrence_end_date: template.recurrence_end_date || '',
+      recurrence_end_date: template.recurrence_end_date || null,
     });
     setFormOpen(true);
   };

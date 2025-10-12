@@ -14,6 +14,8 @@ import {
 } from '@/components/ui/dialog';
 import { Loader2, Edit, Trash2 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
+import { parseISO, format } from 'date-fns'; // Importar format
+import { utcToZonedTime, zonedTimeToUtc } from 'date-fns-tz'; // Importar date-fns-tz
 
 // Importar os novos componentes modulares
 import ClassInfoDisplay from './class-details/ClassInfoDisplay';
@@ -34,6 +36,15 @@ interface ClassDetailsDialogProps {
 const fetchClassDetails = async (classId: string): Promise<Partial<ClassEvent> | null> => {
   const { data, error } = await supabase.from('classes').select('*, students(name)').eq('id', classId).single();
   if (error) throw new Error(error.message);
+  if (data) {
+    // Converter start_time e end_time de ISO string para Date objects no fuso horário local
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return {
+      ...data,
+      start_time: utcToZonedTime(parseISO(data.start_time), timeZone),
+      end_time: utcToZonedTime(parseISO(data.end_time), timeZone),
+    };
+  }
   return data;
 };
 
@@ -138,10 +149,14 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
         ? allStudents?.find(s => s.id === formData.student_id)?.name || 'Aula com Aluno'
         : formData.title;
 
+      // Converter para UTC antes de enviar ao Supabase
+      const startUtc = zonedTimeToUtc(parseISO(formData.start_time), Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
+      const endUtc = zonedTimeToUtc(parseISO(formData.end_time), Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
+
       const dataToSubmit = {
         title: classTitle,
-        start_time: new Date(formData.start_time).toISOString(),
-        end_time: new Date(formData.end_time).toISOString(),
+        start_time: startUtc,
+        end_time: endUtc,
         notes: formData.notes,
         student_id: formData.student_id || null,
       };

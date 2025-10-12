@@ -1,6 +1,6 @@
 import React from 'react';
 import { DialogDescription } from '@/components/ui/dialog';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns'; // Não precisa de parseISO aqui, já é Date
 import { ptBR } from 'date-fns/locale';
 import { ClassEvent } from '@/types/schedule';
 
@@ -18,7 +18,7 @@ const ClassInfoDisplay = ({ classEvent }: ClassInfoDisplayProps) => {
       <h2 className="text-2xl font-bold">{title}</h2>
       {classEvent.start_time && classEvent.end_time && (
         <DialogDescription>
-          {`${format(new Date(classEvent.start_time), "eeee, dd 'de' MMMM", { locale: ptBR })} das ${format(new Date(classEvent.start_time), 'HH:mm')} às ${format(new Date(classEvent.end_time), 'HH:mm')}`}
+          {`${format(classEvent.start_time, "eeee, dd 'de' MMMM", { locale: ptBR })} das ${format(classEvent.start_time, 'HH:mm')} às ${format(classEvent.end_time, 'HH:mm')}`}
         </DialogDescription>
       )}
       {classEvent.notes && (

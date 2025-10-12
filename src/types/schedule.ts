@@ -4,8 +4,8 @@ export type ClassEvent = {
   id: string;
   user_id: string;
   title: string;
-  start_time: string; // ISO string
-  end_time: string; // ISO string
+  start_time: Date; // Alterado para Date
+  end_time: Date; // Alterado para Date
   notes: string | null;
   created_at: string;
   student_id: string | null; // Novo campo para vincular a um aluno

@@ -14,12 +14,21 @@ import RecurringClassTemplatesTab from '@/components/schedule/RecurringClassTemp
 import { ClassEvent } from '@/types/schedule';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppSettings } from '@/hooks/useAppSettings';
-import ColoredSeparator from "@/components/ColoredSeparator"; // Importar o novo componente
+import ColoredSeparator from "@/components/ColoredSeparator";
+import { parseISO, format } from 'date-fns'; // Importar format
+import { utcToZonedTime } from 'date-fns-tz'; // Importar utcToZonedTime
 
 const fetchClasses = async (): Promise<ClassEvent[]> => {
   const { data, error } = await supabase.from('classes').select('*, class_attendees(count), students(name)');
   if (error) throw new Error(error.message);
-  return (data as any) || [];
+  
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return (data as any[] || []).map(c => ({
+    ...c,
+    // Converter de ISO string UTC para Date object no fuso horário local
+    start_time: utcToZonedTime(parseISO(c.start_time), timeZone),
+    end_time: utcToZonedTime(parseISO(c.end_time), timeZone),
+  }));
 };
 
 const Schedule = () => {
@@ -44,8 +53,8 @@ const Schedule = () => {
     return {
       id: c.id,
       title: eventTitle,
-      start: c.start_time,
-      end: c.end_time,
+      start: c.start_time.toISOString(), // FullCalendar espera ISO string
+      end: c.end_time.toISOString(), // FullCalendar espera ISO string
       notes: c.notes,
       extendedProps: {
         attendeeCount,
@@ -55,11 +64,13 @@ const Schedule = () => {
   }) || [];
 
   const handleEventClick = (clickInfo: EventClickArg) => {
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     setSelectedEvent({
       id: clickInfo.event.id,
       title: clickInfo.event.title,
-      start_time: clickInfo.event.startStr,
-      end_time: clickInfo.event.endStr,
+      // Converter de ISO string (do FullCalendar) para Date object no fuso horário local
+      start_time: utcToZonedTime(parseISO(clickInfo.event.startStr), timeZone),
+      end_time: utcToZonedTime(parseISO(clickInfo.event.endStr), timeZone),
       notes: clickInfo.event.extendedProps.notes,
       student_id: clickInfo.event.extendedProps.student_id,
     });
@@ -98,7 +109,7 @@ const Schedule = () => {
         </Button>
       </div>
 
-      <ColoredSeparator color="primary" className="my-6" /> {/* Separador colorido */}
+      <ColoredSeparator color="primary" className="my-6" />
 
       <Tabs defaultValue="calendar">
         <TabsList className="grid w-full grid-cols-2">

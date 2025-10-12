@@ -1,22 +1,17 @@
 // @ts-nocheck
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
-import { addDays, format, parseISO, isWithinInterval, startOfDay, endOfDay } from "https://esm.sh/date-fns@2.30.0";
+import { addDays, format, parseISO, isWithinInterval, startOfDay, endOfDay, setHours, setMinutes, setSeconds } from "https://esm.sh/date-fns@2.30.0";
+import { zonedTimeToUtc, utcToZonedTime } from "https://esm.sh/date-fns-tz@2.0.0"; // Importar date-fns-tz
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const dayOfWeekMap: { [key: string]: number } = {
-  sunday: 0,
-  monday: 1,
-  tuesday: 2,
-  wednesday: 3,
-  thursday: 4,
-  friday: 5,
-  saturday: 6,
-};
+// Assumimos que o fuso horário da academia é 'America/Sao_Paulo' ou similar
+// Para um ambiente de produção, isso deveria ser configurável ou determinado pelo contexto.
+const APP_TIMEZONE = 'America/Sao_Paulo'; 
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -24,12 +19,15 @@ serve(async (req) => {
   }
 
   try {
-    // Use SUPABASE_SERVICE_ROLE_KEY for elevated permissions
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
       { auth: { persistSession: false } }
     );
+
+    const classesToInsert = [];
+    const today = startOfDay(utcToZonedTime(new Date(), APP_TIMEZONE)); // Obter 'hoje' no fuso horário da academia
+    const twoMonthsFromNow = addDays(today, 60); // Gerar classes para os próximos 60 dias
 
     // Fetch all recurring class templates
     const { data: templates, error: templatesError } = await supabase
@@ -38,27 +36,32 @@ serve(async (req) => {
 
     if (templatesError) throw templatesError;
 
-    const classesToInsert = [];
-    const today = startOfDay(new Date());
-    const twoMonthsFromNow = addDays(today, 60); // Generate classes for the next 60 days
-
     for (const template of templates) {
       const templateStartDate = parseISO(template.recurrence_start_date);
       const templateEndDate = template.recurrence_end_date ? parseISO(template.recurrence_end_date) : null;
 
-      for (let i = 0; i <= 60; i++) { // Iterate for the next 60 days
+      for (let i = 0; i <= 60; i++) {
         const currentDate = addDays(today, i);
-        const dayOfWeek = format(currentDate, 'EEEE', { locale: { code: 'en-US' } }).toLowerCase(); // Get day name in English
+        const dayOfWeek = format(currentDate, 'EEEE', { locale: { code: 'en-US' } }).toLowerCase();
 
-        // Check if current date is within template's recurrence period
         if (isWithinInterval(currentDate, { start: templateStartDate, end: twoMonthsFromNow })) {
           if (templateEndDate && currentDate > templateEndDate) {
-            continue; // Skip if beyond template's end date
+            continue;
           }
 
           if (template.recurrence_days_of_week.includes(dayOfWeek)) {
-            const startTime = `${format(currentDate, 'yyyy-MM-dd')}T${template.start_time_of_day}`;
-            const endTime = `${format(currentDate, 'yyyy-MM-dd')}T${template.end_time_of_day}`;
+            // Combinar a data do dia atual com a hora do template no fuso horário da academia
+            let startDateTime = setHours(currentDate, parseInt(template.start_time_of_day.substring(0, 2)));
+            startDateTime = setMinutes(startDateTime, parseInt(template.start_time_of_day.substring(3, 5)));
+            startDateTime = setSeconds(startDateTime, parseInt(template.start_time_of_day.substring(6, 8) || '00'));
+
+            let endDateTime = setHours(currentDate, parseInt(template.end_time_of_day.substring(0, 2)));
+            endDateTime = setMinutes(endDateTime, parseInt(template.end_time_of_day.substring(3, 5)));
+            endDateTime = setSeconds(endDateTime, parseInt(template.end_time_of_day.substring(6, 8) || '00'));
+
+            // Converter para UTC para armazenar no banco de dados
+            const startUtc = zonedTimeToUtc(startDateTime, APP_TIMEZONE).toISOString();
+            const endUtc = zonedTimeToUtc(endDateTime, APP_TIMEZONE).toISOString();
 
             // Check for existing class to prevent duplicates
             const { count: existingClassCount, error: existingClassError } = await supabase
@@ -66,8 +69,8 @@ serve(async (req) => {
               .select('id', { count: 'exact', head: true })
               .eq('user_id', template.user_id)
               .eq('title', template.title)
-              .eq('start_time', startTime)
-              .eq('end_time', endTime);
+              .eq('start_time', startUtc)
+              .eq('end_time', endUtc);
 
             if (existingClassError) throw existingClassError;
 
@@ -75,8 +78,8 @@ serve(async (req) => {
               classesToInsert.push({
                 user_id: template.user_id,
                 title: template.title,
-                start_time: startTime,
-                end_time: endTime,
+                start_time: startUtc,
+                end_time: endUtc,
                 notes: template.notes,
               });
             }

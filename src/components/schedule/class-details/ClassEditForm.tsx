@@ -21,7 +21,9 @@ const classSchema = z.object({
   end_time: z.string().min(1, 'A data e hora de fim são obrigatórias.'),
   notes: z.string().optional(),
 }).superRefine((data, ctx) => {
-  if (new Date(data.end_time) <= new Date(data.start_time)) {
+  const startTime = parseISO(data.start_time);
+  const endTime = parseISO(data.end_time);
+  if (endTime <= startTime) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'A hora de fim deve ser posterior à hora de início.',
@@ -73,8 +75,9 @@ const ClassEditForm = ({
     if (classEvent) {
       reset({
         title: classEvent.title || '',
-        start_time: classEvent.start_time ? format(parseISO(classEvent.start_time), "yyyy-MM-dd'T'HH:mm") : '',
-        end_time: classEvent.end_time ? format(parseISO(classEvent.end_time), "yyyy-MM-dd'T'HH:mm") : '',
+        // Formatar Date objects para o formato datetime-local esperado pelo input
+        start_time: classEvent.start_time ? format(classEvent.start_time, "yyyy-MM-dd'T'HH:mm") : '',
+        end_time: classEvent.end_time ? format(classEvent.end_time, "yyyy-MM-dd'T'HH:mm") : '',
         notes: classEvent.notes || '',
         student_id: classEvent.student_id || null,
       });
