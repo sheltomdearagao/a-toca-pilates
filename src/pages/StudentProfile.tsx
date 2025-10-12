@@ -20,7 +20,8 @@ import { ptBR } from 'date-fns/locale';
 import ProRataCalculator from '../components/students/ProRataCalculator';
 import AddClassDialog from '@/components/schedule/AddClassDialog';
 import { showError, showSuccess } from '@/utils/toast';
-import ColoredSeparator from "@/components/ColoredSeparator"; // Importar o novo componente
+import ColoredSeparator from "@/components/ColoredSeparator";
+import { useSession } from '@/contexts/SessionProvider'; // Importar useSession
 
 type ClassAttendance = {
   id: string;
@@ -71,6 +72,8 @@ const StudentProfile = () => {
   const queryClient = useQueryClient();
   const [isProRataOpen, setProRataOpen] = useState(false);
   const [isAddClassOpen, setAddClassOpen] = useState(false);
+  const { profile } = useSession(); // Obter o perfil do usuário logado
+  const isAdmin = profile?.role === 'admin';
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['studentProfile', studentId],
@@ -80,6 +83,10 @@ const StudentProfile = () => {
 
   const markAsPaidMutation = useMutation({
     mutationFn: async (transactionId: string) => {
+      // Apenas admins podem marcar como pago
+      if (!isAdmin) {
+        throw new Error("Você não tem permissão para marcar transações como pagas.");
+      }
       const { error } = await supabase
         .from('financial_transactions')
         .update({ status: 'Pago', paid_at: new Date().toISOString() })
@@ -147,7 +154,7 @@ const StudentProfile = () => {
         </div>
       </div>
 
-      <ColoredSeparator color="primary" className="my-6" /> {/* Separador colorido */}
+      <ColoredSeparator color="primary" className="my-6" />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-1">
@@ -200,7 +207,7 @@ const StudentProfile = () => {
                     <TableCell>{t.due_date ? format(parseISO(t.due_date), 'dd/MM/yyyy') : '-'}</TableCell>
                     <TableCell className="text-right font-semibold">{formatCurrency(t.amount)}</TableCell>
                     <TableCell className="text-right">
-                      {t.status !== 'Pago' && t.type === 'revenue' && (
+                      {t.status !== 'Pago' && t.type === 'revenue' && isAdmin && ( // Apenas admin pode marcar como pago
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="h-8 w-8 p-0">
