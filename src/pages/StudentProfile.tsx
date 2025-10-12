@@ -1,15 +1,17 @@
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Student } from '@/types/student';
 import { FinancialTransaction } from '@/types/financial';
-import { Loader2, ArrowLeft, User, Mail, Phone, StickyNote, DollarSign, Calendar } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Mail, Phone, StickyNote, DollarSign, Calendar, Calculator } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import ProRataCalculator from '../components/students/ProRataCalculator';
 
 type ClassAttendance = {
   id: string;
@@ -57,6 +59,7 @@ const formatCurrency = (value: number) => {
 
 const StudentProfile = () => {
   const { studentId } = useParams<{ studentId: string }>();
+  const [isProRataOpen, setProRataOpen] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['studentProfile', studentId],
@@ -87,14 +90,22 @@ const StudentProfile = () => {
             Voltar para Alunos
           </Link>
         </Button>
-        <div className="flex items-center space-x-4">
-          <div className="p-3 bg-muted rounded-full">
-            <User className="w-8 h-8 text-muted-foreground" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 bg-muted rounded-full">
+              <User className="w-8 h-8 text-muted-foreground" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold">{student.name}</h1>
+              <Badge>{student.status}</Badge>
+            </div>
           </div>
-          <div>
-            <h1 className="text-3xl font-bold">{student.name}</h1>
-            <Badge>{student.status}</Badge>
-          </div>
+          {student.plan_type !== 'Avulso' && (
+            <Button onClick={() => setProRataOpen(true)}>
+              <Calculator className="w-4 h-4 mr-2" />
+              Gerar 1ª Cobrança
+            </Button>
+          )}
         </div>
       </div>
 
@@ -178,6 +189,7 @@ const StudentProfile = () => {
           </CardContent>
         </Card>
       </div>
+      {student && <ProRataCalculator isOpen={isProRataOpen} onOpenChange={setProRataOpen} student={student} />}
     </div>
   );
 };
