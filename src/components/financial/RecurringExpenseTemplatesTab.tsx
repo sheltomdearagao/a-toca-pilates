@@ -50,7 +50,7 @@ import {
 import { Loader2, MoreHorizontal, Edit, Trash2, Repeat, PlusCircle } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { format, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { ptBR } from 'date-fns/locale/pt-BR'; // Corrigido o caminho de importação
 import { useAppSettings } from '@/hooks/useAppSettings'; // Importar o hook
 
 const recurrenceIntervals = [

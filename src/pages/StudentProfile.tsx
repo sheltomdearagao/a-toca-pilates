@@ -16,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { format, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { ptBR } from 'date-fns/locale/pt-BR'; // Corrigido o caminho de importação
 import ProRataCalculator from '../components/students/ProRataCalculator';
 import AddClassDialog from '@/components/schedule/AddClassDialog';
 import { showError, showSuccess } from '@/utils/toast';

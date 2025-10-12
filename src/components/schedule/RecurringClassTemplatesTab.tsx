@@ -45,7 +45,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, MoreHorizontal, Edit, Trash2, Repeat } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { format, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { ptBR } from 'date-fns/locale/pt-BR'; // Corrigido o caminho de importação
 
 const templateSchema = z.object({
   title: z.string().min(3, 'O título é obrigatório.'),

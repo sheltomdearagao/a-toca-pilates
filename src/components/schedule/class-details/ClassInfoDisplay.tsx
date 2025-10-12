@@ -1,7 +1,7 @@
 import React from 'react';
 import { DialogDescription } from '@/components/ui/dialog';
 import { format } from 'date-fns'; // Não precisa de parseISO aqui, já é Date
-import { ptBR } from 'date-fns/locale';
+import { ptBR } from 'date-fns/locale/pt-BR'; // Corrigido o caminho de importação
 import { ClassEvent } from '@/types/schedule';
 
 interface ClassInfoDisplayProps {

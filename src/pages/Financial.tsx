@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlusCircle } from "lucide-react";
 import { format, startOfMonth, endOfMonth, parseISO, subMonths } from "date-fns";
-import { ptBR } from 'date-fns/locale';
+import { ptBR } from 'date-fns/locale/pt-BR'; // Corrigido o caminho de importação
 import FinancialOverviewCards from "@/components/financial/FinancialOverviewCards";
 import MonthlyFinancialChart from "@/components/financial/MonthlyFinancialChart";
 import AllTransactionsTable from "@/components/financial/AllTransactionsTable";
