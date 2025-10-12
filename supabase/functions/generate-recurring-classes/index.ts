@@ -1,10 +1,10 @@
 // @ts-nocheck
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
-// Atualizado date-fns para a versão 3.6.0 para compatibilidade
+// Mantido date-fns para a versão 3.6.0
 import { addDays, format, parseISO, isWithinInterval, startOfDay, endOfDay, setHours, setMinutes, setSeconds } from "https://esm.sh/date-fns@3.6.0";
-// Forçando date-fns-tz a usar date-fns@3.6.0 como dependência
-import { zonedTimeToUtc, utcToZonedTime } from "https://esm.sh/date-fns-tz@2.0.0?deps=date-fns@3.6.0"; 
+// Atualizado date-fns-tz para a versão 3.0.0 e importando as novas funções
+import { toZonedTime, toUtc } from "https://esm.sh/date-fns-tz@3.0.0"; 
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -28,7 +28,8 @@ serve(async (req) => {
     );
 
     const classesToInsert = [];
-    const today = startOfDay(utcToZonedTime(new Date(), APP_TIMEZONE)); // Obter 'hoje' no fuso horário da academia
+    // Usando toZonedTime para converter a data atual para o fuso horário da aplicação
+    const today = startOfDay(toZonedTime(new Date(), APP_TIMEZONE)); 
     const twoMonthsFromNow = addDays(today, 60); // Gerar classes para os próximos 60 dias
 
     // Fetch all recurring class templates
@@ -61,9 +62,9 @@ serve(async (req) => {
             endDateTime = setMinutes(endDateTime, parseInt(template.end_time_of_day.substring(3, 5)));
             endDateTime = setSeconds(endDateTime, parseInt(template.end_time_of_day.substring(6, 8) || '00'));
 
-            // Converter para UTC para armazenar no banco de dados
-            const startUtc = zonedTimeToUtc(startDateTime, APP_TIMEZONE).toISOString();
-            const endUtc = zonedTimeToUtc(endDateTime, APP_TIMEZONE).toISOString();
+            // Converter para UTC para armazenar no banco de dados usando a nova API
+            const startUtc = toUtc(startDateTime, { timeZone: APP_TIMEZONE }).toISOString();
+            const endUtc = toUtc(endDateTime, { timeZone: APP_TIMEZONE }).toISOString();
 
             // Check for existing class to prevent duplicates
             const { count: existingClassCount, error: existingClassError } = await supabase
