@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Student, PlanType, PlanFrequency, PaymentMethod } from "@/types/student";
+import { Student, PlanType, PlanFrequency, PaymentMethod, EnrollmentType } from "@/types/student";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -62,6 +62,7 @@ const studentSchema = z.object({
   plan_frequency: z.enum(["2x", "3x", "4x", "5x"]).optional(),
   payment_method: z.enum(["Cartão", "Espécie"]).optional(),
   monthly_fee: z.number().optional(),
+  enrollment_type: z.enum(["Particular", "Wellhub", "TotalPass"]).default("Particular"), // Novo campo
 });
 
 type StudentFormData = z.infer<typeof studentSchema>;
@@ -95,7 +96,7 @@ const Students = () => {
 
   const { control, handleSubmit, reset, setValue, watch } = useForm<StudentFormData>({
     resolver: zodResolver(studentSchema),
-    defaultValues: { name: "", email: "", phone: "", status: "Experimental", notes: "", plan_type: "Avulso" },
+    defaultValues: { name: "", email: "", phone: "", status: "Experimental", notes: "", plan_type: "Avulso", enrollment_type: "Particular" },
   });
 
   const planType = watch("plan_type");
@@ -159,7 +160,7 @@ const Students = () => {
 
   const handleAddNew = () => {
     setSelectedStudent(null);
-    reset({ name: "", email: "", phone: "", status: "Experimental", notes: "", plan_type: "Avulso" });
+    reset({ name: "", email: "", phone: "", status: "Experimental", notes: "", plan_type: "Avulso", enrollment_type: "Particular" });
     setFormOpen(true);
   };
 
@@ -188,12 +189,13 @@ const Students = () => {
       ) : students && students.length > 0 ? (
         <div className="bg-card rounded-lg border">
           <Table>
-            <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Plano</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Plano</TableHead><TableHead>Tipo Matrícula</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
             <TableBody>
               {students.map((student) => (
                 <TableRow key={student.id}>
                   <TableCell className="font-medium"><Link to={`/alunos/${student.id}`} className="hover:underline">{student.name}</Link></TableCell>
                   <TableCell>{student.plan_type !== 'Avulso' ? `${student.plan_type} ${student.plan_frequency}` : 'Avulso'}</TableCell>
+                  <TableCell>{student.enrollment_type}</TableCell> {/* Exibindo o novo campo */}
                   <TableCell>{student.status}</TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
@@ -237,6 +239,7 @@ const Students = () => {
                   </div>
                 </div>
               )}
+              <div className="space-y-2"><Label>Tipo de Matrícula</Label><Controller name="enrollment_type" control={control} render={({ field }) => (<Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Particular">Particular</SelectItem><SelectItem value="Wellhub">Wellhub</SelectItem><SelectItem value="TotalPass">TotalPass</SelectItem></SelectContent></Select>)} /></div>
               <div className="space-y-2"><Label>Notas</Label><Controller name="notes" control={control} render={({ field }) => <Textarea {...field} />} /></div>
             </div>
             <DialogFooter>

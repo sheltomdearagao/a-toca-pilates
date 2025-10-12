@@ -123,7 +123,10 @@ const StudentProfile = () => {
             </div>
             <div>
               <h1 className="text-3xl font-bold">{student.name}</h1>
-              <Badge>{student.status}</Badge>
+              <div className="flex items-center gap-2">
+                <Badge>{student.status}</Badge>
+                <Badge variant="secondary">{student.enrollment_type}</Badge> {/* Exibindo o novo campo */}
+              </div>
             </div>
           </div>
           {student.plan_type !== 'Avulso' && (

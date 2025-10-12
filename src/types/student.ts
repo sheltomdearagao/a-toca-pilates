@@ -2,6 +2,7 @@ export type StudentStatus = 'Ativo' | 'Inativo' | 'Experimental' | 'Bloqueado';
 export type PlanType = 'Mensal' | 'Trimestral' | 'Avulso';
 export type PlanFrequency = '2x' | '3x' | '4x' | '5x';
 export type PaymentMethod = 'Cartão' | 'Espécie';
+export type EnrollmentType = 'Particular' | 'Wellhub' | 'TotalPass'; // Novo tipo
 
 export type Student = {
   id: string;
@@ -16,4 +17,5 @@ export type Student = {
   plan_frequency?: PlanFrequency;
   payment_method?: PaymentMethod;
   monthly_fee?: number;
+  enrollment_type: EnrollmentType; // Novo campo
 };
