@@ -8,7 +8,9 @@ export type ClassEvent = {
   end_time: string; // ISO string
   notes: string | null;
   created_at: string;
+  student_id: string | null; // Novo campo para vincular a um aluno
   class_attendees: { count: number }[];
+  students?: { name: string }; // Para o join na query
 };
 
 export type RecurringClassTemplate = {

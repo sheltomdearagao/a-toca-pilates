@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Student } from '@/types/student';
 import { FinancialTransaction } from '@/types/financial';
-import { Loader2, ArrowLeft, User, Mail, Phone, StickyNote, DollarSign, Calendar, Calculator, MoreHorizontal, CheckCircle, Cake } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Mail, Phone, StickyNote, DollarSign, Calendar, Calculator, MoreHorizontal, CheckCircle, Cake, PlusCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -18,6 +18,7 @@ import {
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ProRataCalculator from '../components/students/ProRataCalculator';
+import AddClassDialog from '@/components/schedule/AddClassDialog'; // Importar o AddClassDialog
 import { showError, showSuccess } from '@/utils/toast';
 
 type ClassAttendance = {
@@ -68,6 +69,7 @@ const StudentProfile = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const queryClient = useQueryClient();
   const [isProRataOpen, setProRataOpen] = useState(false);
+  const [isAddClassOpen, setAddClassOpen] = useState(false); // Novo estado para o diálogo de aula
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['studentProfile', studentId],
@@ -129,12 +131,18 @@ const StudentProfile = () => {
               </div>
             </div>
           </div>
-          {student.plan_type !== 'Avulso' && (
-            <Button onClick={() => setProRataOpen(true)}>
-              <Calculator className="w-4 h-4 mr-2" />
-              Gerar 1ª Cobrança
+          <div className="flex gap-2">
+            {student.plan_type !== 'Avulso' && (
+              <Button onClick={() => setProRataOpen(true)}>
+                <Calculator className="w-4 h-4 mr-2" />
+                Gerar 1ª Cobrança
+              </Button>
+            )}
+            <Button onClick={() => setAddClassOpen(true)}> {/* Botão para agendar aula */}
+              <PlusCircle className="w-4 h-4 mr-2" />
+              Agendar Aula
             </Button>
-          )}
+          </div>
         </div>
       </div>
 
@@ -243,6 +251,7 @@ const StudentProfile = () => {
         </Card>
       </div>
       {student && <ProRataCalculator isOpen={isProRataOpen} onOpenChange={setProRataOpen} student={student} />}
+      {student && <AddClassDialog isOpen={isAddClassOpen} onOpenChange={setAddClassOpen} initialStudentId={student.id} />} {/* Passar initialStudentId */}
     </div>
   );
 };

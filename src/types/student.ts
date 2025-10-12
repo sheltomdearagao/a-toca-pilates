@@ -20,3 +20,6 @@ export type Student = {
   enrollment_type: EnrollmentType; // Novo campo
   date_of_birth?: string | null; // Novo campo
 };
+
+// Novo tipo para uso em dropdowns e seletores de aluno
+export type StudentOption = Pick<Student, 'id' | 'name' | 'enrollment_type'>;

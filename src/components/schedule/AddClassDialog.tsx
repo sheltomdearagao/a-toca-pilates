@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -16,13 +16,18 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Check, ChevronsUpDown } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { format } from 'date-fns';
+import { Student, StudentOption } from '@/types/student'; // Importar StudentOption
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 
 const classSchema = z.object({
-  title: z.string().min(3, 'O título é obrigatório.'),
+  student_id: z.string().optional().nullable(), // Optional for general classes, but required if selected
+  title: z.string().min(3, 'O título é obrigatório.').optional(), // Keep title for general classes
   start_time: z.string().min(1, 'A data e hora de início são obrigatórias.'),
   end_time: z.string().min(1, 'A data e hora de fim são obrigatórias.'),
   notes: z.string().optional(),
@@ -62,6 +67,14 @@ const classSchema = z.object({
       });
     }
   }
+  // If student_id is selected, title is optional. If no student_id, title is required.
+  if (!data.student_id && (!data.title || data.title.trim() === '')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'O título da aula é obrigatório se nenhum aluno for selecionado.',
+      path: ['title'],
+    });
+  }
 });
 
 type ClassFormData = z.infer<typeof classSchema>;
@@ -69,6 +82,7 @@ type ClassFormData = z.infer<typeof classSchema>;
 interface AddClassDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
+  initialStudentId?: string; // New prop for pre-selecting student
 }
 
 const daysOfWeek = [
@@ -81,11 +95,18 @@ const daysOfWeek = [
   { label: 'Dom', value: 'sunday' },
 ];
 
-const AddClassDialog = ({ isOpen, onOpenChange }: AddClassDialogProps) => {
+const fetchAllStudents = async (): Promise<StudentOption[]> => { // Usar StudentOption
+  const { data, error } = await supabase.from('students').select('id, name, enrollment_type').order('name'); // Selecionar enrollment_type
+  if (error) throw new Error(error.message);
+  return data || [];
+};
+
+const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDialogProps) => {
   const queryClient = useQueryClient();
   const { control, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<ClassFormData>({
     resolver: zodResolver(classSchema),
     defaultValues: {
+      student_id: initialStudentId || null,
       title: '',
       start_time: '',
       end_time: '',
@@ -99,16 +120,48 @@ const AddClassDialog = ({ isOpen, onOpenChange }: AddClassDialogProps) => {
 
   const isRecurring = watch('is_recurring');
   const recurrenceDays = watch('recurrence_days_of_week');
+  const selectedStudentId = watch('student_id');
+
+  const { data: students, isLoading: isLoadingStudents } = useQuery<StudentOption[]>({ // Usar StudentOption
+    queryKey: ['allStudents'],
+    queryFn: fetchAllStudents,
+  });
+
+  useEffect(() => {
+    if (isOpen) {
+      reset({
+        student_id: initialStudentId || null,
+        title: '',
+        start_time: '',
+        end_time: '',
+        notes: '',
+        is_recurring: false,
+        recurrence_days_of_week: [],
+        recurrence_start_date: format(new Date(), 'yyyy-MM-dd'),
+        recurrence_end_date: '',
+      });
+      if (initialStudentId && students) {
+        const student = students.find(s => s.id === initialStudentId);
+        if (student) {
+          setValue('title', `Aula com ${student.name}`);
+        }
+      }
+    }
+  }, [isOpen, initialStudentId, students, reset, setValue]);
 
   const mutation = useMutation({
     mutationFn: async (formData: ClassFormData) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado.');
 
+      const classTitle = formData.student_id
+        ? students?.find(s => s.id === formData.student_id)?.name || 'Aula com Aluno'
+        : formData.title;
+
       if (formData.is_recurring) {
         const dataToSubmit = {
           user_id: user.id,
-          title: formData.title,
+          title: classTitle,
           start_time_of_day: format(new Date(formData.start_time), 'HH:mm:ss'),
           end_time_of_day: format(new Date(formData.end_time), 'HH:mm:ss'),
           notes: formData.notes,
@@ -121,10 +174,11 @@ const AddClassDialog = ({ isOpen, onOpenChange }: AddClassDialogProps) => {
       } else {
         const dataToSubmit = {
           user_id: user.id,
-          title: formData.title,
+          title: classTitle,
           start_time: new Date(formData.start_time).toISOString(),
           end_time: new Date(formData.end_time).toISOString(),
           notes: formData.notes,
+          student_id: formData.student_id || null,
         };
         const { error } = await supabase.from('classes').insert([dataToSubmit]);
         if (error) throw error;
@@ -132,7 +186,7 @@ const AddClassDialog = ({ isOpen, onOpenChange }: AddClassDialogProps) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['classes'] });
-      queryClient.invalidateQueries({ queryKey: ['recurringClassTemplates'] }); // Invalidate new query key
+      queryClient.invalidateQueries({ queryKey: ['recurringClassTemplates'] });
       showSuccess(`Aula ${isRecurring ? 'recorrente agendada' : 'agendada'} com sucesso!`);
       onOpenChange(false);
       reset();
@@ -155,10 +209,67 @@ const AddClassDialog = ({ isOpen, onOpenChange }: AddClassDialogProps) => {
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="title">Título da Aula</Label>
-              <Controller name="title" control={control} render={({ field }) => <Input id="title" {...field} />} />
-              {errors.title && <p className="text-sm text-destructive mt-1">{errors.title.message}</p>}
+              <Label htmlFor="student_id">Aluno (Opcional)</Label>
+              <Controller
+                name="student_id"
+                control={control}
+                render={({ field }) => (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className={cn(
+                          "w-full justify-between",
+                          !field.value && "text-muted-foreground"
+                        )}
+                        disabled={isLoadingStudents}
+                      >
+                        {field.value
+                          ? students?.find((student) => student.id === field.value)?.name
+                          : "Selecione um aluno..."}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                      <Command>
+                        <CommandInput placeholder="Buscar aluno..." />
+                        <CommandEmpty>Nenhum aluno encontrado.</CommandEmpty>
+                        <CommandGroup>
+                          {students?.map((student) => (
+                            <CommandItem
+                              value={student.name}
+                              key={student.id}
+                              onSelect={() => {
+                                field.onChange(student.id);
+                                setValue('title', `Aula com ${student.name}`); // Set title based on student
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  student.id === field.value ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {student.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              />
+              {errors.student_id && <p className="text-sm text-destructive mt-1">{errors.student_id.message}</p>}
             </div>
+
+            {!selectedStudentId && ( // Only show title input if no student is selected
+              <div className="space-y-2">
+                <Label htmlFor="title">Título da Aula (Obrigatório se nenhum aluno for selecionado)</Label>
+                <Controller name="title" control={control} render={({ field }) => <Input id="title" {...field} />} />
+                {errors.title && <p className="text-sm text-destructive mt-1">{errors.title.message}</p>}
+              </div>
+            )}
 
             <div className="flex items-center space-x-2">
               <Controller

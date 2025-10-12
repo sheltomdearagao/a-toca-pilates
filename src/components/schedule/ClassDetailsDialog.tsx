@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 import { ClassEvent, ClassAttendee, AttendanceStatus } from '@/types/schedule';
-import { Student } from '@/types/student';
+import { Student, StudentOption } from '@/types/student'; // Importar StudentOption
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -37,19 +37,35 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Trash2, UserPlus, Check, X, Edit } from 'lucide-react';
+import { Loader2, Trash2, UserPlus, Check, X, Edit, CheckCircle, ChevronsUpDown } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 
 const classSchema = z.object({
-  title: z.string().min(3, 'O título é obrigatório.'),
+  student_id: z.string().optional().nullable(),
+  title: z.string().min(3, 'O título é obrigatório.').optional(),
   start_time: z.string().min(1, 'A data e hora de início são obrigatórias.'),
   end_time: z.string().min(1, 'A data e hora de fim são obrigatórias.'),
   notes: z.string().optional(),
-}).refine(data => new Date(data.end_time) > new Date(data.start_time), {
-  message: 'A hora de fim deve ser posterior à hora de início.',
-  path: ['end_time'],
+}).superRefine((data, ctx) => {
+  if (new Date(data.end_time) <= new Date(data.start_time)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'A hora de fim deve ser posterior à hora de início.',
+      path: ['end_time'],
+    });
+  }
+  if (!data.student_id && (!data.title || data.title.trim() === '')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'O título da aula é obrigatório se nenhum aluno for selecionado.',
+      path: ['title'],
+    });
+  }
 });
 
 type ClassFormData = z.infer<typeof classSchema>;
@@ -58,11 +74,11 @@ interface ClassDetailsDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   classEvent: Partial<ClassEvent> | null;
-  classCapacity: number; // Receber a capacidade da turma como prop
+  classCapacity: number;
 }
 
 const fetchClassDetails = async (classId: string): Promise<Partial<ClassEvent> | null> => {
-  const { data, error } = await supabase.from('classes').select('*').eq('id', classId).single();
+  const { data, error } = await supabase.from('classes').select('*, students(name)').eq('id', classId).single();
   if (error) throw new Error(error.message);
   return data;
 };
@@ -73,22 +89,22 @@ const fetchAttendees = async (classId: string): Promise<ClassAttendee[]> => {
   return data as unknown as ClassAttendee[] || [];
 };
 
-const fetchAllStudents = async (): Promise<Student[]> => {
-  const { data, error } = await supabase.from('students').select('*').order('name');
+const fetchAllStudents = async (): Promise<StudentOption[]> => { // Usar StudentOption
+  const { data, error } = await supabase.from('students').select('id, name, enrollment_type').order('name'); // Selecionar enrollment_type
   if (error) throw new Error(error.message);
   return data || [];
 };
 
 const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }: ClassDetailsDialogProps) => {
   const queryClient = useQueryClient();
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [selectedStudentIdToAdd, setSelectedStudentIdToAdd] = useState<string | null>(null); // Renamed to avoid conflict
   const [isDeleteClassAlertOpen, setDeleteClassAlertOpen] = useState(false);
   const [isDeleteAttendeeAlertOpen, setDeleteAttendeeAlertOpen] = useState(false);
   const [attendeeToDelete, setAttendeeToDelete] = useState<ClassAttendee | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isDisplaceConfirmationOpen, setDisplaceConfirmationOpen] = useState(false);
   const [studentToDisplace, setStudentToDisplace] = useState<ClassAttendee | null>(null);
-  const [newStudentForDisplacement, setNewStudentForDisplacement] = useState<Student | null>(null);
+  const [newStudentForDisplacement, setNewStudentForDisplacement] = useState<StudentOption | null>(null); // Usar StudentOption
 
 
   const classId = classEvent?.id;
@@ -105,17 +121,20 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
     enabled: !!classId,
   });
 
-  const { data: allStudents } = useQuery({ queryKey: ['students'], queryFn: fetchAllStudents });
+  const { data: allStudents, isLoading: isLoadingAllStudents } = useQuery<StudentOption[]>({ queryKey: ['allStudents'], queryFn: fetchAllStudents }); // Usar StudentOption
 
-  const { control, handleSubmit, reset, formState: { errors } } = useForm<ClassFormData>({
+  const { control, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<ClassFormData>({
     resolver: zodResolver(classSchema),
     defaultValues: {
+      student_id: null,
       title: '',
       start_time: '',
       end_time: '',
       notes: '',
     },
   });
+
+  const selectedStudentIdInEdit = watch('student_id'); // Watch student_id in edit mode
 
   useEffect(() => {
     if (details && isEditMode) {
@@ -124,6 +143,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
         start_time: details.start_time ? format(parseISO(details.start_time), "yyyy-MM-dd'T'HH:mm") : '',
         end_time: details.end_time ? format(parseISO(details.end_time), "yyyy-MM-dd'T'HH:mm") : '',
         notes: details.notes || '',
+        student_id: details.student_id || null,
       });
     }
   }, [details, isEditMode, reset]);
@@ -151,7 +171,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
       queryClient.invalidateQueries({ queryKey: ['classAttendees', classId] });
       queryClient.invalidateQueries({ queryKey: ['classes'] });
       showSuccess('Aluno adicionado à aula!');
-      setSelectedStudentId(null);
+      setSelectedStudentIdToAdd(null);
       setDisplaceConfirmationOpen(false);
       setStudentToDisplace(null);
       setNewStudentForDisplacement(null);
@@ -189,11 +209,16 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
   const updateClassMutation = useMutation({
     mutationFn: async (formData: ClassFormData) => {
       if (!classId) throw new Error("ID da aula não encontrado.");
+      const classTitle = formData.student_id
+        ? allStudents?.find(s => s.id === formData.student_id)?.name || 'Aula com Aluno'
+        : formData.title;
+
       const dataToSubmit = {
-        title: formData.title,
+        title: classTitle,
         start_time: new Date(formData.start_time).toISOString(),
         end_time: new Date(formData.end_time).toISOString(),
         notes: formData.notes,
+        student_id: formData.student_id || null,
       };
       const { error } = await supabase.from('classes').update(dataToSubmit).eq('id', classId);
       if (error) throw error;
@@ -221,8 +246,8 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
     onError: (error) => { showError(error.message); }
   });
 
-  const availableStudents = allStudents?.filter(s => !attendees?.some(a => a.students.id === s.id));
-  const isClassFull = (attendees?.length || 0) >= classCapacity; // Usar classCapacity
+  const availableStudentsForAdd = allStudents?.filter(s => !attendees?.some(a => a.students.id === s.id));
+  const isClassFull = (attendees?.length || 0) >= classCapacity;
 
   const handleEditSubmit = (data: ClassFormData) => {
     updateClassMutation.mutate(data);
@@ -234,12 +259,12 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
   };
 
   const handleAddStudentClick = () => {
-    if (!selectedStudentId) {
+    if (!selectedStudentIdToAdd) {
       showError("Selecione um aluno para adicionar.");
       return;
     }
 
-    const studentToAdd = allStudents?.find(s => s.id === selectedStudentId);
+    const studentToAdd = allStudents?.find(s => s.id === selectedStudentIdToAdd);
     if (!studentToAdd) {
       showError("Aluno não encontrado.");
       return;
@@ -255,8 +280,8 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
         );
 
         if (displaceableStudents && displaceableStudents.length > 0) {
-          // Found a student to displace
-          setStudentToDisplace(displaceableStudents[0]); // Displace the first found
+          // Displace the first found
+          setStudentToDisplace(displaceableStudents[0]);
           setNewStudentForDisplacement(studentToAdd);
           setDisplaceConfirmationOpen(true);
         } else {
@@ -285,7 +310,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
             <>
               <DialogHeader>
                 <DialogTitle className="text-2xl">
-                  {isEditMode ? "Editar Aula" : details?.title}
+                  {isEditMode ? "Editar Aula" : (details?.students?.name ? `Aula com ${details.students.name}` : details?.title)}
                 </DialogTitle>
                 {!isEditMode && (
                   <DialogDescription>
@@ -298,10 +323,68 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                 <form onSubmit={handleSubmit(handleEditSubmit)}>
                   <div className="grid gap-4 py-4">
                     <div className="space-y-2">
-                      <Label htmlFor="title">Título da Aula</Label>
-                      <Controller name="title" control={control} render={({ field }) => <Input id="title" {...field} />} />
-                      {errors.title && <p className="text-sm text-destructive mt-1">{errors.title.message}</p>}
+                      <Label htmlFor="student_id">Aluno (Opcional)</Label>
+                      <Controller
+                        name="student_id"
+                        control={control}
+                        render={({ field }) => (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className={cn(
+                                  "w-full justify-between",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                                disabled={isLoadingAllStudents}
+                              >
+                                {field.value
+                                  ? allStudents?.find((student) => student.id === field.value)?.name
+                                  : "Selecione um aluno..."}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                              <Command>
+                                <CommandInput placeholder="Buscar aluno..." />
+                                <CommandEmpty>Nenhum aluno encontrado.</CommandEmpty>
+                                <CommandGroup>
+                                  {allStudents?.map((student) => (
+                                    <CommandItem
+                                      value={student.name}
+                                      key={student.id}
+                                      onSelect={() => {
+                                        field.onChange(student.id);
+                                        setValue('title', `Aula com ${student.name}`);
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          student.id === field.value ? "opacity-100" : "opacity-0"
+                                        )}
+                                      />
+                                      {student.name}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                      />
+                      {errors.student_id && <p className="text-sm text-destructive mt-1">{errors.student_id.message}</p>}
                     </div>
+
+                    {!selectedStudentIdInEdit && (
+                      <div className="space-y-2">
+                        <Label htmlFor="title">Título da Aula (Obrigatório se nenhum aluno for selecionado)</Label>
+                        <Controller name="title" control={control} render={({ field }) => <Input id="title" {...field} />} />
+                        {errors.title && <p className="text-sm text-destructive mt-1">{errors.title.message}</p>}
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="start_time">Início</Label>
@@ -360,13 +443,13 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                     <div>
                       <h4 className="font-semibold mb-2">Adicionar Aluno à Aula</h4>
                       <div className="flex gap-2">
-                        <Select onValueChange={setSelectedStudentId} value={selectedStudentId || ''}>
+                        <Select onValueChange={setSelectedStudentIdToAdd} value={selectedStudentIdToAdd || ''}>
                           <SelectTrigger><SelectValue placeholder="Selecione um aluno..." /></SelectTrigger>
                           <SelectContent>
-                            {availableStudents?.map(s => <SelectItem key={s.id} value={s.id}>{s.name} ({s.enrollment_type})</SelectItem>)}
+                            {availableStudentsForAdd?.map(s => <SelectItem key={s.id} value={s.id}>{s.name} ({s.enrollment_type})</SelectItem>)}
                           </SelectContent>
                         </Select>
-                        <Button onClick={handleAddStudentClick} disabled={!selectedStudentId || addAttendeeMutation.isPending}>
+                        <Button onClick={handleAddStudentClick} disabled={!selectedStudentIdToAdd || addAttendeeMutation.isPending}>
                           <UserPlus className="w-4 h-4 mr-2" /> Adicionar
                         </Button>
                       </div>
@@ -435,7 +518,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => { setDisplaceConfirmationOpen(false); setSelectedStudentId(null); }}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => { setDisplaceConfirmationOpen(false); setSelectedStudentIdToAdd(null); }}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmDisplacement} disabled={addAttendeeMutation.isPending}>
               {addAttendeeMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Sim, deslocar"}
             </AlertDialogAction>

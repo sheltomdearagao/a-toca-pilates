@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppSettings } from '@/hooks/useAppSettings'; // Importar o hook
 
 const fetchClasses = async (): Promise<ClassEvent[]> => {
-  const { data, error } = await supabase.from('classes').select('*, class_attendees(count)');
+  const { data, error } = await supabase.from('classes').select('*, class_attendees(count), students(name)'); // Fetch student name
   if (error) throw new Error(error.message);
   return (data as any) || [];
 };
@@ -25,9 +25,10 @@ const Schedule = () => {
   const [isAddFormOpen, setAddFormOpen] = useState(false);
   const [isDetailsOpen, setDetailsOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Partial<ClassEvent> | null>(null);
+  const [calendarView, setCalendarView] = useState('timeGridDay'); // Estado para controlar a visualização
 
-  const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings(); // Usar o hook
-  const CLASS_CAPACITY = appSettings?.class_capacity ?? 10; // Usar o valor configurável
+  const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
+  const CLASS_CAPACITY = appSettings?.class_capacity ?? 10;
 
   const { data: classes, isLoading: isLoadingClasses } = useQuery({
     queryKey: ['classes'],
@@ -38,14 +39,16 @@ const Schedule = () => {
 
   const calendarEvents = classes?.map(c => {
     const attendeeCount = c.class_attendees[0]?.count ?? 0;
+    const eventTitle = c.student_id && c.students ? `Aula com ${c.students.name}` : c.title; // Use student name if available
     return {
       id: c.id,
-      title: c.title,
+      title: eventTitle,
       start: c.start_time,
       end: c.end_time,
       notes: c.notes,
       extendedProps: {
         attendeeCount,
+        student_id: c.student_id,
       },
     };
   }) || [];
@@ -57,6 +60,7 @@ const Schedule = () => {
       start_time: clickInfo.event.startStr,
       end_time: clickInfo.event.endStr,
       notes: clickInfo.event.extendedProps.notes,
+      student_id: clickInfo.event.extendedProps.student_id,
     });
     setDetailsOpen(true);
   };
@@ -107,17 +111,23 @@ const Schedule = () => {
             <div className="bg-card p-4 rounded-lg border">
               <FullCalendar
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-                initialView="timeGridWeek"
+                initialView={calendarView} // Usar o estado para a visualização inicial
+                views={{
+                  timeGridTwoWeeks: {
+                    type: 'timeGrid',
+                    duration: { days: 14 },
+                    buttonText: '15 Dias'
+                  }
+                }}
                 headerToolbar={{
                   left: 'prev,next today',
                   center: 'title',
-                  right: 'dayGridMonth,timeGridWeek,timeGridDay',
+                  right: 'timeGridDay,timeGridWeek,timeGridTwoWeeks', // Adicionar botão de 15 dias
                 }}
                 buttonText={{
                   today:    'Hoje',
-                  month:    'Mês',
-                  week:     'Semana',
                   day:      'Dia',
+                  week:     'Semana',
                 }}
                 events={calendarEvents}
                 locale="pt-br"
@@ -138,7 +148,7 @@ const Schedule = () => {
       </Tabs>
       
       <AddClassDialog isOpen={isAddFormOpen} onOpenChange={setAddFormOpen} />
-      <ClassDetailsDialog isOpen={isDetailsOpen} onOpenChange={setDetailsOpen} classEvent={selectedEvent} classCapacity={CLASS_CAPACITY} /> {/* Passar classCapacity */}
+      <ClassDetailsDialog isOpen={isDetailsOpen} onOpenChange={setDetailsOpen} classEvent={selectedEvent} classCapacity={CLASS_CAPACITY} />
     </div>
   );
 };
