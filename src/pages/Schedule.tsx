@@ -10,11 +10,10 @@ import { Button } from '@/components/ui/button';
 import { PlusCircle, Loader2 } from 'lucide-react';
 import AddClassDialog from '@/components/schedule/AddClassDialog';
 import ClassDetailsDialog from '@/components/schedule/ClassDetailsDialog';
-import RecurringClassTemplatesTab from '@/components/schedule/RecurringClassTemplatesTab'; // Importar o novo componente
+import RecurringClassTemplatesTab from '@/components/schedule/RecurringClassTemplatesTab';
 import { ClassEvent } from '@/types/schedule';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-
-const CLASS_CAPACITY = 10;
+import { useAppSettings } from '@/hooks/useAppSettings'; // Importar o hook
 
 const fetchClasses = async (): Promise<ClassEvent[]> => {
   const { data, error } = await supabase.from('classes').select('*, class_attendees(count)');
@@ -27,10 +26,15 @@ const Schedule = () => {
   const [isDetailsOpen, setDetailsOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Partial<ClassEvent> | null>(null);
 
-  const { data: classes, isLoading } = useQuery({
+  const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings(); // Usar o hook
+  const CLASS_CAPACITY = appSettings?.class_capacity ?? 10; // Usar o valor configurável
+
+  const { data: classes, isLoading: isLoadingClasses } = useQuery({
     queryKey: ['classes'],
     queryFn: fetchClasses,
   });
+
+  const isLoading = isLoadingSettings || isLoadingClasses;
 
   const calendarEvents = classes?.map(c => {
     const attendeeCount = c.class_attendees[0]?.count ?? 0;
@@ -134,7 +138,7 @@ const Schedule = () => {
       </Tabs>
       
       <AddClassDialog isOpen={isAddFormOpen} onOpenChange={setAddFormOpen} />
-      <ClassDetailsDialog isOpen={isDetailsOpen} onOpenChange={setDetailsOpen} classEvent={selectedEvent} />
+      <ClassDetailsDialog isOpen={isDetailsOpen} onOpenChange={setDetailsOpen} classEvent={selectedEvent} classCapacity={CLASS_CAPACITY} /> {/* Passar classCapacity */}
     </div>
   );
 };

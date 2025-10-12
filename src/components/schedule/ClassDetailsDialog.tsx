@@ -42,8 +42,6 @@ import { showError, showSuccess } from '@/utils/toast';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-const CLASS_CAPACITY = 10;
-
 const classSchema = z.object({
   title: z.string().min(3, 'O título é obrigatório.'),
   start_time: z.string().min(1, 'A data e hora de início são obrigatórias.'),
@@ -60,6 +58,7 @@ interface ClassDetailsDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   classEvent: Partial<ClassEvent> | null;
+  classCapacity: number; // Receber a capacidade da turma como prop
 }
 
 const fetchClassDetails = async (classId: string): Promise<Partial<ClassEvent> | null> => {
@@ -80,7 +79,7 @@ const fetchAllStudents = async (): Promise<Student[]> => {
   return data || [];
 };
 
-const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDialogProps) => {
+const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }: ClassDetailsDialogProps) => {
   const queryClient = useQueryClient();
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [isDeleteClassAlertOpen, setDeleteClassAlertOpen] = useState(false);
@@ -223,7 +222,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
   });
 
   const availableStudents = allStudents?.filter(s => !attendees?.some(a => a.students.id === s.id));
-  const isClassFull = (attendees?.length || 0) >= CLASS_CAPACITY;
+  const isClassFull = (attendees?.length || 0) >= classCapacity; // Usar classCapacity
 
   const handleEditSubmit = (data: ClassFormData) => {
     updateClassMutation.mutate(data);
@@ -332,7 +331,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent }: ClassDetailsDi
                 <>
                   <div className="py-4 space-y-6">
                     <div>
-                      <h4 className="font-semibold mb-2">Controle de Presença ({attendees?.length || 0}/{CLASS_CAPACITY})</h4>
+                      <h4 className="font-semibold mb-2">Controle de Presença ({attendees?.length || 0}/{classCapacity})</h4>
                       <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
                         {isLoadingAttendees ? <Loader2 className="w-5 h-5 animate-spin" /> :
                           attendees?.map(attendee => (
