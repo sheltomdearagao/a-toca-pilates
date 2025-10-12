@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Student } from "@/types/student";
+import { Student, PlanType, PlanFrequency, PaymentMethod } from "@/types/student";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -58,14 +58,28 @@ const studentSchema = z.object({
   phone: z.string().optional(),
   status: z.enum(["Ativo", "Inativo", "Experimental", "Bloqueado"]),
   notes: z.string().optional(),
-  plan_type: z.enum(["Mensal", "Avulso"]).default("Avulso"),
-  monthly_fee: z.preprocess(
-    (a) => (a === "" ? undefined : parseFloat(z.string().parse(a))),
-    z.number().optional()
-  ),
+  plan_type: z.enum(["Mensal", "Trimestral", "Avulso"]).default("Avulso"),
+  plan_frequency: z.enum(["2x", "3x", "4x", "5x"]).optional(),
+  payment_method: z.enum(["Cartão", "Espécie"]).optional(),
+  monthly_fee: z.number().optional(),
 });
 
 type StudentFormData = z.infer<typeof studentSchema>;
+
+const pricingTable = {
+  Mensal: {
+    '2x': { 'Cartão': 245, 'Espécie': 230 },
+    '3x': { 'Cartão': 275, 'Espécie': 260 },
+    '4x': { 'Cartão': 300, 'Espécie': 285 },
+    '5x': { 'Cartão': 320, 'Espécie': 305 },
+  },
+  Trimestral: {
+    '2x': { 'Cartão': 225, 'Espécie': 210 },
+    '3x': { 'Cartão': 255, 'Espécie': 240 },
+    '4x': { 'Cartão': 285, 'Espécie': 270 },
+    '5x': { 'Cartão': 300, 'Espécie': 285 },
+  },
+};
 
 const fetchStudents = async (): Promise<Student[]> => {
   const { data, error } = await supabase.from("students").select("*").order("name");
@@ -81,36 +95,35 @@ const Students = () => {
 
   const { control, handleSubmit, reset, setValue, watch } = useForm<StudentFormData>({
     resolver: zodResolver(studentSchema),
-    defaultValues: {
-      name: "",
-      email: "",
-      phone: "",
-      status: "Experimental",
-      notes: "",
-      plan_type: "Avulso",
-      monthly_fee: 0,
-    },
+    defaultValues: { name: "", email: "", phone: "", status: "Experimental", notes: "", plan_type: "Avulso" },
   });
 
   const planType = watch("plan_type");
+  const planFrequency = watch("plan_frequency");
+  const paymentMethod = watch("payment_method");
 
-  const { data: students, isLoading } = useQuery({
-    queryKey: ["students"],
-    queryFn: fetchStudents,
-  });
+  useEffect(() => {
+    if (planType && planType !== 'Avulso' && planFrequency && paymentMethod) {
+      const fee = pricingTable[planType]?.[planFrequency]?.[paymentMethod] || 0;
+      setValue('monthly_fee', fee);
+    } else {
+      setValue('monthly_fee', 0);
+    }
+  }, [planType, planFrequency, paymentMethod, setValue]);
+
+  const { data: students, isLoading } = useQuery({ queryKey: ["students"], queryFn: fetchStudents });
 
   const mutation = useMutation({
     mutationFn: async (formData: StudentFormData) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado.");
-
-      const dataToSubmit = {
-        ...formData,
-        email: formData.email || null,
-        phone: formData.phone || null,
-        notes: formData.notes || null,
-        monthly_fee: formData.plan_type === 'Mensal' ? formData.monthly_fee : 0,
-      };
+      
+      const dataToSubmit = { ...formData };
+      if (dataToSubmit.plan_type === 'Avulso') {
+        dataToSubmit.plan_frequency = undefined;
+        dataToSubmit.payment_method = undefined;
+        dataToSubmit.monthly_fee = 0;
+      }
 
       if (selectedStudent) {
         const { error } = await supabase.from("students").update(dataToSubmit).eq("id", selectedStudent.id);
@@ -146,19 +159,13 @@ const Students = () => {
 
   const handleAddNew = () => {
     setSelectedStudent(null);
-    reset({ name: "", email: "", phone: "", status: "Experimental", notes: "", plan_type: "Avulso", monthly_fee: 0 });
+    reset({ name: "", email: "", phone: "", status: "Experimental", notes: "", plan_type: "Avulso" });
     setFormOpen(true);
   };
 
   const handleEdit = (student: Student) => {
     setSelectedStudent(student);
-    setValue("name", student.name);
-    setValue("email", student.email || "");
-    setValue("phone", student.phone || "");
-    setValue("status", student.status);
-    setValue("notes", student.notes || "");
-    setValue("plan_type", student.plan_type || "Avulso");
-    setValue("monthly_fee", student.monthly_fee || 0);
+    reset(student);
     setFormOpen(true);
   };
 
@@ -181,13 +188,12 @@ const Students = () => {
       ) : students && students.length > 0 ? (
         <div className="bg-card rounded-lg border">
           <Table>
-            <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Email</TableHead><TableHead>Telefone</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Plano</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
             <TableBody>
               {students.map((student) => (
                 <TableRow key={student.id}>
                   <TableCell className="font-medium"><Link to={`/alunos/${student.id}`} className="hover:underline">{student.name}</Link></TableCell>
-                  <TableCell>{student.email || "-"}</TableCell>
-                  <TableCell>{student.phone || "-"}</TableCell>
+                  <TableCell>{student.plan_type !== 'Avulso' ? `${student.plan_type} ${student.plan_frequency}` : 'Avulso'}</TableCell>
                   <TableCell>{student.status}</TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
@@ -210,17 +216,28 @@ const Students = () => {
       )}
 
       <Dialog open={isFormOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>{selectedStudent ? "Editar Aluno" : "Adicionar Novo Aluno"}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)}>
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="name" className="text-right">Nome</Label><Controller name="name" control={control} render={({ field, fieldState }) => (<div className="col-span-3"><Input id="name" {...field} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</div>)} /></div>
-              <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="email" className="text-right">Email</Label><Controller name="email" control={control} render={({ field, fieldState }) => (<div className="col-span-3"><Input id="email" {...field} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</div>)} /></div>
-              <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="phone" className="text-right">Telefone</Label><Controller name="phone" control={control} render={({ field }) => <Input id="phone" className="col-span-3" {...field} />} /></div>
-              <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="status" className="text-right">Status</Label><Controller name="status" control={control} render={({ field }) => (<Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger className="col-span-3"><SelectValue placeholder="Selecione o status" /></SelectTrigger><SelectContent><SelectItem value="Ativo">Ativo</SelectItem><SelectItem value="Inativo">Inativo</SelectItem><SelectItem value="Experimental">Experimental</SelectItem><SelectItem value="Bloqueado">Bloqueado</SelectItem></SelectContent></Select>)} /></div>
-              <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="plan_type" className="text-right">Plano</Label><Controller name="plan_type" control={control} render={({ field }) => (<Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger className="col-span-3"><SelectValue placeholder="Selecione o plano" /></SelectTrigger><SelectContent><SelectItem value="Mensal">Mensal</SelectItem><SelectItem value="Avulso">Avulso</SelectItem></SelectContent></Select>)} /></div>
-              {planType === 'Mensal' && (<div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="monthly_fee" className="text-right">Valor</Label><Controller name="monthly_fee" control={control} render={({ field }) => <Input id="monthly_fee" type="number" step="0.01" className="col-span-3" {...field} />} /></div>)}
-              <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="notes" className="text-right">Notas</Label><Controller name="notes" control={control} render={({ field }) => <Textarea id="notes" className="col-span-3" {...field} />} /></div>
+              <div className="space-y-2"><Label>Nome</Label><Controller name="name" control={control} render={({ field, fieldState }) => (<><Input {...field} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2"><Label>Email</Label><Controller name="email" control={control} render={({ field, fieldState }) => (<><Input {...field} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
+                <div className="space-y-2"><Label>Telefone</Label><Controller name="phone" control={control} render={({ field }) => <Input {...field} />} /></div>
+              </div>
+              <div className="space-y-2"><Label>Status</Label><Controller name="status" control={control} render={({ field }) => (<Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Ativo">Ativo</SelectItem><SelectItem value="Inativo">Inativo</SelectItem><SelectItem value="Experimental">Experimental</SelectItem><SelectItem value="Bloqueado">Bloqueado</SelectItem></SelectContent></Select>)} /></div>
+              <div className="space-y-2"><Label>Plano</Label><Controller name="plan_type" control={control} render={({ field }) => (<Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Avulso">Avulso</SelectItem><SelectItem value="Mensal">Mensal</SelectItem><SelectItem value="Trimestral">Trimestral</SelectItem></SelectContent></Select>)} /></div>
+              {planType !== 'Avulso' && (
+                <div className="grid grid-cols-2 gap-4 p-4 border bg-muted/50 rounded-lg">
+                  <div className="space-y-2"><Label>Frequência</Label><Controller name="plan_frequency" control={control} render={({ field }) => (<Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="2x">2x na semana</SelectItem><SelectItem value="3x">3x na semana</SelectItem><SelectItem value="4x">4x na semana</SelectItem><SelectItem value="5x">5x na semana</SelectItem></SelectContent></Select>)} /></div>
+                  <div className="space-y-2"><Label>Pagamento</Label><Controller name="payment_method" control={control} render={({ field }) => (<Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Cartão">Cartão</SelectItem><SelectItem value="Espécie">Espécie</SelectItem></SelectContent></Select>)} /></div>
+                  <div className="col-span-2 text-center pt-2">
+                    <p className="text-sm text-muted-foreground">Valor da Mensalidade:</p>
+                    <p className="text-xl font-bold">R$ {watch('monthly_fee')?.toFixed(2) || '0.00'}</p>
+                  </div>
+                </div>
+              )}
+              <div className="space-y-2"><Label>Notas</Label><Controller name="notes" control={control} render={({ field }) => <Textarea {...field} />} /></div>
             </div>
             <DialogFooter>
               <DialogClose asChild><Button type="button" variant="secondary">Cancelar</Button></DialogClose>

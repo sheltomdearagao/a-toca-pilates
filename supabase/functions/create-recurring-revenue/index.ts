@@ -1,14 +1,14 @@
 // @ts-nocheck
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { startOfMonth, endOfMonth, addDays } from "https://esm.sh/date-fns@2.30.0";
+import { startOfMonth, endOfMonth, subMonths, startOfQuarter } from "https://esm.sh/date-fns@2.30.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const DUE_DAY = 10; // Vencimento no dia 10 de cada mês
+const DUE_DAY = 10;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -16,7 +16,6 @@ serve(async (req) => {
   }
 
   try {
-    // Usar service_role_key para operações de backend
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -24,48 +23,52 @@ serve(async (req) => {
     );
 
     const now = new Date();
-    const monthStart = startOfMonth(now);
-    const monthEnd = endOfMonth(now);
     const dueDate = new Date(now.getFullYear(), now.getMonth(), DUE_DAY);
 
-    // 1. Buscar todos os alunos com plano mensal ativo
     const { data: students, error: studentsError } = await supabase
       .from('students')
       .select('*')
       .eq('status', 'Ativo')
-      .eq('plan_type', 'Mensal');
+      .in('plan_type', ['Mensal', 'Trimestral']);
 
     if (studentsError) throw studentsError;
 
     const newTransactions = [];
 
     for (const student of students) {
-      // 2. Verificar se a mensalidade já foi gerada este mês
-      const { data: existing, error: existingError } = await supabase
-        .from('financial_transactions')
-        .select('id')
-        .eq('student_id', student.id)
-        .eq('category', 'Mensalidade')
-        .gte('created_at', monthStart.toISOString())
-        .lte('created_at', monthEnd.toISOString())
-        .limit(1);
+      let shouldCreate = false;
+      if (student.plan_type === 'Mensal') {
+        const monthStart = startOfMonth(now);
+        const { data: existing, error } = await supabase
+          .from('financial_transactions')
+          .select('id', { count: 'exact', head: true })
+          .eq('student_id', student.id)
+          .gte('created_at', monthStart.toISOString());
+        if (error) throw error;
+        if (existing.length === 0) shouldCreate = true;
 
-      if (existingError) throw existingError;
+      } else if (student.plan_type === 'Trimestral') {
+        const quarterStart = startOfQuarter(now);
+        const { data: existing, error } = await supabase
+          .from('financial_transactions')
+          .select('id', { count: 'exact', head: true })
+          .eq('student_id', student.id)
+          .gte('created_at', quarterStart.toISOString());
+        if (error) throw error;
+        if (existing.length === 0) shouldCreate = true;
+      }
 
-      // 3. Se não existir, criar a nova transação
-      if (!existing || existing.length === 0) {
-        if (student.monthly_fee && student.monthly_fee > 0) {
-          newTransactions.push({
-            user_id: student.user_id,
-            student_id: student.id,
-            description: `Mensalidade - ${student.name}`,
-            category: 'Mensalidade',
-            amount: student.monthly_fee,
-            type: 'revenue',
-            status: 'Pendente',
-            due_date: dueDate.toISOString().split('T')[0], // Formato YYYY-MM-DD
-          });
-        }
+      if (shouldCreate && student.monthly_fee && student.monthly_fee > 0) {
+        newTransactions.push({
+          user_id: student.user_id,
+          student_id: student.id,
+          description: `Mensalidade ${student.plan_type} - ${student.name}`,
+          category: 'Mensalidade',
+          amount: student.monthly_fee,
+          type: 'revenue',
+          status: 'Pendente',
+          due_date: dueDate.toISOString().split('T')[0],
+        });
       }
     }
 
