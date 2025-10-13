@@ -68,9 +68,9 @@ const Dashboard = () => {
   });
 
   return (
-    <div className="space-y-8 animate-slide-in">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+        <h1 className="text-4xl font-bold text-foreground">
           Dashboard
         </h1>
         <div className="text-sm text-muted-foreground">
@@ -84,21 +84,21 @@ const Dashboard = () => {
           value={stats?.activeStudents ?? 0}
           icon={<Users className="h-6 w-6" />}
           isLoading={isLoading}
-          variant="gradient"
+          variant="default" 
         />
         <StatCard
           title="Receita do Mês"
           value={stats?.monthlyRevenue ?? formatCurrency(0)}
           icon={<DollarSign className="h-6 w-6" />}
           isLoading={isLoading}
-          variant="gradient-accent"
+          variant="default"
         />
         <StatCard
           title="Inadimplência"
           value={stats?.totalOverdue ?? formatCurrency(0)}
           icon={<AlertCircle className="h-6 w-6" />}
           isLoading={isLoading}
-          variant="gradient-destructive"
+          variant="default"
         />
         <StatCard
           title="Aulas Hoje"
@@ -111,7 +111,7 @@ const Dashboard = () => {
       
       <ColoredSeparator color="primary" className="my-8" />
       
-      <Card variant="bordered" className="animate-slide-in">
+      <Card className="shadow-impressionist">
         <BirthdayCard />
       </Card>
       

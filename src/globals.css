@@ -4,68 +4,70 @@
 
 @layer base {
   :root {
-    /* Tema Padrão (Recepção) - Paleta Vibrante e Alegre */
-    --background: 210 30% 98%;
-    --foreground: 220 15% 20%;
+    /* Tema Padrão (Recepção) - Paleta Elegante e Moderna */
+    --background: 210 30% 98%; /* Um branco muito suave, quase um azul-claro pálido */
+    --foreground: 220 15% 20%; /* Um cinza-azulado profundo para o texto */
 
-    --card: 0 0% 100%;
+    --card: 0 0% 100%; /* Cartões brancos para contraste e leveza */
     --card-foreground: 220 15% 20%;
 
     --popover: 0 0% 100%;
     --popover-foreground: 220 15% 20%;
 
-    --primary: 142 76% 36%; /* Verde vibrante */
-    --primary-foreground: 0 0% 100%;
+    --primary: 210 40% 40%; /* Azul escuro elegante */
+    --primary-foreground: 0 0% 100%; /* Texto branco para contraste */
 
-    --secondary: 210 40% 96%;
+    --secondary: 210 40% 94%; /* Um cinza-azul claro e arejado */
     --secondary-foreground: 220 15% 25%;
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 15% 55%;
+    --muted: 210 40% 96%; /* Um tom ainda mais suave para elementos secundários */
+    --muted-foreground: 215 15% 55%; /* Cinza médio para texto muted */
 
-    --accent: 38 92% 50%; /* Laranja vibrante */
-    --accent-foreground: 0 0% 100%;
+    --accent: 210 20% 70%; /* Um cinza-azul médio para acentos */
+    --accent-foreground: 220 15% 20%;
 
-    --destructive: 0 84% 60%; /* Vermelho vibrante */
+    --destructive: 0 70% 50%; /* Vermelho mais suave para ações destrutivas */
     --destructive-foreground: 0 0% 100%;
 
-    --border: 210 20% 90%;
+    --border: 210 20% 90%; /* Borda muito sutil */
     --input: 210 20% 90%;
-    --ring: 142 76% 36%;
+    --ring: 210 40% 40%; /* Anel de foco com a cor primária */
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
 
-    /* Gradientes Vibrantes */
-    --gradient-primary: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 46%));
-    --gradient-accent: linear-gradient(135deg, hsl(38 92% 50%), hsl(38 92% 60%));
-    --gradient-destructive: linear-gradient(135deg, hsl(0 84% 60%), hsl(0 84% 70%));
+    /* Gradientes Suaves */
+    --gradient-primary: linear-gradient(135deg, hsl(210 40% 40%), hsl(210 40% 50%));
+    --gradient-accent: linear-gradient(135deg, hsl(210 20% 70%), hsl(210 20% 80%));
+    --gradient-destructive: linear-gradient(135deg, hsl(0 70% 50%), hsl(0 70% 60%));
     --gradient-sidebar: linear-gradient(180deg, hsl(210 30% 98%), hsl(210 30% 94%));
 
     /* Cores do Sidebar */
     --sidebar-background: hsl(210 30% 96%);
     --sidebar-foreground: 220 15% 20%;
-    --sidebar-primary: 142 76% 36%;
+    --sidebar-primary: 210 40% 40%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 38 92% 50%;
-    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-accent: 210 20% 70%;
+    --sidebar-accent-foreground: 220 15% 20%;
     --sidebar-border: 210 20% 90%;
-    --sidebar-ring: 142 76% 36%;
+    --sidebar-ring: 210 40% 40%;
+    --sidebar-gradient-start: 210 30% 98%;
+    --sidebar-gradient-end: 210 30% 94%;
 
     /* Cores de Status */
-    --status-active: 142 76% 36%;
-    --status-inactive: 210 10% 60%;
-    --status-experimental: 38 92% 50%;
-    --status-blocked: 0 84% 60%;
+    --status-active: 142 60% 35%; /* Verde mais profundo */
+    --status-inactive: 210 10% 50%; /* Cinza-azul ligeiramente mais escuro */
+    --status-experimental: 40 80% 50%; /* Amarelo-laranja mais profundo */
+    --status-blocked: 0 70% 45%; /* Vermelho mais profundo */
 
     /* Cores de Presença */
-    --attendance-scheduled: 217 91% 60%;
-    --attendance-present: 142 76% 36%;
-    --attendance-absent: 0 84% 60%;
+    --attendance-scheduled: 210 50% 60%; /* Azul mais profundo */
+    --attendance-present: 142 60% 35%; /* Verde mais profundo */
+    --attendance-absent: 0 70% 45%; /* Vermelho mais profundo */
 
     /* Cores de Pagamento */
-    --payment-pending: 38 92% 50%;
-    --payment-paid: 142 76% 36%;
-    --payment-overdue: 0 84% 60%;
+    --payment-pending: 40 80% 50%; /* Amarelo-laranja mais profundo */
+    --payment-paid: 142 60% 35%; /* Verde mais profundo */
+    --payment-overdue: 0 70% 45%; /* Vermelho mais profundo */
   }
 
   .theme-admin {
@@ -79,7 +81,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 220 15% 15%;
 
-    --primary: 217 91% 60%;
+    --primary: 220 25% 30%; /* Azul marinho profundo, elegante */
     --primary-foreground: 0 0% 100%;
 
     --secondary: 210 30% 92%;
@@ -88,31 +90,49 @@
     --muted: 210 30% 94%;
     --muted-foreground: 215 15% 50%;
 
-    --accent: 262 83% 58%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 210 30% 88%;
+    --accent-foreground: 220 15% 15%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 100%;
 
     --border: 210 15% 85%;
     --input: 210 15% 85%;
-    --ring: 217 91% 60%;
+    --ring: 220 25% 30%;
 
     /* Gradientes Profissionais */
-    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%), hsl(217 91% 70%));
-    --gradient-accent: linear-gradient(135deg, hsl(262 83% 58%), hsl(262 83% 68%));
-    --gradient-destructive: linear-gradient(135deg, hsl(0 84% 60%), hsl(0 84% 70%));
+    --gradient-primary: linear-gradient(135deg, hsl(220 25% 30%), hsl(220 25% 40%));
+    --gradient-accent: linear-gradient(135deg, hsl(210 30% 88%), hsl(210 30% 92%));
+    --gradient-destructive: linear-gradient(135deg, hsl(0 70% 50%), hsl(0 70% 60%));
     --gradient-sidebar: linear-gradient(180deg, hsl(210 20% 95%), hsl(210 20% 91%));
 
     /* Cores do Sidebar Admin */
     --sidebar-background: hsl(210 20% 93%);
     --sidebar-foreground: 220 15% 15%;
-    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary: 220 25% 30%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 262 83% 58%;
-    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-accent: 210 30% 88%;
+    --sidebar-accent-foreground: 220 15% 15%;
     --sidebar-border: 210 15% 85%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-ring: 220 25% 30%;
+    --sidebar-gradient-start: 210 20% 95%;
+    --sidebar-gradient-end: 210 20% 91%;
+
+    /* Cores de Status (Admin - Claro) */
+    --status-active: 142 60% 35%;
+    --status-inactive: 210 10% 50%;
+    --status-experimental: 40 80% 50%;
+    --status-blocked: 0 70% 45%;
+
+    /* Cores de Presença (Admin - Claro) */
+    --attendance-scheduled: 210 50% 60%;
+    --attendance-present: 142 60% 35%;
+    --attendance-absent: 0 70% 45%;
+
+    /* Cores de Pagamento (Admin - Claro) */
+    --payment-pending: 40 80% 50%;
+    --payment-paid: 142 60% 35%;
+    --payment-overdue: 0 70% 45%;
   }
 
   .dark {
@@ -126,7 +146,7 @@
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 142 76% 50%;
+    --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
 
     --secondary: 217.2 32.6% 17.5%;
@@ -135,30 +155,41 @@
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
 
-    --accent: 38 92% 60%;
+    --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
 
-    --destructive: 0 84% 70%;
+    --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
 
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 142 76% 50%;
-
-    /* Gradientes no Modo Escuro */
-    --gradient-primary: linear-gradient(135deg, hsl(142 76% 50%), hsl(142 76% 60%));
-    --gradient-accent: linear-gradient(135deg, hsl(38 92% 60%), hsl(38 92% 70%));
-    --gradient-destructive: linear-gradient(135deg, hsl(0 84% 70%), hsl(0 84% 80%));
-    --gradient-sidebar: linear-gradient(180deg, hsl(222.2 84% 4.9%), hsl(217.2 32.6% 17.5%));
-
+    --ring: 212.7 26.8% 83.9%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 142 76% 50%;
-    --sidebar-primary-foreground: 222.2 47.4% 11.2%;
-    --sidebar-accent: 38 92% 60%;
-    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 142 76% 50%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-gradient-start: 240 5.9% 12%;
+    --sidebar-gradient-end: 240 5.9% 8%;
+
+    /* Novas Cores de Status (Dark Theme) */
+    --status-active: 142 70% 60%;
+    --status-inactive: 210 10% 70%;
+    --status-experimental: 40 90% 70%;
+    --status-blocked: 0 80% 65%;
+
+    /* Novas Cores de Presença (Dark Theme) */
+    --attendance-scheduled: 210 60% 80%;
+    --attendance-present: 142 70% 60%;
+    --attendance-absent: 0 80% 65%;
+
+    /* Novas Cores de Pagamento (Dark Theme) */
+    --payment-pending: 40 90% 70%;
+    --payment-paid: 142 70% 60%;
+    --payment-overdue: 0 80% 65%;
   }
 }
 
@@ -172,17 +203,7 @@
   }
 }
 
-/* Animações Suaves */
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-}
-
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px rgba(34, 197, 94, 0.3); }
-  50% { box-shadow: 0 0 30px rgba(34, 197, 94, 0.5); }
-}
-
+/* Removendo Animações de Flutuação e Brilho */
 @keyframes slide-in {
   from {
     opacity: 0;
@@ -192,15 +213,6 @@
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-/* Componentes com Animações */
-.animate-float {
-  animation: float 3s ease-in-out infinite;
-}
-
-.animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
 }
 
 .animate-slide-in {
@@ -222,7 +234,8 @@
 }
 
 .fc .fc-button {
-  @apply bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 focus:ring-0 shadow-lg border-0 transition-all duration-200;
+  /* Botões do FullCalendar mais discretos */
+  @apply bg-primary text-primary-foreground hover:bg-primary/90 focus:ring-0 shadow-none border-0 transition-colors duration-200;
 }
 
 .fc .fc-button:disabled {
@@ -231,7 +244,7 @@
 
 .fc .fc-button-primary:not(:disabled).fc-button-active, 
 .fc .fc-button-primary:not(:disabled):active {
-  @apply from-primary/80 to-primary/60;
+  @apply bg-primary/90;
 }
 
 .fc-theme-standard .fc-scrollgrid, 
@@ -248,21 +261,21 @@
   @apply text-foreground;
 }
 
-/* Eventos do Calendário com Gradientes */
+/* Eventos do Calendário com Cores Suaves */
 .fc-event.event-available {
-  background: var(--gradient-primary);
+  background-color: hsl(var(--primary));
   border: none;
   color: white;
 }
 
 .fc-event.event-few-spots {
-  background: var(--gradient-accent);
+  background-color: hsl(var(--accent)); /* Usando a cor de acento para 'poucas vagas' */
   border: none;
-  color: white;
+  color: hsl(var(--accent-foreground));
 }
 
 .fc-event.event-full {
-  background: var(--gradient-destructive);
+  background-color: hsl(var(--destructive));
   border: none;
   color: white;
 }
@@ -284,7 +297,7 @@
 
 .card-gradient-accent {
   background: var(--gradient-accent);
-  color: white;
+  color: hsl(var(--accent-foreground));
 }
 
 .card-gradient-destructive {
@@ -296,17 +309,17 @@
 .btn-gradient {
   background: var(--gradient-primary);
   color: white;
-  @apply shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105;
+  @apply shadow-md hover:shadow-lg transition-all duration-200;
 }
 
 .btn-gradient-accent {
   background: var(--gradient-accent);
-  color: white;
-  @apply shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105;
+  color: hsl(var(--accent-foreground));
+  @apply shadow-md hover:shadow-lg transition-all duration-200;
 }
 
 .btn-gradient-destructive {
   background: var(--gradient-destructive);
   color: white;
-  @apply shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105;
+  @apply shadow-md hover:shadow-lg transition-all duration-200;
 }

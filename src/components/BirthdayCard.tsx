@@ -60,17 +60,15 @@ const BirthdayCard = () => {
           </div>
         ) : birthdaysThisMonth && birthdaysThisMonth.length > 0 ? (
           <div className="space-y-3">
-            {birthdaysThisMonth.map((student, index) => (
+            {birthdaysThisMonth.map((student) => (
               <div
                 key={student.id}
                 className={cn(
-                  "flex items-center justify-between p-4 rounded-xl border bg-gradient-to-r from-accent/5 to-primary/5 hover:from-accent/10 hover:to-primary/10 transition-all duration-300 hover:scale-102 hover:shadow-md animate-slide-in",
-                  `animation-delay-${index * 100}`
+                  "flex items-center justify-between p-4 rounded-xl border bg-secondary/20 hover:bg-secondary/40 transition-colors duration-200 hover:scale-[1.01] hover:shadow-sm" // Estilos mais sutis
                 )}
-                style={{ animationDelay: `${index * 100}ms` }}
               >
                 <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-gradient-to-r from-accent to-primary rounded-lg">
+                  <div className="p-2 bg-primary rounded-lg"> {/* Usando cor primária sólida */}
                     <User className="w-4 h-4 text-white" />
                   </div>
                   <div>
@@ -80,7 +78,7 @@ const BirthdayCard = () => {
                     </p>
                   </div>
                 </div>
-                <div className="text-2xl animate-float">
+                <div className="text-2xl"> {/* Removido animate-float */}
                   🎉
                 </div>
               </div>

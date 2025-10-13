@@ -13,20 +13,20 @@ const Login = () => {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-primary/10 via-accent/10 to-destructive/10 animate-slide-in">
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background to-secondary"> {/* Fundo com gradiente suave */}
       <div className="w-full max-w-md p-8 space-y-8">
-        <div className="flex flex-col items-center animate-float">
-          <div className="p-4 bg-gradient-to-r from-primary to-accent rounded-2xl shadow-xl">
+        <div className="flex flex-col items-center"> {/* Removido animate-float */}
+          <div className="p-4 bg-primary rounded-2xl shadow-xl"> {/* Removido gradiente, usando cor primária sólida */}
             <Dumbbell className="w-12 h-12 text-white" />
           </div>
-          <h1 className="mt-6 text-4xl font-bold text-center bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+          <h1 className="mt-6 text-3xl font-bold text-center text-foreground"> {/* Removido gradiente de texto, usando foreground */}
             A Toca Experience Platform
           </h1>
           <p className="text-muted-foreground text-center mt-2">
             Sua plataforma completa de gestão
           </p>
         </div>
-        <div className="p-8 bg-card/80 backdrop-blur-sm rounded-2xl shadow-2xl border border-border/50 animate-slide-in">
+        <div className="p-8 bg-card rounded-2xl shadow-impressionist border border-border"> {/* Removido backdrop-blur e animate-slide-in */}
           <Auth
             supabaseClient={supabase}
             appearance={{ 
@@ -34,8 +34,8 @@ const Login = () => {
               variables: {
                 default: {
                   colors: {
-                    brand: 'hsl(142 76% 36%)',
-                    brandAccent: 'hsl(38 92% 50%)',
+                    brand: 'hsl(var(--primary))', /* Usando a nova cor primária */
+                    brandAccent: 'hsl(var(--accent))', /* Usando a nova cor de acento */
                   }
                 }
               }

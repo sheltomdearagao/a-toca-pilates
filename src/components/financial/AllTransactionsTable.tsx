@@ -71,8 +71,8 @@ const AllTransactionsTable = ({
               key={t.id} 
               className={cn(
                 "hover:bg-muted/50 transition-colors",
-                t.type === 'revenue' && "bg-green-50/10", // Fundo sutil para receita
-                t.type === 'expense' && "bg-red-50/10"    // Fundo sutil para despesa
+                t.type === 'revenue' && "bg-green-50/5", // Fundo sutil para receita
+                t.type === 'expense' && "bg-red-50/5"    // Fundo sutil para despesa
               )}
             > {/* Efeito de hover sutil */}
               <TableCell className="font-medium flex items-center">

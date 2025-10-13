@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Student, PlanType, PlanFrequency, PaymentMethod, EnrollmentType } from "@/types/student";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button"; // Importar buttonVariants
 import {
   Table,
   TableBody,
@@ -219,10 +219,10 @@ const Students = () => {
     reset({
       ...student,
       date_of_birth: student.date_of_birth ? format(new Date(student.date_of_birth), 'yyyy-MM-dd') : "",
-      plan_type: student.plan_type as z.infer<typeof dynamicPlanTypeSchema> || (appSettings?.plan_types?.[0] || "Avulso"),
-      plan_frequency: student.plan_frequency as z.infer<typeof dynamicPlanFrequencySchema>,
-      payment_method: student.payment_method as z.infer<typeof dynamicPaymentMethodSchema>,
-      enrollment_type: student.enrollment_type as z.infer<typeof dynamicEnrollmentTypeSchema> || (appSettings?.enrollment_types?.[0] || "Particular"),
+      plan_type: (student.plan_type as z.infer<typeof dynamicPlanTypeSchema>) || (appSettings?.plan_types?.[0] || "Avulso"),
+      plan_frequency: (student.plan_frequency as z.infer<typeof dynamicPlanFrequencySchema>),
+      payment_method: (student.payment_method as z.infer<typeof dynamicPaymentMethodSchema>),
+      enrollment_type: (student.enrollment_type as z.infer<typeof dynamicEnrollmentTypeSchema>) || (appSettings?.enrollment_types?.[0] || "Particular"),
     });
     setFormOpen(true);
   };
@@ -243,14 +243,14 @@ const Students = () => {
   }
 
   return (
-    <div className="space-y-8 animate-slide-in">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <div className="p-3 bg-gradient-to-r from-primary to-primary/80 rounded-xl">
+          <div className="p-3 bg-primary rounded-xl">
             <Users className="w-8 h-8 text-white" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold text-foreground">
               Gestão de Alunos
             </h1>
             <p className="text-muted-foreground">
@@ -258,7 +258,7 @@ const Students = () => {
             </p>
           </div>
         </div>
-        <Button onClick={handleAddNew} className="gradient">
+        <Button onClick={handleAddNew}>
           <PlusCircle className="w-4 h-4 mr-2" />
           Adicionar Aluno
         </Button>
@@ -271,7 +271,7 @@ const Students = () => {
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       ) : students && students.length > 0 ? (
-        <Card className="animate-slide-in">
+        <Card>
           <Table>
             <TableHeader>
               <TableRow>
@@ -283,11 +283,10 @@ const Students = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {students.map((student, index) => (
+              {students.map((student) => (
                 <TableRow 
                   key={student.id} 
-                  className="hover:bg-muted/50 transition-colors animate-slide-in"
-                  style={{ animationDelay: `${index * 50}ms` }}
+                  className="hover:bg-muted/50 transition-colors"
                 >
                   <TableCell className="font-medium">
                     <Link 
@@ -346,7 +345,7 @@ const Students = () => {
           </Table>
         </Card>
       ) : (
-        <Card className="flex flex-col items-center justify-center h-64 border-2 border-dashed border-primary/50 animate-slide-in">
+        <Card className="flex flex-col items-center justify-center h-64 border-2 border-dashed border-primary/50">
           <UserX className="w-12 h-12 text-muted-foreground mb-4" />
           <h3 className="text-lg font-semibold">Nenhum aluno encontrado</h3>
           <p className="text-sm text-muted-foreground">Comece adicionando o primeiro aluno.</p>
@@ -362,7 +361,6 @@ const Students = () => {
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)}>
             <div className="grid gap-4 py-4">
-              {/* Form fields remain the same */}
               <div className="space-y-2">
                 <Label>Nome</Label>
                 <Controller name="name" control={control} render={({ field, fieldState }) => (
@@ -424,7 +422,7 @@ const Students = () => {
                 )} />
               </div>
               {planType !== 'Avulso' && (
-                <div className="grid grid-cols-2 gap-4 p-4 border bg-gradient-to-r from-primary/5 to-accent/5 rounded-lg">
+                <div className="grid grid-cols-2 gap-4 p-4 border bg-secondary/20 rounded-lg">
                   <div className="space-y-2">
                     <Label>Frequência</Label>
                     <Controller name="plan_frequency" control={control} render={({ field, fieldState }) => (
@@ -497,7 +495,7 @@ const Students = () => {
               <DialogClose asChild>
                 <Button type="button" variant="secondary">Cancelar</Button>
               </DialogClose>
-              <Button type="submit" disabled={mutation.isPending} className="gradient">
+              <Button type="submit" disabled={mutation.isPending}>
                 {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Salvar
               </Button>
@@ -516,7 +514,11 @@ const Students = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={() => selectedStudent && deleteMutation.mutate(selectedStudent.id)} disabled={deleteMutation.isPending} className="gradient-destructive">
+            <AlertDialogAction 
+              onClick={() => selectedStudent && deleteMutation.mutate(selectedStudent.id)} 
+              disabled={deleteMutation.isPending} 
+              className={cn(buttonVariants({ variant: "destructive" }))} // Aplicando o estilo destructive via className
+            >
               {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Sim, excluir
             </AlertDialogAction>

@@ -17,10 +17,7 @@ const StatCard = ({ title, value, description, icon, isLoading, variant = "defau
     <Card 
       variant={variant}
       className={cn(
-        "transition-all duration-300 hover:scale-105 hover:shadow-xl",
-        variant === "gradient" && "animate-pulse-glow",
-        variant === "gradient-accent" && "animate-pulse-glow",
-        variant === "gradient-destructive" && "animate-pulse-glow"
+        "transition-all duration-200 hover:scale-[1.02] hover:shadow-lg", // Animação de hover mais sutil
       )}
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

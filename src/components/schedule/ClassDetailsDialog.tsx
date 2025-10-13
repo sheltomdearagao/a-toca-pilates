@@ -33,7 +33,6 @@ interface ClassDetailsDialogProps {
   classCapacity: number;
 }
 
-// Otimizando a consulta para buscar apenas os campos necessários
 const fetchClassDetails = async (classId: string): Promise<Partial<ClassEvent> | null> => {
   const { data, error } = await supabase
     .from('classes')
@@ -50,7 +49,15 @@ const fetchClassDetails = async (classId: string): Promise<Partial<ClassEvent> |
     .single();
   
   if (error) throw new Error(error.message);
-  return data;
+  
+  // Ajustar para retornar students como um objeto único ou null, não um array
+  if (data) {
+    return {
+      ...data,
+      students: data.students ? (data.students as { name: string }[])[0] : null,
+    };
+  }
+  return null;
 };
 
 const fetchAttendees = async (classId: string): Promise<ClassAttendee[]> => {

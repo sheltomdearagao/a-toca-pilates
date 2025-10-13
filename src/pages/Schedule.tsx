@@ -23,13 +23,15 @@ const fetchClasses = async (): Promise<ClassEvent[]> => {
     .from('classes')
     .select(`
       id,
+      user_id,
       title,
       start_time,
       end_time,
-      notes, // Incluído 'notes'
+      notes,
+      created_at,
       student_id,
       students(name),
-      class_attendees(count) // Incluído 'class_attendees' com contagem
+      class_attendees(count)
     `)
     .order('start_time', { ascending: true });
   
@@ -37,13 +39,15 @@ const fetchClasses = async (): Promise<ClassEvent[]> => {
   
   return (data as any[] || []).map(c => ({
     id: c.id,
+    user_id: c.user_id, // Incluído user_id
     title: c.title,
     start_time: c.start_time,
     end_time: c.end_time,
-    notes: c.notes, // Mapeado 'notes'
+    notes: c.notes,
+    created_at: c.created_at, // Incluído created_at
     student_id: c.student_id,
-    students: c.students,
-    class_attendees: c.class_attendees, // Mapeado 'class_attendees'
+    students: c.students ? (c.students as { name: string }[])[0] : null, // Ajustado para objeto único ou null
+    class_attendees: c.class_attendees,
   }));
 };
 

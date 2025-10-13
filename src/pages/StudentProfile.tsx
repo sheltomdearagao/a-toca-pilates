@@ -211,9 +211,9 @@ const StudentProfile = () => {
                     key={t.id} 
                     className={cn(
                       "hover:bg-muted/50 transition-colors",
-                      t.status === 'Pago' && "bg-green-50/10",
-                      t.status === 'Atrasado' && "bg-red-50/10",
-                      t.status === 'Pendente' && "bg-yellow-50/10"
+                      t.status === 'Pago' && "bg-green-50/5", // Fundo mais suave
+                      t.status === 'Atrasado' && "bg-red-50/5", // Fundo mais suave
+                      t.status === 'Pendente' && "bg-yellow-50/5" // Fundo mais suave
                     )}
                   > {/* Efeito de hover sutil e cores de fundo */}
                     <TableCell>{t.description}</TableCell>
@@ -271,9 +271,9 @@ const StudentProfile = () => {
                     key={a.id} 
                     className={cn(
                       "hover:bg-muted/50 transition-colors",
-                      a.status === 'Presente' && "bg-green-50/10",
-                      a.status === 'Faltou' && "bg-red-50/10",
-                      a.status === 'Agendado' && "bg-blue-50/10"
+                      a.status === 'Presente' && "bg-green-50/5", // Fundo mais suave
+                      a.status === 'Faltou' && "bg-red-50/5", // Fundo mais suave
+                      a.status === 'Agendado' && "bg-blue-50/5" // Fundo mais suave
                     )}
                   > {/* Efeito de hover sutil e cores de fundo */}
                     <TableCell>{a.classes.title}</TableCell>
