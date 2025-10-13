@@ -4,7 +4,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { EventClickArg, EventContentArg, DatesSetArg } from '@fullcalendar/core'; // Importar DatesSetArg
+import { EventClickArg, EventContentArg, DatesSetArg } from '@fullcalendar/core';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Loader2 } from 'lucide-react';
