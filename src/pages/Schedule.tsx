@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { EventClickArg, EventContentArg } from '@fullcalendar/core';
+import { EventClickArg, EventContentArg, DatesSetArg } from '@fullcalendar/core'; // Importar DatesSetArg
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Loader2 } from 'lucide-react';
@@ -15,10 +15,10 @@ import { ClassEvent } from '@/types/schedule';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import ColoredSeparator from "@/components/ColoredSeparator";
-import { parseISO, format, addMinutes } from 'date-fns'; // Importar addMinutes
+import { parseISO, format, addMinutes } from 'date-fns';
 
-// Otimizando a consulta para buscar todos os campos necessários
-const fetchClasses = async (): Promise<ClassEvent[]> => {
+// Otimizando a consulta para buscar apenas as aulas dentro de um período
+const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> => {
   const { data, error } = await supabase
     .from('classes')
     .select(`
@@ -33,6 +33,8 @@ const fetchClasses = async (): Promise<ClassEvent[]> => {
       students(name),
       class_attendees(count)
     `)
+    .gte('start_time', start) // Filtrar por data de início
+    .lte('start_time', end)   // Filtrar por data de fim
     .order('start_time', { ascending: true });
   
   if (error) throw new Error(error.message);
@@ -42,11 +44,11 @@ const fetchClasses = async (): Promise<ClassEvent[]> => {
     user_id: c.user_id,
     title: c.title,
     start_time: c.start_time,
-    duration_minutes: c.duration_minutes, // Mapeado duration_minutes
+    duration_minutes: c.duration_minutes,
     notes: c.notes,
     created_at: c.created_at,
     student_id: c.student_id,
-    students: c.students ? (c.students as { name: string }) : null, // Ajustado para objeto único ou null
+    students: c.students ? (c.students as { name: string }) : null,
     class_attendees: c.class_attendees,
   }));
 };
@@ -56,14 +58,19 @@ const Schedule = () => {
   const [isDetailsOpen, setDetailsOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Partial<ClassEvent> | null>(null);
   const [calendarView, setCalendarView] = useState('timeGridDay');
+  const [currentCalendarRange, setCurrentCalendarRange] = useState<{ start: string; end: string }>({
+    start: format(new Date(), 'yyyy-MM-dd'),
+    end: format(addMinutes(new Date(), 1), 'yyyy-MM-dd'), // Pequeno range inicial
+  });
 
   const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
   const CLASS_CAPACITY = appSettings?.class_capacity ?? 10;
 
   const { data: classes, isLoading: isLoadingClasses } = useQuery({
-    queryKey: ['classes'],
-    queryFn: fetchClasses,
-    staleTime: 1000 * 60 * 5, // Cache por 5 minutos
+    queryKey: ['classes', currentCalendarRange.start, currentCalendarRange.end], // Chave de query depende do range
+    queryFn: () => fetchClasses(currentCalendarRange.start, currentCalendarRange.end),
+    enabled: !!currentCalendarRange.start && !!currentCalendarRange.end, // Só executa se as datas estiverem definidas
+    staleTime: 1000 * 60 * 1, // Cache por 1 minuto para agilidade
   });
 
   const isLoading = isLoadingSettings || isLoadingClasses;
@@ -72,7 +79,6 @@ const Schedule = () => {
     const attendeeCount = c.class_attendees[0]?.count ?? 0;
     const eventTitle = c.student_id && c.students ? `Aula com ${c.students.name}` : c.title || 'Aula';
     
-    // Calcular o end time para o FullCalendar
     const startTime = parseISO(c.start_time);
     const endTime = addMinutes(startTime, c.duration_minutes);
 
@@ -80,12 +86,12 @@ const Schedule = () => {
       id: c.id,
       title: eventTitle,
       start: c.start_time,
-      end: endTime.toISOString(), // Usar o end time calculado
+      end: endTime.toISOString(),
       extendedProps: {
         attendeeCount,
         student_id: c.student_id,
         notes: c.notes,
-        duration_minutes: c.duration_minutes, // Passar duration_minutes para extendedProps
+        duration_minutes: c.duration_minutes,
       },
     };
   }) || [];
@@ -95,7 +101,7 @@ const Schedule = () => {
       id: clickInfo.event.id,
       title: clickInfo.event.title,
       start_time: clickInfo.event.startStr,
-      duration_minutes: clickInfo.event.extendedProps.duration_minutes, // Acessar duration_minutes
+      duration_minutes: clickInfo.event.extendedProps.duration_minutes,
       notes: clickInfo.event.extendedProps.notes,
       student_id: clickInfo.event.extendedProps.student_id,
     });
@@ -124,6 +130,14 @@ const Schedule = () => {
     return 'event-available';
   };
 
+  // Callback para atualizar o range de datas do calendário
+  const handleDatesSet = useCallback((dateInfo: DatesSetArg) => {
+    setCurrentCalendarRange({
+      start: dateInfo.startStr,
+      end: dateInfo.endStr,
+    });
+  }, []);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -139,7 +153,7 @@ const Schedule = () => {
       <Tabs defaultValue="calendar">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="calendar">Calendário</TabsTrigger>
-          <TabsTrigger value="recurring-templates">Modelos Recorrentes</TabsTrigger>
+          <TabsTrigger value="recurring-templates">Modelos Recorrentes</TabsTrigger> {/* Mantido o nome da aba */}
         </TabsList>
         <TabsContent value="calendar" className="mt-4">
           {isLoading ? (
@@ -178,6 +192,7 @@ const Schedule = () => {
                 eventClick={handleEventClick}
                 eventContent={renderEventContent}
                 eventClassNames={getEventClassNames}
+                datesSet={handleDatesSet} {/* Adicionado o callback para atualizar o range */}
               />
             </div>
           )}
