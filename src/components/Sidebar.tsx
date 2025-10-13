@@ -29,17 +29,17 @@ const Sidebar = () => {
 
   return (
     <aside className="w-64 h-screen p-4 border-r border-sidebar-border flex flex-col bg-gradient-to-b from-sidebar-gradient-start to-sidebar-gradient-end">
-      <div className="flex items-center mb-8"> {/* Removido animate-slide-in */}
-        <div className="p-2 bg-primary rounded-xl mr-3"> {/* Removido animate-float, gradiente mais suave */}
+      <div className="flex items-center mb-8">
+        <div className="p-2 bg-primary rounded-xl mr-3">
           <Dumbbell className="w-6 h-6 text-white" />
         </div>
-        <h1 className="text-xl font-bold text-foreground"> {/* Removido gradiente de texto */}
+        <h1 className="text-xl font-bold text-foreground">
           A Toca
         </h1>
       </div>
       <nav className="flex flex-col space-y-2 flex-grow">
         <NavLink to="/" className={navLinkClasses} end>
-          <LayoutDashboard className="w-5 h-5 mr-3 group-hover:scale-105 transition-transform" /> {/* Animação de ícone mais sutil */}
+          <LayoutDashboard className="w-5 h-5 mr-3 group-hover:scale-105 transition-transform" />
           <span className="group-hover:font-semibold">Dashboard</span>
         </NavLink>
         <NavLink to="/alunos" className={navLinkClasses}>
@@ -60,7 +60,7 @@ const Sidebar = () => {
       <div className="mt-4">
         <Button
           variant="ghost"
-          className="w-full justify-start text-sidebar-foreground hover:bg-destructive/10 hover:text-destructive transition-colors duration-200" /* Hover mais suave */
+          className="w-full justify-start text-sidebar-foreground hover:bg-destructive/10 hover:text-destructive transition-colors duration-200"
           onClick={handleLogout}
         >
           <LogOut className="w-5 h-5 mr-3" />

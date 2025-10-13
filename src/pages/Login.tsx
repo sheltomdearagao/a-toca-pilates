@@ -15,18 +15,18 @@ const Login = () => {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background to-secondary"> {/* Fundo com gradiente suave */}
       <div className="w-full max-w-md p-8 space-y-8">
-        <div className="flex flex-col items-center"> {/* Removido animate-float */}
-          <div className="p-4 bg-primary rounded-2xl shadow-xl"> {/* Removido gradiente, usando cor primária sólida */}
+        <div className="flex flex-col items-center">
+          <div className="p-4 bg-primary rounded-2xl shadow-xl">
             <Dumbbell className="w-12 h-12 text-white" />
           </div>
-          <h1 className="mt-6 text-3xl font-bold text-center text-foreground"> {/* Removido gradiente de texto, usando foreground */}
+          <h1 className="mt-6 text-3xl font-bold text-center text-foreground">
             A Toca Experience Platform
           </h1>
           <p className="text-muted-foreground text-center mt-2">
             Sua plataforma completa de gestão
           </p>
         </div>
-        <div className="p-8 bg-card rounded-2xl shadow-impressionist border border-border"> {/* Removido backdrop-blur e animate-slide-in */}
+        <div className="p-8 bg-card rounded-2xl shadow-impressionist border border-border">
           <Auth
             supabaseClient={supabase}
             appearance={{ 
@@ -34,8 +34,8 @@ const Login = () => {
               variables: {
                 default: {
                   colors: {
-                    brand: 'hsl(var(--primary))', /* Usando a nova cor primária */
-                    brandAccent: 'hsl(var(--accent))', /* Usando a nova cor de acento */
+                    brand: 'hsl(var(--primary))',
+                    brandAccent: 'hsl(var(--accent))',
                   }
                 }
               }

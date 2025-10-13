@@ -517,7 +517,7 @@ const Students = () => {
             <AlertDialogAction 
               onClick={() => selectedStudent && deleteMutation.mutate(selectedStudent.id)} 
               disabled={deleteMutation.isPending} 
-              className={cn(buttonVariants({ variant: "destructive" }))} // Aplicando o estilo destructive via className
+              className={cn(buttonVariants({ variant: "destructive" }))}
             >
               {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Sim, excluir

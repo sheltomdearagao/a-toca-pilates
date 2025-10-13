@@ -78,7 +78,7 @@ const BirthdayCard = () => {
                     </p>
                   </div>
                 </div>
-                <div className="text-2xl"> {/* Removido animate-float */}
+                <div className="text-2xl">
                   🎉
                 </div>
               </div>
