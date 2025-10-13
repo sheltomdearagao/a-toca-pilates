@@ -4,8 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Users, DollarSign, AlertCircle, Calendar } from "lucide-react";
 import { startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
 import BirthdayCard from "@/components/BirthdayCard";
-import ColoredSeparator from "@/components/ColoredSeparator"; // Importar o novo componente
-import { Card } from "@/components/ui/card"; // Importar Card para usar a sombra
+import ColoredSeparator from "@/components/ColoredSeparator";
+import { Card } from "@/components/ui/card";
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -68,39 +68,54 @@ const Dashboard = () => {
   });
 
   return (
-    <div className="space-y-6"> {/* Adicionado espaçamento vertical */}
-      <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="space-y-8 animate-slide-in">
+      <div className="flex items-center justify-between">
+        <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+          Dashboard
+        </h1>
+        <div className="text-sm text-muted-foreground">
+          Bem-vindo de volta! 👋
+        </div>
+      </div>
+      
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Alunos Ativos"
           value={stats?.activeStudents ?? 0}
-          icon={<Users className="h-4 w-4" />}
+          icon={<Users className="h-6 w-6" />}
           isLoading={isLoading}
+          variant="gradient"
         />
         <StatCard
           title="Receita do Mês"
           value={stats?.monthlyRevenue ?? formatCurrency(0)}
-          icon={<DollarSign className="h-4 w-4" />}
+          icon={<DollarSign className="h-6 w-6" />}
           isLoading={isLoading}
+          variant="gradient-accent"
         />
         <StatCard
           title="Inadimplência"
           value={stats?.totalOverdue ?? formatCurrency(0)}
-          icon={<AlertCircle className="h-4 w-4" />}
+          icon={<AlertCircle className="h-6 w-6" />}
           isLoading={isLoading}
+          variant="gradient-destructive"
         />
         <StatCard
           title="Aulas Hoje"
           value={stats?.todayClasses ?? 0}
-          icon={<Calendar className="h-4 w-4" />}
+          icon={<Calendar className="h-6 w-6" />}
           isLoading={isLoading}
+          variant="bordered"
         />
       </div>
-      <ColoredSeparator color="accent" className="my-6" /> {/* Separador colorido */}
-      <Card className="shadow-impressionist"> {/* Aplicando a nova sombra ao BirthdayCard */}
+      
+      <ColoredSeparator color="primary" className="my-8" />
+      
+      <Card variant="bordered" className="animate-slide-in">
         <BirthdayCard />
       </Card>
-      <ColoredSeparator color="secondary" className="my-6" /> {/* Novo separador colorido */}
+      
+      <ColoredSeparator color="accent" className="my-8" />
     </div>
   );
 };

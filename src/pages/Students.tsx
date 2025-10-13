@@ -45,7 +45,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, MoreHorizontal, PlusCircle, UserX } from "lucide-react";
+import { Loader2, MoreHorizontal, PlusCircle, UserX, Users } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -53,7 +53,9 @@ import { showError, showSuccess } from "@/utils/toast";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { useAppSettings } from '@/hooks/useAppSettings';
-import ColoredSeparator from "@/components/ColoredSeparator"; // Importar o novo componente
+import ColoredSeparator from "@/components/ColoredSeparator";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 const pricingTable = {
   Mensal: {
@@ -84,7 +86,6 @@ const Students = () => {
 
   const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
 
-  // Dynamic enums for Zod schema based on appSettings
   const dynamicPlanTypeSchema = z.enum(appSettings?.plan_types as [string, ...string[]] || ["Avulso"]);
   const dynamicPlanFrequencySchema = z.enum(appSettings?.plan_frequencies as [string, ...string[]] || ["2x"]).optional();
   const dynamicPaymentMethodSchema = z.enum(appSettings?.payment_methods as [string, ...string[]] || ["Cartão"]).optional();
@@ -132,8 +133,8 @@ const Students = () => {
     resolver: zodResolver(dynamicStudentSchema),
     defaultValues: {
       name: "", email: "", phone: "", status: "Experimental", notes: "",
-      plan_type: appSettings?.plan_types?.[0] || "Avulso", // Use first available or default
-      enrollment_type: appSettings?.enrollment_types?.[0] || "Particular", // Use first available or default
+      plan_type: appSettings?.plan_types?.[0] || "Avulso",
+      enrollment_type: appSettings?.enrollment_types?.[0] || "Particular",
       date_of_birth: ""
     },
   });
@@ -164,7 +165,6 @@ const Students = () => {
         dataToSubmit.payment_method = undefined;
         dataToSubmit.monthly_fee = 0;
       }
-      // Ensure date_of_birth is null if empty string
       if (dataToSubmit.date_of_birth === "") {
         dataToSubmit.date_of_birth = null;
       }
@@ -219,7 +219,6 @@ const Students = () => {
     reset({
       ...student,
       date_of_birth: student.date_of_birth ? format(new Date(student.date_of_birth), 'yyyy-MM-dd') : "",
-      // Ensure plan_type, plan_frequency, payment_method, enrollment_type are correctly typed for reset
       plan_type: student.plan_type as z.infer<typeof dynamicPlanTypeSchema> || (appSettings?.plan_types?.[0] || "Avulso"),
       plan_frequency: student.plan_frequency as z.infer<typeof dynamicPlanFrequencySchema>,
       payment_method: student.payment_method as z.infer<typeof dynamicPaymentMethodSchema>,
@@ -244,33 +243,100 @@ const Students = () => {
   }
 
   return (
-    <div className="space-y-6"> {/* Adicionado espaçamento vertical */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold">Gestão de Alunos</h1>
-        <Button onClick={handleAddNew}><PlusCircle className="w-4 h-4 mr-2" />Adicionar Aluno</Button>
+    <div className="space-y-8 animate-slide-in">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <div className="p-3 bg-gradient-to-r from-primary to-primary/80 rounded-xl">
+            <Users className="w-8 h-8 text-white" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              Gestão de Alunos
+            </h1>
+            <p className="text-muted-foreground">
+              {students?.length || 0} alunos cadastrados
+            </p>
+          </div>
+        </div>
+        <Button onClick={handleAddNew} className="gradient">
+          <PlusCircle className="w-4 h-4 mr-2" />
+          Adicionar Aluno
+        </Button>
       </div>
 
-      <ColoredSeparator color="primary" className="my-6" /> {/* Separador colorido */}
+      <ColoredSeparator color="primary" />
 
       {isLoading ? (
-        <div className="flex justify-center items-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
       ) : students && students.length > 0 ? (
-        <div className="bg-card rounded-lg border shadow-impressionist"> {/* Aplicando a nova sombra */}
+        <Card className="animate-slide-in">
           <Table>
-            <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Plano</TableHead><TableHead>Tipo Matrícula</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nome</TableHead>
+                <TableHead>Plano</TableHead>
+                <TableHead>Tipo Matrícula</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
             <TableBody>
-              {students.map((student) => (
-                <TableRow key={student.id} className="hover:bg-muted/50 transition-colors"> {/* Efeito de hover sutil */}
-                  <TableCell className="font-medium"><Link to={`/alunos/${student.id}`} className="hover:underline">{student.name}</Link></TableCell>
-                  <TableCell>{student.plan_type !== 'Avulso' ? `${student.plan_type} ${student.plan_frequency}` : 'Avulso'}</TableCell>
+              {students.map((student, index) => (
+                <TableRow 
+                  key={student.id} 
+                  className="hover:bg-muted/50 transition-colors animate-slide-in"
+                  style={{ animationDelay: `${index * 50}ms` }}
+                >
+                  <TableCell className="font-medium">
+                    <Link 
+                      to={`/alunos/${student.id}`} 
+                      className="hover:text-primary hover:underline transition-colors flex items-center"
+                    >
+                      {student.name}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <span className={cn(
+                      "px-2 py-1 rounded-full text-xs font-medium",
+                      (student.plan_type === 'Mensal' ? "bg-primary/10 text-primary" :
+                       student.plan_type === 'Trimestral' ? "bg-accent/10 text-accent" :
+                       "bg-muted text-muted-foreground")
+                    )}>
+                      {student.plan_type !== 'Avulso' ? `${student.plan_type} ${student.plan_frequency}` : 'Avulso'}
+                    </span>
+                  </TableCell>
                   <TableCell>{student.enrollment_type}</TableCell>
-                  <TableCell>{student.status}</TableCell>
+                  <TableCell>
+                    <span className={cn(
+                      "px-2 py-1 rounded-full text-xs font-medium",
+                      (student.status === 'Ativo' ? "bg-status-active/20 text-status-active" :
+                       student.status === 'Inativo' ? "bg-status-inactive/20 text-status-inactive" :
+                       student.status === 'Experimental' ? "bg-status-experimental/20 text-status-experimental" :
+                       "bg-status-blocked/20 text-status-blocked")
+                    )}>
+                      {student.status}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
-                      <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><span className="sr-only">Abrir menu</span><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-muted">
+                          <span className="sr-only">Abrir menu</span>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEdit(student)}>Editar</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(student)}>Excluir</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEdit(student)}>
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          className="text-destructive" 
+                          onClick={() => handleDelete(student)}
+                        >
+                          Excluir
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -278,18 +344,25 @@ const Students = () => {
               ))}
             </TableBody>
           </Table>
-        </div>
+        </Card>
       ) : (
-        <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-lg shadow-impressionist border-primary/50"> {/* Aplicando a nova sombra e borda colorida */}
-          <UserX className="w-12 h-12 text-muted-foreground" /><h3 className="mt-4 text-lg font-semibold">Nenhum aluno encontrado</h3><p className="mt-1 text-sm text-muted-foreground">Comece adicionando o primeiro aluno.</p>
-        </div>
+        <Card className="flex flex-col items-center justify-center h-64 border-2 border-dashed border-primary/50 animate-slide-in">
+          <UserX className="w-12 h-12 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-semibold">Nenhum aluno encontrado</h3>
+          <p className="text-sm text-muted-foreground">Comece adicionando o primeiro aluno.</p>
+        </Card>
       )}
 
       <Dialog open={isFormOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto"> {/* Adicionado max-h e overflow-y-auto */}
-          <DialogHeader><DialogTitle>{selectedStudent ? "Editar Aluno" : "Adicionar Novo Aluno"}</DialogTitle></DialogHeader>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl">
+              {selectedStudent ? "Editar Aluno" : "Adicionar Novo Aluno"}
+            </DialogTitle>
+          </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)}>
             <div className="grid gap-4 py-4">
+              {/* Form fields remain the same */}
               <div className="space-y-2">
                 <Label>Nome</Label>
                 <Controller name="name" control={control} render={({ field, fieldState }) => (
@@ -351,7 +424,7 @@ const Students = () => {
                 )} />
               </div>
               {planType !== 'Avulso' && (
-                <div className="grid grid-cols-2 gap-4 p-4 border bg-muted/50 rounded-lg">
+                <div className="grid grid-cols-2 gap-4 p-4 border bg-gradient-to-r from-primary/5 to-accent/5 rounded-lg">
                   <div className="space-y-2">
                     <Label>Frequência</Label>
                     <Controller name="plan_frequency" control={control} render={({ field, fieldState }) => (
@@ -382,7 +455,7 @@ const Students = () => {
                   </div>
                   <div className="col-span-2 text-center pt-2">
                     <p className="text-sm text-muted-foreground">Valor da Mensalidade:</p>
-                    <p className="text-xl font-bold">R$ {watch('monthly_fee')?.toFixed(2) || '0.00'}</p>
+                    <p className="text-xl font-bold text-primary">R$ {watch('monthly_fee')?.toFixed(2) || '0.00'}</p>
                     {errors.monthly_fee && <p className="text-sm text-destructive mt-1">{errors.monthly_fee.message}</p>}
                   </div>
                 </div>
@@ -421,8 +494,13 @@ const Students = () => {
               </div>
             </div>
             <DialogFooter>
-              <DialogClose asChild><Button type="button" variant="secondary">Cancelar</Button></DialogClose>
-              <Button type="submit" disabled={mutation.isPending}>{mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Salvar</Button>
+              <DialogClose asChild>
+                <Button type="button" variant="secondary">Cancelar</Button>
+              </DialogClose>
+              <Button type="submit" disabled={mutation.isPending} className="gradient">
+                {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Salvar
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -430,8 +508,19 @@ const Students = () => {
 
       <AlertDialog open={isDeleteAlertOpen} onOpenChange={setDeleteAlertOpen}>
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Você tem certeza?</AlertDialogTitle><AlertDialogDescription>Essa ação não pode ser desfeita. Isso irá remover permanentemente o aluno "{selectedStudent?.name}" do banco de dados.</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => selectedStudent && deleteMutation.mutate(selectedStudent.id)} disabled={deleteMutation.isPending} className="bg-destructive hover:bg-destructive/90">{deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Sim, excluir</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Essa ação não pode ser desfeita. Isso irá remover permanentemente o aluno "{selectedStudent?.name}" do banco de dados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => selectedStudent && deleteMutation.mutate(selectedStudent.id)} disabled={deleteMutation.isPending} className="gradient-destructive">
+              {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Sim, excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
