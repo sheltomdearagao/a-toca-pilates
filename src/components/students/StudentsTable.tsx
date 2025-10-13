@@ -38,7 +38,7 @@ const StudentsTable = ({ students, isLoading, onEdit, onDelete }: StudentsTableP
 
   if (!students || students.length === 0) {
     return (
-      <Card className="flex flex-col items-center justify-center h-64 border-2 border-dashed border-primary/50">
+      <Card className="flex flex-col items-center justify-center h-64 border-2 border-dashed border-primary/50 shadow-subtle-glow"> {/* Added shadow-subtle-glow */}
         <Loader2 className="w-12 h-12 text-muted-foreground mb-4" /> {/* Changed to Loader2 for consistency with other loading states */}
         <h3 className="text-lg font-semibold">Nenhum aluno encontrado</h3>
         <p className="text-sm text-muted-foreground">Comece adicionando o primeiro aluno.</p>
@@ -47,7 +47,7 @@ const StudentsTable = ({ students, isLoading, onEdit, onDelete }: StudentsTableP
   }
 
   return (
-    <Card>
+    <Card className="shadow-subtle-glow"> {/* Added shadow-subtle-glow */}
       <Table>
         <TableHeader>
           <TableRow>

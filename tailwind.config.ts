@@ -110,6 +110,7 @@ export default {
       },
       boxShadow: {
         'impressionist': '0 6px 18px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.02)', // Sombra mais suave e multi-camadas
+        'subtle-glow': '0 0 15px rgba(var(--glow-rgb), 0.1), 0 0 5px rgba(var(--glow-rgb), 0.05)', // New subtle glow
       },
     },
   },

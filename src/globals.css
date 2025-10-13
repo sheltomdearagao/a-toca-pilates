@@ -68,6 +68,19 @@
     --payment-pending: 40 80% 50%; /* Amarelo-laranja mais profundo */
     --payment-paid: 142 60% 35%; /* Verde mais profundo */
     --payment-overdue: 0 70% 45%; /* Vermelho mais profundo */
+
+    /* New subtle light/color touches */
+    --glow-h: 210;
+    --glow-s: 40%;
+    --glow-l: 90%;
+    --glow-rgb: 230, 238, 242; /* Approximate RGB for 210 40% 90% */
+
+    --subtle-gradient-start-h: 210;
+    --subtle-gradient-start-s: 30%;
+    --subtle-gradient-start-l: 99%;
+    --subtle-gradient-end-h: 210;
+    --subtle-gradient-end-s: 30%;
+    --subtle-gradient-end-l: 97%;
   }
 
   .theme-admin {
@@ -133,6 +146,18 @@
     --payment-pending: 40 80% 50%;
     --payment-paid: 142 60% 35%;
     --payment-overdue: 0 70% 45%;
+
+    --glow-h: 210;
+    --glow-s: 20%;
+    --glow-l: 90%;
+    --glow-rgb: 230, 234, 238; /* Approximate RGB for 210 20% 90% */
+
+    --subtle-gradient-start-h: 210;
+    --subtle-gradient-start-s: 20%;
+    --subtle-gradient-start-l: 96%;
+    --subtle-gradient-end-h: 210;
+    --subtle-gradient-end-s: 20%;
+    --subtle-gradient-end-l: 94%;
   }
 
   .dark {
@@ -190,6 +215,18 @@
     --payment-pending: 40 90% 70%;
     --payment-paid: 142 70% 60%;
     --payment-overdue: 0 80% 65%;
+
+    --glow-h: 217.2;
+    --glow-s: 32.6%;
+    --glow-l: 10%;
+    --glow-rgb: 20, 28, 36; /* Approximate RGB for 217.2 32.6% 10% */
+
+    --subtle-gradient-start-h: 222.2;
+    --subtle-gradient-start-s: 84%;
+    --subtle-gradient-start-l: 5.5%;
+    --subtle-gradient-end-h: 222.2;
+    --subtle-gradient-end-s: 84%;
+    --subtle-gradient-end-l: 4.5%;
   }
 }
 
@@ -200,6 +237,13 @@
 
   body {
     @apply bg-background text-foreground;
+    /* Subtle background gradient for a light touch */
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--subtle-gradient-start-h) var(--subtle-gradient-start-s) var(--subtle-gradient-start-l)),
+      hsl(var(--subtle-gradient-end-h) var(--subtle-gradient-end-s) var(--subtle-gradient-end-l))
+    );
+    background-attachment: fixed; /* Ensures gradient covers entire viewport */
   }
 }
 

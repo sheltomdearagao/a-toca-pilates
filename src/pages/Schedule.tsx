@@ -162,7 +162,7 @@ const Schedule = () => {
               <span className="ml-2 text-muted-foreground">Carregando agenda...</span>
             </div>
           ) : (
-            <div className="bg-card p-4 rounded-lg border">
+            <div className="bg-card p-4 rounded-lg border shadow-subtle-glow"> {/* Added shadow-subtle-glow */}
               <FullCalendar
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
                 initialView={calendarView}

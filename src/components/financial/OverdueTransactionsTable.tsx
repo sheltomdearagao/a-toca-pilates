@@ -40,7 +40,7 @@ const OverdueTransactionsTable = ({
   }
 
   return (
-    <div className="bg-card rounded-lg border shadow-impressionist"> {/* Aplicando a nova sombra */}
+    <div className="bg-card rounded-lg border shadow-impressionist shadow-subtle-glow"> {/* Aplicando a nova sombra */}
       <Table>
         <TableHeader>
           <TableRow>

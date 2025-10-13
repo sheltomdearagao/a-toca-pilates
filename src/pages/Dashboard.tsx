@@ -111,7 +111,7 @@ const Dashboard = () => {
       
       <ColoredSeparator color="primary" className="my-8" />
       
-      <Card className="shadow-impressionist">
+      <Card className="shadow-impressionist shadow-subtle-glow"> {/* Added shadow-subtle-glow */}
         <BirthdayCard />
       </Card>
       

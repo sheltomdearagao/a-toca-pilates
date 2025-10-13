@@ -163,7 +163,7 @@ const StudentProfile = () => {
       <ColoredSeparator color="primary" className="my-6" />
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1 shadow-impressionist border-l-4 border-primary/50"> {/* Aplicando a nova sombra e borda colorida */}
+        <Card className="lg:col-span-1 shadow-impressionist border-l-4 border-primary/50 shadow-subtle-glow"> {/* Aplicando a nova sombra e borda colorida */}
           <CardHeader>
             <CardTitle className="flex items-center"><StickyNote className="w-5 h-5 mr-2" /> Detalhes</CardTitle>
           </CardHeader>
@@ -190,7 +190,7 @@ const StudentProfile = () => {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2 shadow-impressionist"> {/* Aplicando a nova sombra */}
+        <Card className="lg:col-span-2 shadow-impressionist shadow-subtle-glow"> {/* Aplicando a nova sombra */}
           <CardHeader>
             <CardTitle className="flex items-center"><DollarSign className="w-5 h-5 mr-2" /> Histórico Financeiro</CardTitle>
           </CardHeader>
@@ -252,7 +252,7 @@ const StudentProfile = () => {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3 shadow-impressionist"> {/* Aplicando a nova sombra */}
+        <Card className="lg:col-span-3 shadow-impressionist shadow-subtle-glow"> {/* Aplicando a nova sombra */}
           <CardHeader>
             <CardTitle className="flex items-center"><Calendar className="w-5 h-5 mr-2" /> Histórico de Presença</CardTitle>
           </CardHeader>

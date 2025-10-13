@@ -14,7 +14,7 @@ const Sidebar = () => {
     cn(
       "flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 ease-in-out group",
       isActive
-        ? "bg-primary text-primary-foreground shadow-md" // Estilo mais elegante para ativo
+        ? "bg-primary text-primary-foreground shadow-md shadow-subtle-glow" // Added shadow-subtle-glow to active link
         : "text-sidebar-foreground hover:bg-secondary hover:text-secondary-foreground" // Hover mais suave
     );
 

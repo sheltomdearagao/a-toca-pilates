@@ -64,7 +64,8 @@ const BirthdayCard = () => {
               <div
                 key={student.id}
                 className={cn(
-                  "flex items-center justify-between p-4 rounded-xl border bg-secondary/20 hover:bg-secondary/40 transition-colors duration-200 hover:scale-[1.01] hover:shadow-sm" // Estilos mais sutis
+                  "flex items-center justify-between p-4 rounded-xl border bg-secondary/20 transition-colors duration-200", // Estilos mais sutis
+                  "hover:bg-secondary/40 hover:scale-[1.01] hover:shadow-subtle-glow" // Added hover glow
                 )}
               >
                 <div className="flex items-center space-x-3">

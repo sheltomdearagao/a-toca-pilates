@@ -26,7 +26,7 @@ const Login = () => {
             Sua plataforma completa de gestão
           </p>
         </div>
-        <div className="p-8 bg-card rounded-2xl shadow-impressionist border border-border">
+        <div className="p-8 bg-card rounded-2xl shadow-impressionist border border-border shadow-subtle-glow"> {/* Added shadow-subtle-glow */}
           <Auth
             supabaseClient={supabase}
             appearance={{ 
