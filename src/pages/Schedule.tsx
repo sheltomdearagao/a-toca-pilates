@@ -15,8 +15,9 @@ import { ClassEvent } from '@/types/schedule';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import ColoredSeparator from "@/components/ColoredSeparator";
+import { parseISO, format } from 'date-fns';
 
-// Otimizando a consulta para buscar apenas os campos necessários
+// Otimizando a consulta para buscar todos os campos necessários
 const fetchClasses = async (): Promise<ClassEvent[]> => {
   const { data, error } = await supabase
     .from('classes')
@@ -25,8 +26,10 @@ const fetchClasses = async (): Promise<ClassEvent[]> => {
       title,
       start_time,
       end_time,
+      notes, // Incluído 'notes'
       student_id,
-      students(name)
+      students(name),
+      class_attendees(count) // Incluído 'class_attendees' com contagem
     `)
     .order('start_time', { ascending: true });
   
@@ -37,8 +40,10 @@ const fetchClasses = async (): Promise<ClassEvent[]> => {
     title: c.title,
     start_time: c.start_time,
     end_time: c.end_time,
+    notes: c.notes, // Mapeado 'notes'
     student_id: c.student_id,
     students: c.students,
+    class_attendees: c.class_attendees, // Mapeado 'class_attendees'
   }));
 };
 
@@ -60,38 +65,55 @@ const Schedule = () => {
 
   const isLoading = isLoadingSettings || isLoadingClasses;
 
-  // Simplificando a criação de eventos
   const calendarEvents = classes?.map(c => {
+    const attendeeCount = c.class_attendees[0]?.count ?? 0;
     const eventTitle = c.student_id && c.students ? `Aula com ${c.students.name}` : c.title || 'Aula';
     return {
       id: c.id,
       title: eventTitle,
-      start: c.start_time,
-      end: c.end_time,
+      start: c.start_time, // Usar diretamente a string ISO do DB
+      end: c.end_time,     // Usar diretamente a string ISO do DB
       extendedProps: {
+        attendeeCount,
         student_id: c.student_id,
+        notes: c.notes, // Passar notes para extendedProps
       },
     };
   }) || [];
 
   const handleEventClick = (clickInfo: EventClickArg) => {
+    // Ao definir selectedEvent, usar as strings ISO do FullCalendar diretamente
     setSelectedEvent({
       id: clickInfo.event.id,
       title: clickInfo.event.title,
-      start_time: clickInfo.event.startStr,
-      end_time: clickInfo.event.endStr,
+      start_time: clickInfo.event.startStr, // String ISO
+      end_time: clickInfo.event.endStr,     // String ISO
+      notes: clickInfo.event.extendedProps.notes, // Acessar notes de extendedProps
       student_id: clickInfo.event.extendedProps.student_id,
     });
     setDetailsOpen(true);
   };
 
   const renderEventContent = (eventInfo: EventContentArg) => {
+    const { attendeeCount } = eventInfo.event.extendedProps;
     return (
       <div className="p-1 overflow-hidden">
         <b>{eventInfo.timeText}</b>
         <p className="truncate">{eventInfo.event.title}</p>
+        <p className="text-sm font-semibold">({attendeeCount}/{CLASS_CAPACITY})</p>
       </div>
     );
+  };
+
+  const getEventClassNames = (eventInfo: EventContentArg) => {
+    const { attendeeCount } = eventInfo.event.extendedProps;
+    if (attendeeCount >= CLASS_CAPACITY) {
+      return 'event-full';
+    }
+    if (attendeeCount >= CLASS_CAPACITY - 3) {
+      return 'event-few-spots';
+    }
+    return 'event-available';
   };
 
   return (
@@ -147,10 +169,7 @@ const Schedule = () => {
                 height="auto"
                 eventClick={handleEventClick}
                 eventContent={renderEventContent}
-                eventDidMount={(info) => {
-                  // Adicionando tooltip para mostrar mais informações
-                  info.el.setAttribute('title', info.event.title);
-                }}
+                eventClassNames={getEventClassNames}
               />
             </div>
           )}
