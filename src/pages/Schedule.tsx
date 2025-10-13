@@ -48,7 +48,7 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
     notes: c.notes,
     created_at: c.created_at,
     student_id: c.student_id,
-    students: c.students ? (c.students as { name: string }) : null,
+    students: c.students ? (c.students as { name: string }) : null, // Ajustado para objeto único ou null
     class_attendees: c.class_attendees,
   }));
 };
@@ -153,7 +153,7 @@ const Schedule = () => {
       <Tabs defaultValue="calendar">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="calendar">Calendário</TabsTrigger>
-          <TabsTrigger value="recurring-templates">Modelos Recorrentes</TabsTrigger> {/* Mantido o nome da aba */}
+          <TabsTrigger value="recurring-templates">Alunos Recorrentes</TabsTrigger> {/* Alterado o nome da aba */}
         </TabsList>
         <TabsContent value="calendar" className="mt-4">
           {isLoading ? (
@@ -192,7 +192,7 @@ const Schedule = () => {
                 eventClick={handleEventClick}
                 eventContent={renderEventContent}
                 eventClassNames={getEventClassNames}
-                datesSet={handleDatesSet} {/* Adicionado o callback para atualizar o range */}
+                datesSet={handleDatesSet}
               />
             </div>
           )}
