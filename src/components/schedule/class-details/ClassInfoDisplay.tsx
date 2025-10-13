@@ -1,7 +1,7 @@
 import React from 'react';
 import { DialogDescription } from '@/components/ui/dialog';
-import { format, parseISO } from 'date-fns'; // Importar parseISO
-import { ptBR } from 'date-fns/locale/pt-BR'; // Corrigido o caminho de importação
+import { format, parseISO, addMinutes } from 'date-fns'; // Importar addMinutes
+import { ptBR } from 'date-fns/locale/pt-BR';
 import { ClassEvent } from '@/types/schedule';
 
 interface ClassInfoDisplayProps {
@@ -13,12 +13,16 @@ const ClassInfoDisplay = ({ classEvent }: ClassInfoDisplayProps) => {
 
   const title = classEvent.students?.name ? `Aula com ${classEvent.students.name}` : classEvent.title;
 
+  // Calcular o end_time com base em start_time e duration_minutes
+  const startTime = classEvent.start_time ? parseISO(classEvent.start_time) : null;
+  const endTime = startTime && classEvent.duration_minutes ? addMinutes(startTime, classEvent.duration_minutes) : null;
+
   return (
     <>
       <h2 className="text-2xl font-bold">{title}</h2>
-      {classEvent.start_time && classEvent.end_time && (
+      {startTime && endTime && (
         <DialogDescription>
-          {`${format(parseISO(classEvent.start_time), "eeee, dd 'de' MMMM", { locale: ptBR })} das ${format(parseISO(classEvent.start_time), 'HH:mm')} às ${format(parseISO(classEvent.end_time), 'HH:mm')}`}
+          {`${format(startTime, "eeee, dd 'de' MMMM", { locale: ptBR })} das ${format(startTime, 'HH:mm')} às ${format(endTime, 'HH:mm')}`}
         </DialogDescription>
       )}
       {classEvent.notes && (

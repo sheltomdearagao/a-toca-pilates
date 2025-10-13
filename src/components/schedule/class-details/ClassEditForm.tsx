@@ -7,34 +7,33 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Check, ChevronsUpDown } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, addMinutes } from 'date-fns'; // Importar addMinutes
 import { ClassEvent } from '@/types/schedule';
 import { StudentOption } from '@/types/student';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
+import { fromZonedTime } from 'date-fns-tz';
 
 const classSchema = z.object({
   student_id: z.string().optional().nullable(),
   title: z.string().min(3, 'O título é obrigatório.').optional(),
   start_time: z.string().min(1, 'A data e hora de início são obrigatórias.'),
-  end_time: z.string().min(1, 'A data e hora de fim são obrigatórias.'),
+  duration_minutes: z.number().min(1, 'A duração deve ser de pelo menos 1 minuto.').default(60), // Nova coluna
   notes: z.string().optional(),
 }).superRefine((data, ctx) => {
-  const startTime = parseISO(data.start_time);
-  const endTime = parseISO(data.end_time);
-  if (endTime <= startTime) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'A hora de fim deve ser posterior à hora de início.',
-      path: ['end_time'],
-    });
-  }
   if (!data.student_id && (!data.title || data.title.trim() === '')) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'O título da aula é obrigatório se nenhum aluno for selecionado.',
       path: ['title'],
+    });
+  }
+  if (!data.duration_minutes || data.duration_minutes <= 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'A duração da aula deve ser maior que zero.',
+      path: ['duration_minutes'],
     });
   }
 });
@@ -64,7 +63,7 @@ const ClassEditForm = ({
       student_id: null,
       title: '',
       start_time: '',
-      end_time: '',
+      duration_minutes: 60,
       notes: '',
     },
   });
@@ -75,9 +74,8 @@ const ClassEditForm = ({
     if (classEvent) {
       reset({
         title: classEvent.title || '',
-        // Formatar string ISO para o formato datetime-local esperado pelo input
         start_time: classEvent.start_time ? format(parseISO(classEvent.start_time), "yyyy-MM-dd'T'HH:mm") : '',
-        end_time: classEvent.end_time ? format(parseISO(classEvent.end_time), "yyyy-MM-dd'T'HH:mm") : '',
+        duration_minutes: classEvent.duration_minutes || 60, // Set default or existing duration
         notes: classEvent.notes || '',
         student_id: classEvent.student_id || null,
       });
@@ -157,9 +155,9 @@ const ClassEditForm = ({
             {errors.start_time && <p className="text-sm text-destructive mt-1">{errors.start_time.message}</p>}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="end_time">Fim</Label>
-            <Controller name="end_time" control={control} render={({ field }) => <Input id="end_time" type="datetime-local" {...field} />} />
-            {errors.end_time && <p className="text-sm text-destructive mt-1">{errors.end_time.message}</p>}
+            <Label htmlFor="duration_minutes">Duração (minutos)</Label>
+            <Controller name="duration_minutes" control={control} render={({ field }) => <Input id="duration_minutes" type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />} />
+            {errors.duration_minutes && <p className="text-sm text-destructive mt-1">{errors.duration_minutes.message}</p>}
           </div>
         </div>
         <div className="space-y-2">

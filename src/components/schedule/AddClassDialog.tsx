@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, ControllerRenderProps, ControllerFieldState } from 'react-hook-form'; // Importar ControllerRenderProps e ControllerFieldState
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,9 +19,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Check, ChevronsUpDown } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { Checkbox } from '@/components/ui/checkbox';
-import { format, parseISO } from 'date-fns';
-import { toZonedTime, fromZonedTime } from 'date-fns-tz';
-import { Student, StudentOption } from '@/types/student';
+import { format, parseISO, addMinutes } from 'date-fns';
+import { fromZonedTime } from 'date-fns-tz';
+import { StudentOption } from '@/types/student';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
@@ -30,7 +30,7 @@ const classSchema = z.object({
   student_id: z.string().optional().nullable(),
   title: z.string().min(3, 'O título é obrigatório.').optional(),
   start_time: z.string().min(1, 'A data e hora de início são obrigatórias.'),
-  end_time: z.string().min(1, 'A data e hora de fim são obrigatórias.'),
+  duration_minutes: z.number().min(1, 'A duração deve ser de pelo menos 1 minuto.').default(60),
   notes: z.string().optional(),
   is_recurring: z.boolean().optional(),
   recurrence_days_of_week: z.array(z.string()).optional(),
@@ -38,13 +38,18 @@ const classSchema = z.object({
   recurrence_end_date: z.string().optional().nullable(),
 }).superRefine((data, ctx) => {
   if (!data.is_recurring) {
-    const startTime = parseISO(data.start_time);
-    const endTime = parseISO(data.end_time);
-    if (endTime <= startTime) {
+    if (!data.start_time) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'A hora de fim deve ser posterior à hora de início.',
-        path: ['end_time'],
+        message: 'A data e hora de início são obrigatórias.',
+        path: ['start_time'],
+      });
+    }
+    if (!data.duration_minutes || data.duration_minutes <= 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'A duração da aula deve ser maior que zero.',
+        path: ['duration_minutes'],
       });
     }
   } else {
@@ -69,8 +74,21 @@ const classSchema = z.object({
         path: ['recurrence_end_date'],
       });
     }
+    if (!data.start_time) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'A hora de início é obrigatória para aulas recorrentes.',
+        path: ['start_time'],
+      });
+    }
+    if (!data.duration_minutes || data.duration_minutes <= 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'A duração da aula deve ser maior que zero para aulas recorrentes.',
+        path: ['duration_minutes'],
+      });
+    }
   }
-  // If student_id is selected, title is optional. If no student_id, title is required.
   if (!data.student_id && (!data.title || data.title.trim() === '')) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -98,7 +116,6 @@ const daysOfWeek = [
   { label: 'Dom', value: 'sunday' },
 ];
 
-// Otimizando a consulta para buscar apenas os campos necessários
 const fetchAllStudents = async (): Promise<StudentOption[]> => {
   const { data, error } = await supabase
     .from('students')
@@ -117,7 +134,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
       student_id: initialStudentId || null,
       title: '',
       start_time: '',
-      end_time: '',
+      duration_minutes: 60,
       notes: '',
       is_recurring: false,
       recurrence_days_of_week: [],
@@ -130,24 +147,22 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
   const recurrenceDays = watch('recurrence_days_of_week');
   const selectedStudentId = watch('student_id');
 
-  // Adicionando staleTime para evitar requisições desnecessárias
   const { data: students, isLoading: isLoadingStudents } = useQuery<StudentOption[]>({
     queryKey: ['allStudents'],
     queryFn: fetchAllStudents,
-    staleTime: 1000 * 60 * 5, // Cache por 5 minutos
+    staleTime: 1000 * 60 * 5,
   });
 
   useEffect(() => {
     if (isOpen) {
       const now = new Date();
       const defaultStartTime = format(now, "yyyy-MM-dd'T'HH:mm");
-      const defaultEndTime = format(new Date(now.getTime() + 60 * 60 * 1000), "yyyy-MM-dd'T'HH:mm");
 
       reset({
         student_id: initialStudentId || null,
         title: '',
         start_time: defaultStartTime,
-        end_time: defaultEndTime,
+        duration_minutes: 60,
         notes: '',
         is_recurring: false,
         recurrence_days_of_week: [],
@@ -177,7 +192,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
           user_id: user.id,
           title: classTitle,
           start_time_of_day: format(parseISO(formData.start_time), 'HH:mm:ss'),
-          end_time_of_day: format(parseISO(formData.end_time), 'HH:mm:ss'),
+          duration_minutes: formData.duration_minutes,
           notes: formData.notes,
           recurrence_days_of_week: formData.recurrence_days_of_week,
           recurrence_start_date: formData.recurrence_start_date,
@@ -186,15 +201,13 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
         const { error } = await supabase.from('recurring_class_templates').insert([dataToSubmit]);
         if (error) throw error;
       } else {
-        // Converter para UTC antes de enviar ao Supabase
         const startUtc = fromZonedTime(parseISO(formData.start_time), Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
-        const endUtc = fromZonedTime(parseISO(formData.end_time), Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
-
+        
         const dataToSubmit = {
           user_id: user.id,
           title: classTitle,
           start_time: startUtc,
-          end_time: endUtc,
+          duration_minutes: formData.duration_minutes,
           notes: formData.notes,
           student_id: formData.student_id || null,
         };
@@ -313,9 +326,9 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
                     {errors.start_time && <p className="text-sm text-destructive mt-1">{errors.start_time.message}</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="end_time">Hora de Fim</Label>
-                    <Controller name="end_time" control={control} render={({ field }) => <Input id="end_time" type="time" {...field} />} />
-                    {errors.end_time && <p className="text-sm text-destructive mt-1">{errors.end_time.message}</p>}
+                    <Label htmlFor="duration_minutes">Duração (minutos)</Label>
+                    <Controller name="duration_minutes" control={control} render={({ field }) => <Input id="duration_minutes" type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />} />
+                    {errors.duration_minutes && <p className="text-sm text-destructive mt-1">{errors.duration_minutes.message}</p>}
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -358,13 +371,21 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="start_time">Início</Label>
-                  <Controller name="start_time" control={control} render={({ field }) => <Input id="start_time" type="datetime-local" {...field} />} />
-                  {errors.start_time && <p className="text-sm text-destructive mt-1">{errors.start_time.message}</p>}
+                  <Controller
+                    name="start_time"
+                    control={control}
+                    render={({ field, fieldState }: { field: ControllerRenderProps<ClassFormData, "start_time">, fieldState: ControllerFieldState }) => (
+                      <>
+                        <Input id="start_time" type="datetime-local" {...field} />
+                        {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                      </>
+                    )}
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="end_time">Fim</Label>
-                  <Controller name="end_time" control={control} render={({ field }) => <Input id="end_time" type="datetime-local" {...field} />} />
-                  {errors.end_time && <p className="text-sm text-destructive mt-1">{errors.end_time.message}</p>}
+                  <Label htmlFor="duration_minutes">Duração (minutos)</Label>
+                  <Controller name="duration_minutes" control={control} render={({ field }) => <Input id="duration_minutes" type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />} />
+                  {errors.duration_minutes && <p className="text-sm text-destructive mt-1">{errors.duration_minutes.message}</p>}
                 </div>
               </div>
             )}

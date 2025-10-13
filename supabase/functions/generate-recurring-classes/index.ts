@@ -1,9 +1,11 @@
-// @ts-nocheck
+/// <reference lib="deno.ns" />
+// @deno-types="https://deno.land/std@0.190.0/http/server.ts"
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+// @deno-types="https://esm.sh/@supabase/supabase-js@2.45.0"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
-// Mantido date-fns para a versão 3.6.0
-import { addDays, format, parseISO, isWithinInterval, startOfDay, endOfDay, setHours, setMinutes, setSeconds } from "https://esm.sh/date-fns@3.6.0";
-// Atualizado date-fns-tz para a versão 3.0.0 e importando as novas funções
+// @deno-types="https://esm.sh/date-fns@3.6.0"
+import { addDays, format, parseISO, isWithinInterval, startOfDay, setHours, setMinutes, setSeconds, addMinutes } from "https://esm.sh/date-fns@3.6.0";
+// @deno-types="https://esm.sh/date-fns-tz@3.0.0"
 import { toZonedTime, toUtc } from "https://esm.sh/date-fns-tz@3.0.0"; 
 
 const corsHeaders = {
@@ -11,8 +13,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Assumimos que o fuso horário da academia é 'America/Sao_Paulo' ou similar
-// Para um ambiente de produção, isso deveria ser configurável ou determinado pelo contexto.
 const APP_TIMEZONE = 'America/Sao_Paulo'; 
 
 serve(async (req) => {
@@ -28,11 +28,9 @@ serve(async (req) => {
     );
 
     const classesToInsert = [];
-    // Usando toZonedTime para converter a data atual para o fuso horário da aplicação
     const today = startOfDay(toZonedTime(new Date(), APP_TIMEZONE)); 
-    const twoMonthsFromNow = addDays(today, 60); // Gerar classes para os próximos 60 dias
+    const twoMonthsFromNow = addDays(today, 60);
 
-    // Fetch all recurring class templates
     const { data: templates, error: templatesError } = await supabase
       .from('recurring_class_templates')
       .select('*');
@@ -53,27 +51,24 @@ serve(async (req) => {
           }
 
           if (template.recurrence_days_of_week.includes(dayOfWeek)) {
-            // Combinar a data do dia atual com a hora do template no fuso horário da academia
             let startDateTime = setHours(currentDate, parseInt(template.start_time_of_day.substring(0, 2)));
             startDateTime = setMinutes(startDateTime, parseInt(template.start_time_of_day.substring(3, 5)));
-            startDateTime = setSeconds(startDateTime, parseInt(template.start_time_of_day.substring(6, 8) || '00'));
+            startDateTime = setSeconds(startDateTime, 0); // Set seconds to 0 for consistency
 
-            let endDateTime = setHours(currentDate, parseInt(template.end_time_of_day.substring(0, 2)));
-            endDateTime = setMinutes(endDateTime, parseInt(template.end_time_of_day.substring(3, 5)));
-            endDateTime = setSeconds(endDateTime, parseInt(template.end_time_of_day.substring(6, 8) || '00'));
+            // Calculate endDateTime based on startDateTime and duration_minutes
+            const endDateTime = addMinutes(startDateTime, template.duration_minutes);
 
-            // Converter para UTC para armazenar no banco de dados usando a nova API
             const startUtc = toUtc(startDateTime, { timeZone: APP_TIMEZONE }).toISOString();
-            const endUtc = toUtc(endDateTime, { timeZone: APP_TIMEZONE }).toISOString();
+            // end_time is no longer stored in the classes table, so we don't need to calculate endUtc for insertion
+            // const endUtc = toUtc(endDateTime, { timeZone: APP_TIMEZONE }).toISOString();
 
-            // Check for existing class to prevent duplicates
             const { count: existingClassCount, error: existingClassError } = await supabase
               .from('classes')
               .select('id', { count: 'exact', head: true })
               .eq('user_id', template.user_id)
               .eq('title', template.title)
               .eq('start_time', startUtc)
-              .eq('end_time', endUtc);
+              .eq('duration_minutes', template.duration_minutes); // Check duration_minutes instead of end_time
 
             if (existingClassError) throw existingClassError;
 
@@ -82,7 +77,7 @@ serve(async (req) => {
                 user_id: template.user_id,
                 title: template.title,
                 start_time: startUtc,
-                end_time: endUtc,
+                duration_minutes: template.duration_minutes, // Store duration_minutes
                 notes: template.notes,
               });
             }

@@ -5,7 +5,7 @@ export type ClassEvent = {
   user_id: string;
   title: string;
   start_time: string; // Alterado para string (ISO 8601)
-  end_time: string;   // Alterado para string (ISO 8601)
+  duration_minutes: number; // Nova coluna
   notes: string | null;
   created_at: string;
   student_id: string | null; // Novo campo para vincular a um aluno
@@ -18,7 +18,7 @@ export type RecurringClassTemplate = {
   user_id: string;
   title: string;
   start_time_of_day: string; // HH:mm:ss
-  end_time_of_day: string; // HH:mm:ss
+  duration_minutes: number; // Nova coluna
   notes: string | null;
   recurrence_days_of_week: string[]; // e.g., ['monday', 'wednesday']
   recurrence_start_date: string; // YYYY-MM-DD

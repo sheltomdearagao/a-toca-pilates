@@ -40,7 +40,7 @@ const fetchClassDetails = async (classId: string): Promise<Partial<ClassEvent> |
       id,
       title,
       start_time,
-      end_time,
+      duration_minutes,
       notes,
       student_id,
       students(name)
@@ -50,11 +50,11 @@ const fetchClassDetails = async (classId: string): Promise<Partial<ClassEvent> |
   
   if (error) throw new Error(error.message);
   
-  // Ajustar para retornar students como um objeto único ou null, não um array
   if (data) {
     return {
       ...data,
-      students: data.students ? (data.students as { name: string }[])[0] : null,
+      // Ajustado para garantir que students seja um objeto único ou null
+      students: (data.students as { name: string }[] | null)?.[0] || null,
     };
   }
   return null;
@@ -96,25 +96,24 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
 
   const classId = classEvent?.id;
 
-  // Adicionando staleTime para evitar requisições desnecessárias
   const { data: details, isLoading: isLoadingDetails } = useQuery({
     queryKey: ['classDetails', classId],
     queryFn: () => fetchClassDetails(classId!),
     enabled: !!classId,
-    staleTime: 1000 * 60 * 2, // Cache por 2 minutos
+    staleTime: 1000 * 60 * 2,
   });
 
   const { data: attendees, isLoading: isLoadingAttendees } = useQuery({
     queryKey: ['classAttendees', classId],
     queryFn: () => fetchAttendees(classId!),
     enabled: !!classId,
-    staleTime: 1000 * 60 * 2, // Cache por 2 minutos
+    staleTime: 1000 * 60 * 2,
   });
 
   const { data: allStudents, isLoading: isLoadingAllStudents } = useQuery<StudentOption[]>({ 
     queryKey: ['allStudents'], 
     queryFn: fetchAllStudents,
-    staleTime: 1000 * 60 * 5, // Cache por 5 minutos
+    staleTime: 1000 * 60 * 5,
   });
 
   const addAttendeeMutation = useMutation({
@@ -180,14 +179,12 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
         ? allStudents?.find(s => s.id === formData.student_id)?.name || 'Aula com Aluno'
         : formData.title;
 
-      // Converter para UTC antes de enviar ao Supabase
       const startUtc = fromZonedTime(parseISO(formData.start_time), Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
-      const endUtc = fromZonedTime(parseISO(formData.end_time), Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
-
+      
       const dataToSubmit = {
         title: classTitle,
         start_time: startUtc,
-        end_time: endUtc,
+        duration_minutes: formData.duration_minutes,
         notes: formData.notes,
         student_id: formData.student_id || null,
       };

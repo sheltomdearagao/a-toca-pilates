@@ -15,7 +15,7 @@ import { ClassEvent } from '@/types/schedule';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import ColoredSeparator from "@/components/ColoredSeparator";
-import { parseISO, format } from 'date-fns';
+import { parseISO, format, addMinutes } from 'date-fns'; // Importar addMinutes
 
 // Otimizando a consulta para buscar todos os campos necessários
 const fetchClasses = async (): Promise<ClassEvent[]> => {
@@ -26,7 +26,7 @@ const fetchClasses = async (): Promise<ClassEvent[]> => {
       user_id,
       title,
       start_time,
-      end_time,
+      duration_minutes,
       notes,
       created_at,
       student_id,
@@ -39,14 +39,14 @@ const fetchClasses = async (): Promise<ClassEvent[]> => {
   
   return (data as any[] || []).map(c => ({
     id: c.id,
-    user_id: c.user_id, // Incluído user_id
+    user_id: c.user_id,
     title: c.title,
     start_time: c.start_time,
-    end_time: c.end_time,
+    duration_minutes: c.duration_minutes, // Mapeado duration_minutes
     notes: c.notes,
-    created_at: c.created_at, // Incluído created_at
+    created_at: c.created_at,
     student_id: c.student_id,
-    students: c.students ? (c.students as { name: string }[])[0] : null, // Ajustado para objeto único ou null
+    students: c.students ? (c.students as { name: string }) : null, // Ajustado para objeto único ou null
     class_attendees: c.class_attendees,
   }));
 };
@@ -60,7 +60,6 @@ const Schedule = () => {
   const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
   const CLASS_CAPACITY = appSettings?.class_capacity ?? 10;
 
-  // Adicionando staleTime para evitar requisições desnecessárias
   const { data: classes, isLoading: isLoadingClasses } = useQuery({
     queryKey: ['classes'],
     queryFn: fetchClasses,
@@ -72,27 +71,32 @@ const Schedule = () => {
   const calendarEvents = classes?.map(c => {
     const attendeeCount = c.class_attendees[0]?.count ?? 0;
     const eventTitle = c.student_id && c.students ? `Aula com ${c.students.name}` : c.title || 'Aula';
+    
+    // Calcular o end time para o FullCalendar
+    const startTime = parseISO(c.start_time);
+    const endTime = addMinutes(startTime, c.duration_minutes);
+
     return {
       id: c.id,
       title: eventTitle,
-      start: c.start_time, // Usar diretamente a string ISO do DB
-      end: c.end_time,     // Usar diretamente a string ISO do DB
+      start: c.start_time,
+      end: endTime.toISOString(), // Usar o end time calculado
       extendedProps: {
         attendeeCount,
         student_id: c.student_id,
-        notes: c.notes, // Passar notes para extendedProps
+        notes: c.notes,
+        duration_minutes: c.duration_minutes, // Passar duration_minutes para extendedProps
       },
     };
   }) || [];
 
   const handleEventClick = (clickInfo: EventClickArg) => {
-    // Ao definir selectedEvent, usar as strings ISO do FullCalendar diretamente
     setSelectedEvent({
       id: clickInfo.event.id,
       title: clickInfo.event.title,
-      start_time: clickInfo.event.startStr, // String ISO
-      end_time: clickInfo.event.endStr,     // String ISO
-      notes: clickInfo.event.extendedProps.notes, // Acessar notes de extendedProps
+      start_time: clickInfo.event.startStr,
+      duration_minutes: clickInfo.event.extendedProps.duration_minutes, // Acessar duration_minutes
+      notes: clickInfo.event.extendedProps.notes,
       student_id: clickInfo.event.extendedProps.student_id,
     });
     setDetailsOpen(true);

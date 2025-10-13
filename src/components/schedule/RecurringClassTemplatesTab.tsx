@@ -44,29 +44,18 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, MoreHorizontal, Edit, Trash2, Repeat } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { format, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale/pt-BR'; // Corrigido o caminho de importação
+import { format, parseISO, addMinutes } from 'date-fns'; // Importar addMinutes
+import { ptBR } from 'date-fns/locale/pt-BR';
 
 const templateSchema = z.object({
   title: z.string().min(3, 'O título é obrigatório.'),
   start_time_of_day: z.string().min(1, 'A hora de início é obrigatória.'),
-  end_time_of_day: z.string().min(1, 'A hora de fim é obrigatória.'),
+  duration_minutes: z.number().min(1, 'A duração deve ser de pelo menos 1 minuto.').default(60), // Nova coluna
   notes: z.string().optional(),
   recurrence_days_of_week: z.array(z.string()).min(1, 'Selecione pelo menos um dia da semana.'),
   recurrence_start_date: z.string().min(1, 'A data de início da recorrência é obrigatória.'),
   recurrence_end_date: z.string().optional().nullable(),
 }).superRefine((data, ctx) => {
-  // Para validação de tempo, podemos criar objetos Date temporários com uma data arbitrária
-  const dummyDate = '2000-01-01T';
-  const startTime = parseISO(`${dummyDate}${data.start_time_of_day}`);
-  const endTime = parseISO(`${dummyDate}${data.end_time_of_day}`);
-  if (endTime <= startTime) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'A hora de fim deve ser posterior à hora de início.',
-      path: ['end_time_of_day'],
-    });
-  }
   if (data.recurrence_end_date && new Date(data.recurrence_end_date) < new Date(data.recurrence_start_date)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -105,11 +94,11 @@ const RecurringClassTemplatesTab = () => {
     defaultValues: {
       title: '',
       start_time_of_day: '08:00',
-      end_time_of_day: '09:00',
+      duration_minutes: 60, // Default duration
       notes: '',
       recurrence_days_of_week: [],
       recurrence_start_date: format(new Date(), 'yyyy-MM-dd'),
-      recurrence_end_date: null, // Definir como null
+      recurrence_end_date: null,
     },
   });
 
@@ -129,7 +118,7 @@ const RecurringClassTemplatesTab = () => {
         user_id: user.id,
         title: formData.title,
         start_time_of_day: formData.start_time_of_day,
-        end_time_of_day: formData.end_time_of_day,
+        duration_minutes: formData.duration_minutes, // Store duration_minutes
         notes: formData.notes,
         recurrence_days_of_week: formData.recurrence_days_of_week,
         recurrence_start_date: formData.recurrence_start_date,
@@ -178,8 +167,8 @@ const RecurringClassTemplatesTab = () => {
     setSelectedTemplate(template);
     reset({
       title: template.title,
-      start_time_of_day: template.start_time_of_day.substring(0, 5), // Apenas HH:mm
-      end_time_of_day: template.end_time_of_day.substring(0, 5), // Apenas HH:mm
+      start_time_of_day: template.start_time_of_day.substring(0, 5),
+      duration_minutes: template.duration_minutes,
       notes: template.notes || '',
       recurrence_days_of_week: template.recurrence_days_of_week,
       recurrence_start_date: template.recurrence_start_date,
@@ -205,12 +194,13 @@ const RecurringClassTemplatesTab = () => {
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       ) : templates && templates.length > 0 ? (
-        <div className="bg-card rounded-lg border shadow-impressionist"> {/* Aplicando a nova sombra */}
+        <div className="bg-card rounded-lg border shadow-impressionist">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Título</TableHead>
                 <TableHead>Horário</TableHead>
+                <TableHead>Duração</TableHead>
                 <TableHead>Dias</TableHead>
                 <TableHead>Período</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
@@ -218,9 +208,10 @@ const RecurringClassTemplatesTab = () => {
             </TableHeader>
             <TableBody>
               {templates.map((template) => (
-                <TableRow key={template.id} className="hover:bg-muted/50 transition-colors"> {/* Efeito de hover sutil */}
+                <TableRow key={template.id} className="hover:bg-muted/50 transition-colors">
                   <TableCell className="font-medium">{template.title}</TableCell>
-                  <TableCell>{template.start_time_of_day.substring(0, 5)} - {template.end_time_of_day.substring(0, 5)}</TableCell>
+                  <TableCell>{template.start_time_of_day.substring(0, 5)}</TableCell>
+                  <TableCell>{template.duration_minutes} min</TableCell>
                   <TableCell>
                     {template.recurrence_days_of_week.map(day => daysOfWeekOptions.find(d => d.value === day)?.label).join(', ')}
                   </TableCell>
@@ -252,7 +243,7 @@ const RecurringClassTemplatesTab = () => {
           </Table>
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-lg shadow-impressionist border-primary/50"> {/* Aplicando a nova sombra e borda colorida */}
+        <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-lg shadow-impressionist border-primary/50">
           <Repeat className="w-12 h-12 text-muted-foreground" />
           <h3 className="mt-4 text-lg font-semibold">Nenhum modelo de aula recorrente encontrado</h3>
           <p className="mt-1 text-sm text-muted-foreground">Crie um novo modelo na aba "Agenda" marcando a opção "Aula Recorrente".</p>
@@ -279,9 +270,9 @@ const RecurringClassTemplatesTab = () => {
                   {errors.start_time_of_day && <p className="text-sm text-destructive mt-1">{errors.start_time_of_day.message}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="end_time_of_day">Hora de Fim</Label>
-                  <Controller name="end_time_of_day" control={control} render={({ field }) => <Input id="end_time_of_day" type="time" {...field} />} />
-                  {errors.end_time_of_day && <p className="text-sm text-destructive mt-1">{errors.end_time_of_day.message}</p>}
+                  <Label htmlFor="duration_minutes">Duração (minutos)</Label>
+                  <Controller name="duration_minutes" control={control} render={({ field }) => <Input id="duration_minutes" type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />} />
+                  {errors.duration_minutes && <p className="text-sm text-destructive mt-1">{errors.duration_minutes.message}</p>}
                 </div>
               </div>
               <div className="space-y-2">
