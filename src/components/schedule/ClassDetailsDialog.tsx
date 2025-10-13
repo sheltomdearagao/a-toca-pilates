@@ -14,8 +14,8 @@ import {
 } from '@/components/ui/dialog';
 import { Loader2, Edit, Trash2 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { parseISO, format } from 'date-fns'; // Importar format e parseISO
-import { fromZonedTime } from 'date-fns-tz'; // Importar fromZonedTime
+import { parseISO, format } from 'date-fns';
+import { fromZonedTime } from 'date-fns-tz';
 
 // Importar os novos componentes modulares
 import ClassInfoDisplay from './class-details/ClassInfoDisplay';
@@ -33,26 +33,46 @@ interface ClassDetailsDialogProps {
   classCapacity: number;
 }
 
+// Otimizando a consulta para buscar apenas os campos necessários
 const fetchClassDetails = async (classId: string): Promise<Partial<ClassEvent> | null> => {
-  const { data, error } = await supabase.from('classes').select('*, students(name)').eq('id', classId).single();
+  const { data, error } = await supabase
+    .from('classes')
+    .select(`
+      id,
+      title,
+      start_time,
+      end_time,
+      notes,
+      student_id,
+      students(name)
+    `)
+    .eq('id', classId)
+    .single();
+  
   if (error) throw new Error(error.message);
-  if (data) {
-    // start_time e end_time já são strings ISO do Supabase.
-    // Não é necessário toZonedTime aqui, pois o componente ClassInfoDisplay e ClassEditForm
-    // farão o parse e formatação conforme necessário.
-    return data;
-  }
   return data;
 };
 
 const fetchAttendees = async (classId: string): Promise<ClassAttendee[]> => {
-  const { data, error } = await supabase.from('class_attendees').select('id, status, students(id, name, enrollment_type)').eq('class_id', classId);
+  const { data, error } = await supabase
+    .from('class_attendees')
+    .select(`
+      id,
+      status,
+      students(id, name, enrollment_type)
+    `)
+    .eq('class_id', classId);
+  
   if (error) throw new Error(error.message);
   return data as unknown as ClassAttendee[] || [];
 };
 
 const fetchAllStudents = async (): Promise<StudentOption[]> => {
-  const { data, error } = await supabase.from('students').select('id, name, enrollment_type').order('name');
+  const { data, error } = await supabase
+    .from('students')
+    .select('id, name, enrollment_type')
+    .order('name');
+  
   if (error) throw new Error(error.message);
   return data || [];
 };
@@ -69,19 +89,26 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
 
   const classId = classEvent?.id;
 
+  // Adicionando staleTime para evitar requisições desnecessárias
   const { data: details, isLoading: isLoadingDetails } = useQuery({
     queryKey: ['classDetails', classId],
     queryFn: () => fetchClassDetails(classId!),
     enabled: !!classId,
+    staleTime: 1000 * 60 * 2, // Cache por 2 minutos
   });
 
   const { data: attendees, isLoading: isLoadingAttendees } = useQuery({
     queryKey: ['classAttendees', classId],
     queryFn: () => fetchAttendees(classId!),
     enabled: !!classId,
+    staleTime: 1000 * 60 * 2, // Cache por 2 minutos
   });
 
-  const { data: allStudents, isLoading: isLoadingAllStudents } = useQuery<StudentOption[]>({ queryKey: ['allStudents'], queryFn: fetchAllStudents });
+  const { data: allStudents, isLoading: isLoadingAllStudents } = useQuery<StudentOption[]>({ 
+    queryKey: ['allStudents'], 
+    queryFn: fetchAllStudents,
+    staleTime: 1000 * 60 * 5, // Cache por 5 minutos
+  });
 
   const addAttendeeMutation = useMutation({
     mutationFn: async ({ studentId, displaceAttendeeId }: { studentId: string, displaceAttendeeId?: string }) => {
@@ -222,7 +249,12 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
     <>
       <Dialog open={isOpen} onOpenChange={(open) => { onOpenChange(open); setIsEditMode(false); }}>
         <DialogContent className="sm:max-w-lg">
-          {isLoadingDetails ? <Loader2 className="w-8 h-8 animate-spin" /> : (
+          {isLoadingDetails ? (
+            <div className="flex justify-center items-center h-32">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <span className="ml-2 text-muted-foreground">Carregando detalhes...</span>
+            </div>
+          ) : (
             <>
               <DialogHeader>
                 <DialogTitle className="text-2xl">

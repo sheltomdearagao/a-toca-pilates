@@ -20,7 +20,7 @@ import { Loader2, Check, ChevronsUpDown } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { format, parseISO } from 'date-fns';
-import { toZonedTime, fromZonedTime } from 'date-fns-tz'; // Importar toZonedTime e fromZonedTime
+import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { Student, StudentOption } from '@/types/student';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
@@ -35,7 +35,7 @@ const classSchema = z.object({
   is_recurring: z.boolean().optional(),
   recurrence_days_of_week: z.array(z.string()).optional(),
   recurrence_start_date: z.string().optional(),
-  recurrence_end_date: z.string().optional().nullable(), // Permitir null
+  recurrence_end_date: z.string().optional().nullable(),
 }).superRefine((data, ctx) => {
   if (!data.is_recurring) {
     const startTime = parseISO(data.start_time);
@@ -98,8 +98,13 @@ const daysOfWeek = [
   { label: 'Dom', value: 'sunday' },
 ];
 
+// Otimizando a consulta para buscar apenas os campos necessários
 const fetchAllStudents = async (): Promise<StudentOption[]> => {
-  const { data, error } = await supabase.from('students').select('id, name, enrollment_type').order('name');
+  const { data, error } = await supabase
+    .from('students')
+    .select('id, name, enrollment_type')
+    .order('name');
+  
   if (error) throw new Error(error.message);
   return data || [];
 };
@@ -117,7 +122,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
       is_recurring: false,
       recurrence_days_of_week: [],
       recurrence_start_date: format(new Date(), 'yyyy-MM-dd'),
-      recurrence_end_date: null, // Definir como null
+      recurrence_end_date: null,
     },
   });
 
@@ -125,16 +130,18 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
   const recurrenceDays = watch('recurrence_days_of_week');
   const selectedStudentId = watch('student_id');
 
+  // Adicionando staleTime para evitar requisições desnecessárias
   const { data: students, isLoading: isLoadingStudents } = useQuery<StudentOption[]>({
     queryKey: ['allStudents'],
     queryFn: fetchAllStudents,
+    staleTime: 1000 * 60 * 5, // Cache por 5 minutos
   });
 
   useEffect(() => {
     if (isOpen) {
       const now = new Date();
       const defaultStartTime = format(now, "yyyy-MM-dd'T'HH:mm");
-      const defaultEndTime = format(new Date(now.getTime() + 60 * 60 * 1000), "yyyy-MM-dd'T'HH:mm"); // 1 hour later
+      const defaultEndTime = format(new Date(now.getTime() + 60 * 60 * 1000), "yyyy-MM-dd'T'HH:mm");
 
       reset({
         student_id: initialStudentId || null,
@@ -169,8 +176,8 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
         const dataToSubmit = {
           user_id: user.id,
           title: classTitle,
-          start_time_of_day: format(parseISO(formData.start_time), 'HH:mm:ss'), // Apenas a hora
-          end_time_of_day: format(parseISO(formData.end_time), 'HH:mm:ss'), // Apenas a hora
+          start_time_of_day: format(parseISO(formData.start_time), 'HH:mm:ss'),
+          end_time_of_day: format(parseISO(formData.end_time), 'HH:mm:ss'),
           notes: formData.notes,
           recurrence_days_of_week: formData.recurrence_days_of_week,
           recurrence_start_date: formData.recurrence_start_date,

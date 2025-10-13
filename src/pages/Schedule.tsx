@@ -15,17 +15,30 @@ import { ClassEvent } from '@/types/schedule';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import ColoredSeparator from "@/components/ColoredSeparator";
-import { parseISO, format } from 'date-fns'; // Importar format e parseISO
 
+// Otimizando a consulta para buscar apenas os campos necessários
 const fetchClasses = async (): Promise<ClassEvent[]> => {
-  const { data, error } = await supabase.from('classes').select('*, class_attendees(count), students(name)');
+  const { data, error } = await supabase
+    .from('classes')
+    .select(`
+      id,
+      title,
+      start_time,
+      end_time,
+      student_id,
+      students(name)
+    `)
+    .order('start_time', { ascending: true });
+  
   if (error) throw new Error(error.message);
   
-  // Retorna os dados diretamente como strings ISO. Supabase já os fornece neste formato.
   return (data as any[] || []).map(c => ({
-    ...c,
-    start_time: c.start_time, // Já é string ISO
-    end_time: c.end_time,     // Já é string ISO
+    id: c.id,
+    title: c.title,
+    start_time: c.start_time,
+    end_time: c.end_time,
+    student_id: c.student_id,
+    students: c.students,
   }));
 };
 
@@ -38,62 +51,47 @@ const Schedule = () => {
   const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
   const CLASS_CAPACITY = appSettings?.class_capacity ?? 10;
 
+  // Adicionando staleTime para evitar requisições desnecessárias
   const { data: classes, isLoading: isLoadingClasses } = useQuery({
     queryKey: ['classes'],
     queryFn: fetchClasses,
+    staleTime: 1000 * 60 * 5, // Cache por 5 minutos
   });
 
   const isLoading = isLoadingSettings || isLoadingClasses;
 
+  // Simplificando a criação de eventos
   const calendarEvents = classes?.map(c => {
-    const attendeeCount = c.class_attendees[0]?.count ?? 0;
-    const eventTitle = c.student_id && c.students ? `Aula com ${c.students.name}` : c.title;
+    const eventTitle = c.student_id && c.students ? `Aula com ${c.students.name}` : c.title || 'Aula';
     return {
       id: c.id,
       title: eventTitle,
-      start: c.start_time, // Usar diretamente a string ISO do DB
-      end: c.end_time,     // Usar diretamente a string ISO do DB
-      notes: c.notes,
+      start: c.start_time,
+      end: c.end_time,
       extendedProps: {
-        attendeeCount,
         student_id: c.student_id,
       },
     };
   }) || [];
 
   const handleEventClick = (clickInfo: EventClickArg) => {
-    // Ao definir selectedEvent, usar as strings ISO do FullCalendar diretamente
     setSelectedEvent({
       id: clickInfo.event.id,
       title: clickInfo.event.title,
-      start_time: clickInfo.event.startStr, // String ISO
-      end_time: clickInfo.event.endStr,     // String ISO
-      notes: clickInfo.event.extendedProps.notes,
+      start_time: clickInfo.event.startStr,
+      end_time: clickInfo.event.endStr,
       student_id: clickInfo.event.extendedProps.student_id,
     });
     setDetailsOpen(true);
   };
 
   const renderEventContent = (eventInfo: EventContentArg) => {
-    const { attendeeCount } = eventInfo.event.extendedProps;
     return (
       <div className="p-1 overflow-hidden">
         <b>{eventInfo.timeText}</b>
         <p className="truncate">{eventInfo.event.title}</p>
-        <p className="text-sm font-semibold">({attendeeCount}/{CLASS_CAPACITY})</p>
       </div>
     );
-  };
-
-  const getEventClassNames = (eventInfo: EventContentArg) => {
-    const { attendeeCount } = eventInfo.event.extendedProps;
-    if (attendeeCount >= CLASS_CAPACITY) {
-      return 'event-full';
-    }
-    if (attendeeCount >= CLASS_CAPACITY - 3) {
-      return 'event-few-spots';
-    }
-    return 'event-available';
   };
 
   return (
@@ -117,6 +115,7 @@ const Schedule = () => {
           {isLoading ? (
             <div className="flex justify-center items-center h-[60vh]">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <span className="ml-2 text-muted-foreground">Carregando agenda...</span>
             </div>
           ) : (
             <div className="bg-card p-4 rounded-lg border">
@@ -148,7 +147,10 @@ const Schedule = () => {
                 height="auto"
                 eventClick={handleEventClick}
                 eventContent={renderEventContent}
-                eventClassNames={getEventClassNames}
+                eventDidMount={(info) => {
+                  // Adicionando tooltip para mostrar mais informações
+                  info.el.setAttribute('title', info.event.title);
+                }}
               />
             </div>
           )}
