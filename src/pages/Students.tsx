@@ -22,6 +22,7 @@ const Students = () => {
   const [isFormOpen, setFormOpen] = useState(false);
   const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [filterRecurring, setFilterRecurring] = useState(false);
 
   const { data: students, isLoading } = useQuery({ queryKey: ["students"], queryFn: fetchStudents });
 
@@ -92,12 +93,30 @@ const Students = () => {
     addEditMutation.mutate(data);
   };
 
+  // Filtrar alunos recorrentes
+  const filteredStudents = students?.filter(student => {
+    if (!filterRecurring) return true;
+    return student.plan_type !== 'Avulso';
+  }) || [];
+
   return (
     <div className="space-y-8">
-      <StudentsHeader studentCount={students?.length} onAddNewStudent={handleAddNew} />
+      <StudentsHeader studentCount={filteredStudents?.length} onAddNewStudent={handleAddNew} />
+
+      <div className="flex items-center gap-4 mb-4">
+        <label className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            checked={filterRecurring}
+            onChange={(e) => setFilterRecurring(e.target.checked)}
+            className="rounded"
+          />
+          <span>Mostrar apenas alunos com planos recorrentes</span>
+        </label>
+      </div>
 
       <StudentsTable
-        students={students}
+        students={filteredStudents}
         isLoading={isLoading}
         onEdit={handleEdit}
         onDelete={handleDelete}

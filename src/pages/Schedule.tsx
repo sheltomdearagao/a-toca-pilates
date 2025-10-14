@@ -1,19 +1,19 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { PlusCircle, Loader2, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import AddClassDialog from '@/components/schedule/AddClassDialog';
 import ClassDetailsDialog from '@/components/schedule/ClassDetailsDialog';
-import RecurringClassTemplatesTab from '@/components/schedule/RecurringClassTemplatesTab';
 import { ClassEvent } from '@/types/schedule';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import ColoredSeparator from "@/components/ColoredSeparator";
-import { parseISO, format, addDays, startOfDay, endOfDay, startOfWeek, endOfWeek, isSameDay, isToday } from 'date-fns';
+import { parseISO, format, addDays, startOfDay, endOfDay, startOfWeek, endOfWeek, isSameDay, isToday, set } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { showError, showSuccess } from '@/utils/toast';
+import { fromZonedTime } from 'date-fns-tz';
 
 const HOURS = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21];
 
@@ -58,7 +58,9 @@ const Schedule = () => {
   const [selectedEvent, setSelectedEvent] = useState<Partial<ClassEvent> | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'twoWeeks'>('week');
+  const [quickAddSlot, setQuickAddSlot] = useState<{ date: Date; hour: number } | null>(null);
 
+  const queryClient = useQueryClient();
   const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
   const CLASS_CAPACITY = appSettings?.class_capacity ?? 10;
 
@@ -169,6 +171,51 @@ const Schedule = () => {
     setDetailsOpen(true);
   };
 
+  const handleCellClick = (day: Date, hour: number) => {
+    const classesInSlot = getClassesForSlot(day, hour);
+    if (classesInSlot.length === 0) {
+      setQuickAddSlot({ date: day, hour });
+      setAddFormOpen(true);
+    }
+  };
+
+  const quickAddMutation = useMutation({
+    mutationFn: async ({ date, hour }: { date: Date; hour: number }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado.');
+
+      const startDateTime = set(new Date(date), {
+        hours: hour,
+        minutes: 0,
+        seconds: 0,
+        milliseconds: 0,
+      });
+      
+      const startUtc = fromZonedTime(startDateTime, Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
+      
+      const dataToSubmit = {
+        user_id: user.id,
+        title: 'Nova Aula',
+        start_time: startUtc,
+        duration_minutes: 60,
+        notes: '',
+        student_id: null,
+      };
+      
+      const { error } = await supabase.from('classes').insert([dataToSubmit]);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
+      showSuccess('Aula agendada com sucesso!');
+      setAddFormOpen(false);
+      setQuickAddSlot(null);
+    },
+    onError: (error) => {
+      showError(error.message);
+    },
+  });
+
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between mb-6">
@@ -181,138 +228,139 @@ const Schedule = () => {
 
       <ColoredSeparator color="primary" className="my-6" />
 
-      <Tabs defaultValue="calendar" className="flex-1 flex flex-col">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="calendar">Calendário</TabsTrigger>
-          <TabsTrigger value="recurring-templates">Modelos Recorrentes</TabsTrigger>
-        </TabsList>
-        <TabsContent value="calendar" className="mt-4 flex-1 flex flex-col">
-          {/* Controles de navegação */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" onClick={handlePrevious}>
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <Button variant="outline" onClick={handleToday}>
-                Hoje
-              </Button>
-              <Button variant="outline" size="icon" onClick={handleNext}>
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-            <h2 className="text-xl font-semibold">
-              {viewMode === 'day' 
-                ? format(currentDate, "EEEE, dd 'de' MMMM", { locale: ptBR })
-                : `${format(daysToDisplay[0], 'dd/MM')} - ${format(daysToDisplay[daysToDisplay.length - 1], 'dd/MM')}`
-              }
-            </h2>
-            <div className="flex gap-2">
-              <Button variant={viewMode === 'day' ? 'default' : 'outline'} onClick={() => setViewMode('day')}>
-                Dia
-              </Button>
-              <Button variant={viewMode === 'week' ? 'default' : 'outline'} onClick={() => setViewMode('week')}>
-                Semana
-              </Button>
-              <Button variant={viewMode === 'twoWeeks' ? 'default' : 'outline'} onClick={() => setViewMode('twoWeeks')}>
-                15 Dias
-              </Button>
-            </div>
-          </div>
+      {/* Controles de navegação */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" onClick={handlePrevious}>
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <Button variant="outline" onClick={handleToday}>
+            Hoje
+          </Button>
+          <Button variant="outline" size="icon" onClick={handleNext}>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+        <h2 className="text-xl font-semibold">
+          {viewMode === 'day' 
+            ? format(currentDate, "EEEE, dd 'de' MMMM", { locale: ptBR })
+            : `${format(daysToDisplay[0], 'dd/MM')} - ${format(daysToDisplay[daysToDisplay.length - 1], 'dd/MM')}`
+          }
+        </h2>
+        <div className="flex gap-2">
+          <Button variant={viewMode === 'day' ? 'default' : 'outline'} onClick={() => setViewMode('day')}>
+            Dia
+          </Button>
+          <Button variant={viewMode === 'week' ? 'default' : 'outline'} onClick={() => setViewMode('week')}>
+            Semana
+          </Button>
+          <Button variant={viewMode === 'twoWeeks' ? 'default' : 'outline'} onClick={() => setViewMode('twoWeeks')}>
+            15 Dias
+          </Button>
+        </div>
+      </div>
 
-          {isLoading ? (
-            <div className="flex justify-center items-center h-full">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              <span className="ml-2 text-muted-foreground">Carregando agenda...</span>
-            </div>
-          ) : (
-            <Card className="flex-1 overflow-auto shadow-subtle-glow">
-              <div className="min-w-max">
-                {/* Cabeçalho com dias */}
-                <div className="grid sticky top-0 bg-card z-10 border-b" style={{ gridTemplateColumns: `80px repeat(${daysToDisplay.length}, 1fr)` }}>
-                  <div className="p-2 border-r font-semibold">Horário</div>
-                  {daysToDisplay.map(day => (
-                    <div 
-                      key={day.toISOString()} 
-                      className={cn(
-                        "p-2 text-center border-r font-semibold",
-                        isToday(day) && "bg-primary/10 border-primary/50"
-                      )}
-                    >
-                      <div>{format(day, 'EEE', { locale: ptBR })}</div>
-                      <div className="text-sm text-muted-foreground">{format(day, 'dd/MM')}</div>
-                    </div>
-                  ))}
+      {isLoading ? (
+        <div className="flex justify-center items-center h-full">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <span className="ml-2 text-muted-foreground">Carregando agenda...</span>
+        </div>
+      ) : (
+        <Card className="flex-1 overflow-auto shadow-subtle-glow">
+          <div className="min-w-max">
+            {/* Cabeçalho com dias */}
+            <div className="grid sticky top-0 bg-card z-10 border-b" style={{ gridTemplateColumns: `80px repeat(${daysToDisplay.length}, 1fr)` }}>
+              <div className="p-2 border-r font-semibold">Horário</div>
+              {daysToDisplay.map(day => (
+                <div 
+                  key={day.toISOString()} 
+                  className={cn(
+                    "p-2 text-center border-r font-semibold",
+                    isToday(day) && "bg-primary/10 border-primary/50"
+                  )}
+                >
+                  <div>{format(day, 'EEE', { locale: ptBR })}</div>
+                  <div className="text-sm text-muted-foreground">{format(day, 'dd/MM')}</div>
                 </div>
+              ))}
+            </div>
 
-                {/* Grid de horários */}
-                {HOURS.map(hour => (
-                  <div key={hour} className="grid border-b" style={{ gridTemplateColumns: `80px repeat(${daysToDisplay.length}, 1fr)` }}>
-                    <div className="p-2 border-r text-sm font-medium text-muted-foreground">
-                      {`${hour}:00`}
-                    </div>
-                    {daysToDisplay.map(day => {
-                      const classesInSlot = getClassesForSlot(day, hour);
-                      const totalAttendees = classesInSlot.reduce((sum, c) => sum + (c.class_attendees[0]?.count ?? 0), 0);
-                      const isFull = totalAttendees >= CLASS_CAPACITY;
-                      // const isFewSpots = totalAttendees >= CLASS_CAPACITY - 3; // Não usado diretamente, mas mantido para contexto
+            {/* Grid de horários - RENDERIZAÇÃO ULTRA RÁPIDA */}
+            {HOURS.map(hour => (
+              <div key={hour} className="grid border-b" style={{ gridTemplateColumns: `80px repeat(${daysToDisplay.length}, 1fr)` }}>
+                <div className="p-2 border-r text-sm font-medium text-muted-foreground">
+                  {`${hour}:00`}
+                </div>
+                {daysToDisplay.map(day => {
+                  const classesInSlot = getClassesForSlot(day, hour);
+                  const totalAttendees = classesInSlot.reduce((sum, c) => sum + (c.class_attendees[0]?.count ?? 0), 0);
+                  const isFull = totalAttendees >= CLASS_CAPACITY;
 
-                      return (
-                        <div 
-                          key={`${day.toISOString()}-${hour}`} 
-                          className={cn(
-                            "p-1 border-r min-h-[60px] transition-colors",
-                            isToday(day) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30"
-                          )}
-                        >
-                          {classesInSlot.length > 0 ? (
-                            <div className="space-y-1">
-                              {classesInSlot.map(classEvent => {
-                                const attendeeCount = classEvent.class_attendees[0]?.count ?? 0;
-                                const eventTitle = classEvent.student_id && classEvent.students 
-                                  ? `${classEvent.students.name}` 
-                                  : classEvent.title || 'Aula';
+                  return (
+                    <div 
+                      key={`${day.toISOString()}-${hour}`} 
+                      className={cn(
+                        "p-1 border-r min-h-[60px] transition-colors cursor-pointer",
+                        isToday(day) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30",
+                        classesInSlot.length === 0 && "hover:bg-primary/10"
+                      )}
+                      onClick={() => handleCellClick(day, hour)}
+                    >
+                      {classesInSlot.length > 0 ? (
+                        <div className="space-y-1">
+                          {classesInSlot.map(classEvent => {
+                            const attendeeCount = classEvent.class_attendees[0]?.count ?? 0;
+                            const eventTitle = classEvent.student_id && classEvent.students 
+                              ? `${classEvent.students.name}` 
+                              : classEvent.title || 'Aula';
 
-                                return (
-                                  <div
-                                    key={classEvent.id}
-                                    onClick={() => handleClassClick(classEvent)}
-                                    className={cn(
-                                      "p-2 rounded cursor-pointer text-xs transition-all hover:scale-[1.02] shadow-sm",
-                                      attendeeCount >= CLASS_CAPACITY
-                                        ? 'bg-destructive text-white'
-                                        : attendeeCount >= CLASS_CAPACITY - 3
-                                        ? 'bg-accent text-accent-foreground'
-                                        : 'bg-primary text-white'
-                                    )}
-                                  >
-                                    <div className="font-semibold truncate">{eventTitle}</div>
-                                    <div className="text-[10px] opacity-90">
-                                      {attendeeCount}/{CLASS_CAPACITY} alunos
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <div className="h-full flex items-center justify-center text-xs text-muted-foreground opacity-50">
-                              {CLASS_CAPACITY} vagas
-                            </div>
-                          )}
+                            return (
+                              <div
+                                key={classEvent.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleClassClick(classEvent);
+                                }}
+                                className={cn(
+                                  "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-sm",
+                                  attendeeCount >= CLASS_CAPACITY
+                                    ? 'bg-destructive text-white'
+                                    : attendeeCount >= CLASS_CAPACITY - 3
+                                    ? 'bg-accent text-accent-foreground'
+                                    : 'bg-primary text-white'
+                                )}
+                              >
+                                <div className="font-semibold truncate">{eventTitle}</div>
+                                <div className="text-[10px] opacity-90">
+                                  {attendeeCount}/{CLASS_CAPACITY} alunos
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      );
-                    })}
-                  </div>
-                ))}
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-xs text-muted-foreground opacity-50">
+                          <div className="text-center">
+                            <div className="text-lg">+</div>
+                            <div>Agendar</div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            </Card>
-          )}
-        </TabsContent>
-        <TabsContent value="recurring-templates" className="mt-4">
-          <RecurringClassTemplatesTab />
-        </TabsContent>
-      </Tabs>
+            ))}
+          </div>
+        </Card>
+      )}
       
-      <AddClassDialog isOpen={isAddFormOpen} onOpenChange={setAddFormOpen} />
+      <AddClassDialog 
+        isOpen={isAddFormOpen} 
+        onOpenChange={setAddFormOpen} 
+        quickAddSlot={quickAddSlot}
+        onQuickAdd={(date, hour) => quickAddMutation.mutate({ date, hour })}
+      />
       <ClassDetailsDialog isOpen={isDetailsOpen} onOpenChange={setDetailsOpen} classEvent={selectedEvent} classCapacity={CLASS_CAPACITY} />
     </div>
   );

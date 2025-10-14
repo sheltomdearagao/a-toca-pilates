@@ -16,13 +16,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { format, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale/pt-BR'; // Corrigido o caminho de importação
+import { ptBR } from 'date-fns/locale/pt-BR';
 import ProRataCalculator from '../components/students/ProRataCalculator';
 import AddClassDialog from '@/components/schedule/AddClassDialog';
 import { showError, showSuccess } from '@/utils/toast';
 import ColoredSeparator from "@/components/ColoredSeparator";
-import { useSession } from '@/contexts/SessionProvider'; // Importar useSession
-import { cn } from '@/lib/utils'; // Importar cn
+import { useSession } from '@/contexts/SessionProvider';
+import { cn } from '@/lib/utils';
 
 type ClassAttendance = {
   id: string;
@@ -73,7 +73,7 @@ const StudentProfile = () => {
   const queryClient = useQueryClient();
   const [isProRataOpen, setProRataOpen] = useState(false);
   const [isAddClassOpen, setAddClassOpen] = useState(false);
-  const { profile } = useSession(); // Obter o perfil do usuário logado
+  const { profile } = useSession();
   const isAdmin = profile?.role === 'admin';
 
   const { data, isLoading, error } = useQuery({
@@ -84,7 +84,6 @@ const StudentProfile = () => {
 
   const markAsPaidMutation = useMutation({
     mutationFn: async (transactionId: string) => {
-      // Apenas admins podem marcar como pago
       if (!isAdmin) {
         throw new Error("Você não tem permissão para marcar transações como pagas.");
       }
@@ -295,7 +294,7 @@ const StudentProfile = () => {
         </Card>
       </div>
       {student && <ProRataCalculator isOpen={isProRataOpen} onOpenChange={setProRataOpen} student={student} />}
-      {student && <AddClassDialog isOpen={isAddClassOpen} onOpenChange={setAddClassOpen} initialStudentId={student.id} />}
+      {student && <AddClassDialog isOpen={isAddClassOpen} onOpenChange={setAddClassOpen} />}
     </div>
   );
 };
