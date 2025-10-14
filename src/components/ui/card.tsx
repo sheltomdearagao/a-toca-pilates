@@ -13,7 +13,7 @@ const cardVariants = cva(
         gradient: "card-gradient",
         "gradient-accent": "card-gradient-accent",
         "gradient-destructive": "card-gradient-destructive",
-        bordered: "border-l-4 border-primary/50", // Exemplo de borda colorida
+        bordered: "border-l-4 border-primary/50",
         "bordered-green": "border-l-4 border-green-500",
         "bordered-red": "border-l-4 border-red-500",
         "bordered-yellow": "border-l-4 border-yellow-500",

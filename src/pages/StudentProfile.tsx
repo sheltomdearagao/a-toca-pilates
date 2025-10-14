@@ -163,7 +163,7 @@ const StudentProfile = () => {
       <ColoredSeparator color="primary" className="my-6" />
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1 shadow-impressionist border-l-4 border-primary/50 shadow-subtle-glow"> {/* Aplicando a nova sombra e borda colorida */}
+        <Card variant="bordered" className="lg:col-span-1 shadow-impressionist shadow-subtle-glow">
           <CardHeader>
             <CardTitle className="flex items-center"><StickyNote className="w-5 h-5 mr-2" /> Detalhes</CardTitle>
           </CardHeader>
@@ -190,7 +190,7 @@ const StudentProfile = () => {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2 shadow-impressionist shadow-subtle-glow"> {/* Aplicando a nova sombra */}
+        <Card variant="bordered-green" className="lg:col-span-2 shadow-impressionist shadow-subtle-glow">
           <CardHeader>
             <CardTitle className="flex items-center"><DollarSign className="w-5 h-5 mr-2" /> Histórico Financeiro</CardTitle>
           </CardHeader>
@@ -211,11 +211,11 @@ const StudentProfile = () => {
                     key={t.id} 
                     className={cn(
                       "hover:bg-muted/50 transition-colors",
-                      t.status === 'Pago' && "bg-green-50/5", // Fundo mais suave
-                      t.status === 'Atrasado' && "bg-red-50/5", // Fundo mais suave
-                      t.status === 'Pendente' && "bg-yellow-50/5" // Fundo mais suave
+                      t.status === 'Pago' && "bg-green-50/5",
+                      t.status === 'Atrasado' && "bg-red-50/5",
+                      t.status === 'Pendente' && "bg-yellow-50/5"
                     )}
-                  > {/* Efeito de hover sutil e cores de fundo */}
+                  >
                     <TableCell>{t.description}</TableCell>
                     <TableCell>
                       <Badge variant={
@@ -227,7 +227,7 @@ const StudentProfile = () => {
                     <TableCell>{t.due_date ? format(parseISO(t.due_date), 'dd/MM/yyyy') : '-'}</TableCell>
                     <TableCell className="text-right font-semibold">{formatCurrency(t.amount)}</TableCell>
                     <TableCell className="text-right">
-                      {t.status !== 'Pago' && t.type === 'revenue' && isAdmin && ( // Apenas admin pode marcar como pago
+                      {t.status !== 'Pago' && t.type === 'revenue' && isAdmin && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="h-8 w-8 p-0">
@@ -252,7 +252,7 @@ const StudentProfile = () => {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3 shadow-impressionist shadow-subtle-glow"> {/* Aplicando a nova sombra */}
+        <Card variant="bordered-yellow" className="lg:col-span-3 shadow-impressionist shadow-subtle-glow">
           <CardHeader>
             <CardTitle className="flex items-center"><Calendar className="w-5 h-5 mr-2" /> Histórico de Presença</CardTitle>
           </CardHeader>
@@ -271,11 +271,11 @@ const StudentProfile = () => {
                     key={a.id} 
                     className={cn(
                       "hover:bg-muted/50 transition-colors",
-                      a.status === 'Presente' && "bg-green-50/5", // Fundo mais suave
-                      a.status === 'Faltou' && "bg-red-50/5", // Fundo mais suave
-                      a.status === 'Agendado' && "bg-blue-50/5" // Fundo mais suave
+                      a.status === 'Presente' && "bg-green-50/5",
+                      a.status === 'Faltou' && "bg-red-50/5",
+                      a.status === 'Agendado' && "bg-blue-50/5"
                     )}
-                  > {/* Efeito de hover sutil e cores de fundo */}
+                  >
                     <TableCell>{a.classes.title}</TableCell>
                     <TableCell>{format(parseISO(a.classes.start_time), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</TableCell>
                     <TableCell>
