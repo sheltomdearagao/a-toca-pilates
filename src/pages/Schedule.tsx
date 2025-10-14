@@ -8,7 +8,7 @@ import ClassDetailsDialog from '@/components/schedule/ClassDetailsDialog';
 import { ClassEvent } from '@/types/schedule';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import ColoredSeparator from "@/components/ColoredSeparator";
-import { parseISO, format, addDays, startOfDay, endOfDay, startOfWeek, endOfWeek, isSameDay, isToday, set } from 'date-fns';
+import { parseISO, format, addDays, startOfDay, endOfDay, startOfWeek, endOfWeek, isSameDay, isToday, set, isWeekend } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -18,16 +18,14 @@ import { fromZonedTime } from 'date-fns-tz';
 const HOURS = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21];
 
 const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> => {
+  // Otimização: Selecionar apenas os campos necessários e usar count para attendees
   const { data, error } = await supabase
     .from('classes')
     .select(`
       id,
-      user_id,
       title,
       start_time,
       duration_minutes,
-      notes,
-      created_at,
       student_id,
       students(name),
       class_attendees(count)
@@ -40,23 +38,40 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
   
   return (data as any[] || []).map(c => ({
     id: c.id,
-    user_id: c.user_id,
+    user_id: c.user_id, // Não buscado, mas mantido no tipo
     title: c.title,
     start_time: c.start_time,
     duration_minutes: c.duration_minutes || 60,
-    notes: c.notes,
-    created_at: c.created_at,
+    notes: c.notes, // Não buscado, mas mantido no tipo
+    created_at: c.created_at, // Não buscado, mas mantido no tipo
     student_id: c.student_id,
     students: c.students ? (c.students as { name: string }) : null,
     class_attendees: c.class_attendees,
   }));
 };
 
+// Função auxiliar para encontrar o próximo dia de semana válido (Seg-Sex)
+const getNextWeekday = (date: Date, direction: 1 | -1): Date => {
+  let newDate = date;
+  do {
+    newDate = addDays(newDate, direction);
+  } while (isWeekend(newDate));
+  return newDate;
+};
+
 const Schedule = () => {
   const [isAddFormOpen, setAddFormOpen] = useState(false);
   const [isDetailsOpen, setDetailsOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Partial<ClassEvent> | null>(null);
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(() => {
+    // Inicializa com a data de hoje, pulando se for fim de semana
+    let initialDate = new Date();
+    if (isWeekend(initialDate)) {
+      // Se for Sábado (6), vai para Segunda (+2). Se for Domingo (0), vai para Segunda (+1).
+      initialDate = addDays(initialDate, initialDate.getDay() === 6 ? 2 : 1);
+    }
+    return initialDate;
+  });
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'twoWeeks'>('week');
   const [quickAddSlot, setQuickAddSlot] = useState<{ date: Date; hour: number } | null>(null);
 
@@ -64,29 +79,41 @@ const Schedule = () => {
   const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
   const CLASS_CAPACITY = appSettings?.class_capacity ?? 10;
 
-  // Calcular range de datas baseado no modo de visualização
-  const getDateRange = () => {
-    let start: Date;
-    let end: Date;
+  // Gerar dias para exibir (Lógica simplificada e sem efeitos colaterais)
+  const getDaysToDisplay = (date: Date, mode: typeof viewMode) => {
+    if (mode === 'day') {
+      // Garante que o dia exibido é um dia de semana
+      if (isWeekend(date)) {
+        // Isso não deve acontecer se a navegação estiver correta, mas é um fallback
+        return [getNextWeekday(date, 1)];
+      }
+      return [date];
+    } 
+    
+    const start = startOfWeek(date, { weekStartsOn: 1 });
+    
+    if (mode === 'week') {
+      return Array.from({ length: 5 }, (_, i) => addDays(start, i)); // Seg-Sex
+    } 
+    
+    // twoWeeks
+    return Array.from({ length: 10 }, (_, i) => addDays(start, i)).filter(d => !isWeekend(d)); // Excluir sáb/dom
+  };
 
-    if (viewMode === 'day') {
-      start = startOfDay(currentDate);
-      end = endOfDay(currentDate);
-    } else if (viewMode === 'week') {
-      start = startOfWeek(currentDate, { weekStartsOn: 1 });
-      end = addDays(start, 4); // Segunda a Sexta
-    } else { // twoWeeks
-      start = startOfWeek(currentDate, { weekStartsOn: 1 });
-      end = addDays(start, 9); // Duas semanas (Segunda a Sexta)
+  const daysToDisplay = getDaysToDisplay(currentDate, viewMode);
+
+  // Calcular range de datas baseado nos dias a serem exibidos
+  const getDateRange = (days: Date[]) => {
+    if (days.length === 0) {
+      return { start: startOfDay(currentDate).toISOString(), end: endOfDay(currentDate).toISOString() };
     }
-
     return {
-      start: startOfDay(start).toISOString(),
-      end: endOfDay(end).toISOString(),
+      start: startOfDay(days[0]).toISOString(),
+      end: endOfDay(days[days.length - 1]).toISOString(),
     };
   };
 
-  const dateRange = getDateRange();
+  const dateRange = getDateRange(daysToDisplay);
 
   const { data: classes, isLoading: isLoadingClasses } = useQuery({
     queryKey: ['classes', dateRange.start, dateRange.end],
@@ -96,60 +123,33 @@ const Schedule = () => {
 
   const isLoading = isLoadingSettings || isLoadingClasses;
 
-  // Gerar dias para exibir
-  const getDaysToDisplay = () => {
-    if (viewMode === 'day') {
-      // Se for domingo (0) ou sábado (6), move para a próxima segunda
-      if (currentDate.getDay() === 0 || currentDate.getDay() === 6) {
-        const nextMonday = addDays(currentDate, (currentDate.getDay() === 0 ? 1 : 2));
-        setCurrentDate(nextMonday);
-        return [nextMonday];
-      }
-      return [currentDate];
-    } 
-    
-    const start = startOfWeek(currentDate, { weekStartsOn: 1 });
-    
-    if (viewMode === 'week') {
-      return Array.from({ length: 5 }, (_, i) => addDays(start, i)); // Seg-Sex
-    } 
-    
-    // twoWeeks
-    return Array.from({ length: 10 }, (_, i) => addDays(start, i)).filter(d => d.getDay() !== 0 && d.getDay() !== 6); // Excluir sáb/dom
-  };
-
-  const daysToDisplay = getDaysToDisplay();
-
+  // Lógica de navegação corrigida
   const handlePrevious = () => {
     if (viewMode === 'day') {
-      let newDate = addDays(currentDate, -1);
-      // Pular fim de semana
-      if (newDate.getDay() === 0) newDate = addDays(newDate, -2);
-      if (newDate.getDay() === 6) newDate = addDays(newDate, -1);
-      setCurrentDate(newDate);
+      setCurrentDate(prev => getNextWeekday(prev, -1));
     } else if (viewMode === 'week') {
-      setCurrentDate(addDays(currentDate, -7));
+      setCurrentDate(prev => addDays(prev, -7));
     } else {
-      setCurrentDate(addDays(currentDate, -14));
+      setCurrentDate(prev => addDays(prev, -14));
     }
   };
 
   const handleNext = () => {
     if (viewMode === 'day') {
-      let newDate = addDays(currentDate, 1);
-      // Pular fim de semana
-      if (newDate.getDay() === 6) newDate = addDays(newDate, 2);
-      if (newDate.getDay() === 0) newDate = addDays(newDate, 1);
-      setCurrentDate(newDate);
+      setCurrentDate(prev => getNextWeekday(prev, 1));
     } else if (viewMode === 'week') {
-      setCurrentDate(addDays(currentDate, 7));
+      setCurrentDate(prev => addDays(prev, 7));
     } else {
-      setCurrentDate(addDays(currentDate, 14));
+      setCurrentDate(prev => addDays(prev, 14));
     }
   };
 
   const handleToday = () => {
-    setCurrentDate(new Date());
+    let today = new Date();
+    if (isWeekend(today)) {
+      today = addDays(today, today.getDay() === 6 ? 2 : 1);
+    }
+    setCurrentDate(today);
   };
 
   const getClassesForSlot = (day: Date, hour: number) => {
@@ -173,6 +173,10 @@ const Schedule = () => {
 
   const handleCellClick = (day: Date, hour: number) => {
     const classesInSlot = getClassesForSlot(day, hour);
+    const totalAttendees = classesInSlot.reduce((sum, c) => sum + (c.class_attendees[0]?.count ?? 0), 0);
+    const isFull = totalAttendees >= CLASS_CAPACITY;
+
+    // Se a célula estiver vazia, abre o agendamento rápido
     if (classesInSlot.length === 0) {
       setQuickAddSlot({ date: day, hour });
       setAddFormOpen(true);
@@ -191,13 +195,14 @@ const Schedule = () => {
         milliseconds: 0,
       });
       
+      // Converte para UTC para armazenar no banco de dados
       const startUtc = fromZonedTime(startDateTime, Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
       
       const dataToSubmit = {
         user_id: user.id,
         title: 'Nova Aula',
         start_time: startUtc,
-        duration_minutes: 60,
+        duration_minutes: 60, // Fixo em 60 minutos
         notes: '',
         student_id: null,
       };
@@ -243,7 +248,7 @@ const Schedule = () => {
         </div>
         <h2 className="text-xl font-semibold">
           {viewMode === 'day' 
-            ? format(currentDate, "EEEE, dd 'de' MMMM", { locale: ptBR })
+            ? format(daysToDisplay[0], "EEEE, dd 'de' MMMM", { locale: ptBR })
             : `${format(daysToDisplay[0], 'dd/MM')} - ${format(daysToDisplay[daysToDisplay.length - 1], 'dd/MM')}`
           }
         </h2>
