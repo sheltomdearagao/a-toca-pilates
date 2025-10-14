@@ -1,6 +1,6 @@
 import React from 'react';
 import { DialogDescription } from '@/components/ui/dialog';
-import { format, parseISO, addMinutes } from 'date-fns'; // Importar addMinutes
+import { format, parseISO, addMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { ClassEvent } from '@/types/schedule';
 
@@ -13,9 +13,9 @@ const ClassInfoDisplay = ({ classEvent }: ClassInfoDisplayProps) => {
 
   const title = classEvent.students?.name ? `Aula com ${classEvent.students.name}` : classEvent.title;
 
-  // Calcular o end_time com base em start_time e duration_minutes
+  // Calcular o end_time com base em start_time e duration_minutes (default 60)
   const startTime = classEvent.start_time ? parseISO(classEvent.start_time) : null;
-  const endTime = startTime && classEvent.duration_minutes ? addMinutes(startTime, classEvent.duration_minutes) : null;
+  const endTime = startTime && (classEvent.duration_minutes || 60) ? addMinutes(startTime, classEvent.duration_minutes || 60) : null;
 
   return (
     <>

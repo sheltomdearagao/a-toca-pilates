@@ -91,7 +91,7 @@ interface AddClassDialogProps {
   initialStudentId?: string;
 }
 
-// Removido domingo (0) da lista
+// Dias da semana sem domingo
 const daysOfWeek = [
   { label: 'Seg', value: 'monday' },
   { label: 'Ter', value: 'tuesday' },
@@ -175,7 +175,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
           user_id: user.id,
           title: classTitle,
           start_time_of_day: format(parseISO(formData.start_time), 'HH:mm:ss'),
-          duration_minutes: 60, // Duração fixa de 1 hora
+          duration_minutes: 60, // Duração fixa
           notes: formData.notes,
           recurrence_days_of_week: formData.recurrence_days_of_week,
           recurrence_start_date: formData.recurrence_start_date,
@@ -190,7 +190,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
           user_id: user.id,
           title: classTitle,
           start_time: startUtc,
-          duration_minutes: 60, // Duração fixa de 1 hora
+          duration_minutes: 60, // Duração fixa
           notes: formData.notes,
           student_id: formData.student_id || null,
         };
@@ -279,7 +279,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
 
             {!selectedStudentId && (
               <div className="space-y-2">
-                <Label htmlFor="title">Título da Aula (Obrigatório se nenhum aluno for selecionado)</Label>
+                <Label htmlFor="title">Título da Aula</Label>
                 <Controller name="title" control={control} render={({ field }) => <Input id="title" {...field} />} />
                 {errors.title && <p className="text-sm text-destructive mt-1">{errors.title.message}</p>}
               </div>
@@ -332,12 +332,12 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="recurrence_start_date">Data de Início da Recorrência</Label>
+                    <Label htmlFor="recurrence_start_date">Data de Início</Label>
                     <Controller name="recurrence_start_date" control={control} render={({ field }) => <Input id="recurrence_start_date" type="date" {...field} />} />
                     {errors.recurrence_start_date && <p className="text-sm text-destructive mt-1">{errors.recurrence_start_date.message}</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="recurrence_end_date">Data de Fim da Recorrência (Opcional)</Label>
+                    <Label htmlFor="recurrence_end_date">Data de Fim (Opcional)</Label>
                     <Controller name="recurrence_end_date" control={control} render={({ field }) => <Input id="recurrence_end_date" type="date" {...field} />} />
                     {errors.recurrence_end_date && <p className="text-sm text-destructive mt-1">{errors.recurrence_end_date.message}</p>}
                   </div>
@@ -345,7 +345,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
               </>
             ) : (
               <div className="space-y-2">
-                <Label htmlFor="start_time">Início</Label>
+                <Label htmlFor="start_time">Data e Hora</Label>
                 <Controller name="start_time" control={control} render={({ field }) => <Input id="start_time" type="datetime-local" {...field} />} />
                 {errors.start_time && <p className="text-sm text-destructive mt-1">{errors.start_time.message}</p>}
               </div>

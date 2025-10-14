@@ -17,7 +17,7 @@ import { useAppSettings } from '@/hooks/useAppSettings';
 import ColoredSeparator from "@/components/ColoredSeparator";
 import { parseISO, format, addMinutes, addHours, setMinutes, setSeconds } from 'date-fns';
 
-// Otimizando a consulta para buscar apenas as aulas dentro de um período
+// Consulta otimizada para buscar apenas as aulas do período visível
 const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> => {
   const { data, error } = await supabase
     .from('classes')
@@ -33,8 +33,8 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
       students(name),
       class_attendees(count)
     `)
-    .gte('start_time', start) // Filtrar por data de início
-    .lte('start_time', end)   // Filtrar por data de fim
+    .gte('start_time', start)
+    .lte('start_time', end)
     .order('start_time', { ascending: true });
   
   if (error) throw new Error(error.message);
@@ -44,44 +44,13 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
     user_id: c.user_id,
     title: c.title,
     start_time: c.start_time,
-    duration_minutes: c.duration_minutes,
+    duration_minutes: c.duration_minutes || 60, // Default para 60 minutos
     notes: c.notes,
     created_at: c.created_at,
     student_id: c.student_id,
-    students: c.students ? (c.students as { name: string }) : null, // Ajustado para objeto único ou null
+    students: c.students ? (c.students as { name: string }) : null,
     class_attendees: c.class_attendees,
   }));
-};
-
-// Helper para gerar slots de horário por hora (excluindo sábado e domingo)
-const generateTimeSlots = (start: Date, end: Date, capacity: number): any[] => {
-  const slots = [];
-  let current = new Date(start);
-  
-  // Ajustar para começar do início da primeira hora no range
-  current = setMinutes(setSeconds(current, 0), 0);
-
-  while (current < end) {
-    const nextHour = addHours(current, 1);
-    // Apenas gerar slots dentro do horário de funcionamento (6h às 22h) e excluir sábado (6) e domingo (0)
-    if (current.getHours() >= 6 && current.getHours() < 22 && current.getDay() !== 6 && current.getDay() !== 0) {
-      slots.push({
-        id: `slot-${format(current, 'yyyy-MM-dd-HH')}`, // ID único para cada slot de hora
-        start: current.toISOString(),
-        end: nextHour.toISOString(),
-        title: `Vagas: ${capacity}`,
-        display: 'background', // Renderizar como evento de fundo
-        classNames: ['empty-slot-background'], // Classe customizada para estilização
-        extendedProps: {
-          attendeeCount: 0,
-          capacity: capacity,
-          isEmptySlot: true,
-        },
-      });
-    }
-    current = nextHour;
-  }
-  return slots;
 };
 
 const Schedule = () => {
@@ -90,32 +59,27 @@ const Schedule = () => {
   const [selectedEvent, setSelectedEvent] = useState<Partial<ClassEvent> | null>(null);
   const [currentCalendarRange, setCurrentCalendarRange] = useState<{ start: string; end: string }>({
     start: format(new Date(), 'yyyy-MM-dd'),
-    end: format(addMinutes(new Date(), 1), 'yyyy-MM-dd'), // Pequeno range inicial
+    end: format(addMinutes(new Date(), 1), 'yyyy-MM-dd'),
   });
 
   const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
   const CLASS_CAPACITY = appSettings?.class_capacity ?? 10;
 
   const { data: classes, isLoading: isLoadingClasses } = useQuery({
-    queryKey: ['classes', currentCalendarRange.start, currentCalendarRange.end], // Chave de query depende do range
+    queryKey: ['classes', currentCalendarRange.start, currentCalendarRange.end],
     queryFn: () => fetchClasses(currentCalendarRange.start, currentCalendarRange.end),
-    enabled: !!currentCalendarRange.start && !!currentCalendarRange.end, // Só executa se as datas estiverem definidas
-    staleTime: 1000 * 60 * 1, // Cache por 1 minuto para agilidade
+    enabled: !!currentCalendarRange.start && !!currentCalendarRange.end,
+    staleTime: 1000 * 60 * 1,
   });
 
   const isLoading = isLoadingSettings || isLoadingClasses;
 
-  // Gerar slots de horário para o range de visualização atual
-  const startOfView = parseISO(currentCalendarRange.start);
-  const endOfView = parseISO(currentCalendarRange.end);
-  const generatedSlots = generateTimeSlots(startOfView, endOfView, CLASS_CAPACITY);
-
-  // Mapear aulas reais para o formato de evento do FullCalendar
-  const actualClassEvents = classes?.map(c => {
+  // Mapear aulas para o formato do FullCalendar
+  const calendarEvents = classes?.map(c => {
     const attendeeCount = c.class_attendees[0]?.count ?? 0;
     const eventTitle = c.student_id && c.students ? `Aula com ${c.students.name}` : c.title || 'Aula';
     const startTime = parseISO(c.start_time);
-    const endTime = addMinutes(startTime, c.duration_minutes);
+    const endTime = addMinutes(startTime, c.duration_minutes || 60);
 
     return {
       id: c.id,
@@ -127,42 +91,25 @@ const Schedule = () => {
         capacity: CLASS_CAPACITY,
         student_id: c.student_id,
         notes: c.notes,
-        duration_minutes: c.duration_minutes,
-        isEmptySlot: false,
+        duration_minutes: c.duration_minutes || 60,
       },
-      display: 'auto', // Evento regular, será sobreposto aos eventos de fundo
     };
   }) || [];
 
-  // Combinar slots gerados e eventos de aulas reais
-  const combinedEvents = [...generatedSlots, ...actualClassEvents];
-
   const handleEventClick = (clickInfo: EventClickArg) => {
-    // Apenas eventos de aulas reais devem abrir o modal de detalhes
-    if (!clickInfo.event.extendedProps.isEmptySlot) {
-      setSelectedEvent({
-        id: clickInfo.event.id,
-        title: clickInfo.event.title,
-        start_time: clickInfo.event.startStr,
-        duration_minutes: clickInfo.event.extendedProps.duration_minutes,
-        notes: clickInfo.event.extendedProps.notes,
-        student_id: clickInfo.event.extendedProps.student_id,
-      });
-      setDetailsOpen(true);
-    }
+    setSelectedEvent({
+      id: clickInfo.event.id,
+      title: clickInfo.event.title,
+      start_time: clickInfo.event.startStr,
+      duration_minutes: clickInfo.event.extendedProps.duration_minutes,
+      notes: clickInfo.event.extendedProps.notes,
+      student_id: clickInfo.event.extendedProps.student_id,
+    });
+    setDetailsOpen(true);
   };
 
   const renderEventContent = (eventInfo: EventContentArg) => {
-    const { attendeeCount, capacity, isEmptySlot } = eventInfo.event.extendedProps;
-
-    if (isEmptySlot) {
-      return (
-        <div className="p-1 text-center text-muted-foreground text-xs opacity-70">
-          Vagas: {capacity}
-        </div>
-      );
-    }
-
+    const { attendeeCount, capacity } = eventInfo.event.extendedProps;
     return (
       <div className="p-1 overflow-hidden">
         <b className="text-xs">{eventInfo.timeText}</b>
@@ -173,12 +120,7 @@ const Schedule = () => {
   };
 
   const getEventClassNames = (eventInfo: EventContentArg) => {
-    const { attendeeCount, capacity, isEmptySlot } = eventInfo.event.extendedProps;
-
-    if (isEmptySlot) {
-      return 'empty-slot-background';
-    }
-
+    const { attendeeCount, capacity } = eventInfo.event.extendedProps;
     if (attendeeCount >= capacity) {
       return 'event-full';
     }
@@ -188,7 +130,6 @@ const Schedule = () => {
     return 'event-available';
   };
 
-  // Callback para atualizar o range de datas do calendário
   const handleDatesSet = useCallback((dateInfo: DatesSetArg) => {
     setCurrentCalendarRange({
       start: dateInfo.startStr,
@@ -227,11 +168,11 @@ const Schedule = () => {
                 views={{
                   timeGridDay: { 
                     buttonText: 'Dia',
-                    slotDuration: '00:30:00' // Slots de 30 minutos para dia
+                    slotDuration: '00:30:00'
                   },
                   timeGridWeek: { 
                     buttonText: 'Semana',
-                    slotDuration: '01:00:00' // Slots de 1 hora para semana
+                    slotDuration: '01:00:00'
                   },
                   timeGridTwoWeeks: {
                     type: 'timeGrid',
@@ -249,7 +190,7 @@ const Schedule = () => {
                   day: 'Dia',
                   week: 'Semana',
                 }}
-                events={combinedEvents}
+                events={calendarEvents}
                 locale="pt-br"
                 allDaySlot={false}
                 slotMinTime="06:00:00"
@@ -266,10 +207,9 @@ const Schedule = () => {
                 eventContent={renderEventContent}
                 eventClassNames={getEventClassNames}
                 datesSet={handleDatesSet}
-                eventOverlap={true}
-                eventDisplay='block'
-                weekends={false} // Remover finais de semana
-                firstDay={1} // Começar na segunda-feira
+                eventOverlap={false}
+                weekends={false}
+                firstDay={1}
               />
             </div>
           )}
