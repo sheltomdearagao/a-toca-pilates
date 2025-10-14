@@ -2,13 +2,13 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Loader2, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { PlusCircle, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import AddClassDialog from '@/components/schedule/AddClassDialog';
 import ClassDetailsDialog from '@/components/schedule/ClassDetailsDialog';
 import { ClassEvent } from '@/types/schedule';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import ColoredSeparator from "@/components/ColoredSeparator";
-import { parseISO, format, addDays, startOfDay, endOfDay, startOfWeek, endOfWeek, isSameDay, isToday, set, isWeekend } from 'date-fns';
+import { parseISO, format, addDays, startOfDay, endOfDay, startOfWeek, endOfWeek, isToday, set, isWeekend, addWeeks, subWeeks } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -18,14 +18,16 @@ import { fromZonedTime } from 'date-fns-tz';
 const HOURS = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21];
 
 const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> => {
-  // Otimização: Selecionar apenas os campos necessários e usar count para attendees
   const { data, error } = await supabase
     .from('classes')
     .select(`
       id,
+      user_id,
       title,
       start_time,
       duration_minutes,
+      notes,
+      created_at,
       student_id,
       students(name),
       class_attendees(count)
@@ -38,25 +40,16 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
   
   return (data as any[] || []).map(c => ({
     id: c.id,
-    user_id: c.user_id, // Não buscado, mas mantido no tipo
+    user_id: c.user_id,
     title: c.title,
     start_time: c.start_time,
     duration_minutes: c.duration_minutes || 60,
-    notes: c.notes, // Não buscado, mas mantido no tipo
-    created_at: c.created_at, // Não buscado, mas mantido no tipo
+    notes: c.notes,
+    created_at: c.created_at,
     student_id: c.student_id,
     students: c.students ? (c.students as { name: string }) : null,
     class_attendees: c.class_attendees,
   }));
-};
-
-// Função auxiliar para encontrar o próximo dia de semana válido (Seg-Sex)
-const getNextWeekday = (date: Date, direction: 1 | -1): Date => {
-  let newDate = date;
-  do {
-    newDate = addDays(newDate, direction);
-  } while (isWeekend(newDate));
-  return newDate;
 };
 
 const Schedule = () => {
@@ -64,13 +57,9 @@ const Schedule = () => {
   const [isDetailsOpen, setDetailsOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Partial<ClassEvent> | null>(null);
   const [currentDate, setCurrentDate] = useState(() => {
-    // Inicializa com a data de hoje, pulando se for fim de semana
-    let initialDate = new Date();
-    if (isWeekend(initialDate)) {
-      // Se for Sábado (6), vai para Segunda (+2). Se for Domingo (0), vai para Segunda (+1).
-      initialDate = addDays(initialDate, initialDate.getDay() === 6 ? 2 : 1);
-    }
-    return initialDate;
+    const today = new Date();
+    // Sempre começar na segunda-feira da semana atual
+    return startOfWeek(today, { weekStartsOn: 1 });
   });
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'twoWeeks'>('week');
   const [quickAddSlot, setQuickAddSlot] = useState<{ date: Date; hour: number } | null>(null);
@@ -79,95 +68,108 @@ const Schedule = () => {
   const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
   const CLASS_CAPACITY = appSettings?.class_capacity ?? 10;
 
-  // Gerar dias para exibir (Lógica simplificada e sem efeitos colaterais)
-  const getDaysToDisplay = (date: Date, mode: typeof viewMode) => {
-    if (mode === 'day') {
-      // Garante que o dia exibido é um dia de semana
-      if (isWeekend(date)) {
-        // Isso não deve acontecer se a navegação estiver correta, mas é um fallback
-        return [getNextWeekday(date, 1)];
+  // Gerar dias para exibir baseado no modo de visualização
+  const daysToDisplay = useMemo(() => {
+    if (viewMode === 'day') {
+      // Para visualização diária, mostrar apenas o dia atual (sempre segunda a sexta)
+      let displayDate = currentDate;
+      if (isWeekend(displayDate)) {
+        // Se for fim de semana, mostrar a segunda-feira da semana
+        displayDate = startOfWeek(displayDate, { weekStartsOn: 1 });
       }
-      return [date];
+      return [displayDate];
     } 
     
-    const start = startOfWeek(date, { weekStartsOn: 1 });
-    
-    if (mode === 'week') {
-      return Array.from({ length: 5 }, (_, i) => addDays(start, i)); // Seg-Sex
-    } 
-    
-    // twoWeeks
-    return Array.from({ length: 10 }, (_, i) => addDays(start, i)).filter(d => !isWeekend(d)); // Excluir sáb/dom
-  };
-
-  const daysToDisplay = getDaysToDisplay(currentDate, viewMode);
-
-  // Calcular range de datas baseado nos dias a serem exibidos
-  const getDateRange = (days: Date[]) => {
-    if (days.length === 0) {
-      return { start: startOfDay(currentDate).toISOString(), end: endOfDay(currentDate).toISOString() };
+    if (viewMode === 'week') {
+      // Semana: segunda a sexta
+      const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+      return Array.from({ length: 5 }, (_, i) => addDays(weekStart, i));
     }
-    return {
-      start: startOfDay(days[0]).toISOString(),
-      end: endOfDay(days[days.length - 1]).toISOString(),
-    };
-  };
+    
+    // twoWeeks: 10 dias úteis (2 semanas sem fins de semana)
+    const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+    const allDays = Array.from({ length: 14 }, (_, i) => addDays(weekStart, i));
+    return allDays.filter(day => !isWeekend(day));
+  }, [currentDate, viewMode]);
 
-  const dateRange = getDateRange(daysToDisplay);
+  // Calcular range de datas para a query
+  const dateRange = useMemo(() => {
+    if (daysToDisplay.length === 0) return { start: '', end: '' };
+    
+    const start = startOfDay(daysToDisplay[0]).toISOString();
+    const end = endOfDay(daysToDisplay[daysToDisplay.length - 1]).toISOString();
+    
+    return { start, end };
+  }, [daysToDisplay]);
 
   const { data: classes, isLoading: isLoadingClasses } = useQuery({
     queryKey: ['classes', dateRange.start, dateRange.end],
     queryFn: () => fetchClasses(dateRange.start, dateRange.end),
-    staleTime: 1000 * 60 * 1,
+    enabled: !!dateRange.start && !!dateRange.end,
+    staleTime: 1000 * 60 * 5, // Cache por 5 minutos
   });
 
-  // Otimização: Pré-processar as aulas em um mapa para busca rápida
+  // Mapa otimizado de aulas por slot horário
   const classesBySlot = useMemo(() => {
-    if (!classes) return new Map<string, ClassEvent[]>();
+    if (!classes || classes.length === 0) return new Map<string, ClassEvent[]>();
 
     const map = new Map<string, ClassEvent[]>();
+    
     for (const classEvent of classes) {
       const classStart = parseISO(classEvent.start_time);
-      const key = format(classStart, 'yyyy-MM-dd-HH'); // Chave: "2023-10-27-09"
-      const slotClasses = map.get(key);
-      if (slotClasses) {
-        slotClasses.push(classEvent);
-      } else {
-        map.set(key, [classEvent]);
+      const hour = classStart.getHours();
+      const dayKey = format(classStart, 'yyyy-MM-dd');
+      const slotKey = `${dayKey}-${hour.toString().padStart(2, '0')}`;
+      
+      if (!map.has(slotKey)) {
+        map.set(slotKey, []);
       }
+      map.get(slotKey)!.push(classEvent);
     }
+    
     return map;
   }, [classes]);
 
   const isLoading = isLoadingSettings || isLoadingClasses;
 
-  // Lógica de navegação corrigida
+  // Navegação simplificada
   const handlePrevious = () => {
     if (viewMode === 'day') {
-      setCurrentDate(prev => getNextWeekday(prev, -1));
-    } else if (viewMode === 'week') {
-      setCurrentDate(prev => addDays(prev, -7));
+      // Para dia, pular fins de semana
+      let newDate = addDays(currentDate, -1);
+      while (isWeekend(newDate)) {
+        newDate = addDays(newDate, -1);
+      }
+      setCurrentDate(newDate);
     } else {
-      setCurrentDate(prev => addDays(prev, -14));
+      // Para semana/duas semanas, mover por semanas
+      const weeksToSubtract = viewMode === 'week' ? 1 : 2;
+      setCurrentDate(prev => subWeeks(prev, weeksToSubtract));
     }
   };
 
   const handleNext = () => {
     if (viewMode === 'day') {
-      setCurrentDate(prev => getNextWeekday(prev, 1));
-    } else if (viewMode === 'week') {
-      setCurrentDate(prev => addDays(prev, 7));
+      // Para dia, pular fins de semana
+      let newDate = addDays(currentDate, 1);
+      while (isWeekend(newDate)) {
+        newDate = addDays(newDate, 1);
+      }
+      setCurrentDate(newDate);
     } else {
-      setCurrentDate(prev => addDays(prev, 14));
+      // Para semana/duas semanas, mover por semanas
+      const weeksToAdd = viewMode === 'week' ? 1 : 2;
+      setCurrentDate(prev => addWeeks(prev, weeksToAdd));
     }
   };
 
   const handleToday = () => {
-    let today = new Date();
-    if (isWeekend(today)) {
-      today = addDays(today, today.getDay() === 6 ? 2 : 1);
-    }
-    setCurrentDate(today);
+    const today = new Date();
+    setCurrentDate(startOfWeek(today, { weekStartsOn: 1 }));
+  };
+
+  const handleViewModeChange = (newMode: 'day' | 'week' | 'twoWeeks') => {
+    setViewMode(newMode);
   };
 
   const handleClassClick = (classEvent: ClassEvent) => {
@@ -176,7 +178,6 @@ const Schedule = () => {
       title: classEvent.title,
       start_time: classEvent.start_time,
       duration_minutes: classEvent.duration_minutes,
-      notes: classEvent.notes,
       student_id: classEvent.student_id,
     });
     setDetailsOpen(true);
@@ -186,7 +187,6 @@ const Schedule = () => {
     const slotKey = `${format(day, 'yyyy-MM-dd')}-${hour.toString().padStart(2, '0')}`;
     const classesInSlot = classesBySlot.get(slotKey) || [];
     
-    // Se a célula estiver vazia, abre o agendamento rápido
     if (classesInSlot.length === 0) {
       setQuickAddSlot({ date: day, hour });
       setAddFormOpen(true);
@@ -205,14 +205,13 @@ const Schedule = () => {
         milliseconds: 0,
       });
       
-      // Converte para UTC para armazenar no banco de dados
       const startUtc = fromZonedTime(startDateTime, Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
       
       const dataToSubmit = {
         user_id: user.id,
         title: 'Nova Aula',
         start_time: startUtc,
-        duration_minutes: 60, // Fixo em 60 minutos
+        duration_minutes: 60,
         notes: '',
         student_id: null,
       };
@@ -263,13 +262,13 @@ const Schedule = () => {
           }
         </h2>
         <div className="flex gap-2">
-          <Button variant={viewMode === 'day' ? 'default' : 'outline'} onClick={() => setViewMode('day')}>
+          <Button variant={viewMode === 'day' ? 'default' : 'outline'} onClick={() => handleViewModeChange('day')}>
             Dia
           </Button>
-          <Button variant={viewMode === 'week' ? 'default' : 'outline'} onClick={() => setViewMode('week')}>
+          <Button variant={viewMode === 'week' ? 'default' : 'outline'} onClick={() => handleViewModeChange('week')}>
             Semana
           </Button>
-          <Button variant={viewMode === 'twoWeeks' ? 'default' : 'outline'} onClick={() => setViewMode('twoWeeks')}>
+          <Button variant={viewMode === 'twoWeeks' ? 'default' : 'outline'} onClick={() => handleViewModeChange('twoWeeks')}>
             15 Dias
           </Button>
         </div>
@@ -309,7 +308,6 @@ const Schedule = () => {
                 {daysToDisplay.map(day => {
                   const slotKey = `${format(day, 'yyyy-MM-dd')}-${hour.toString().padStart(2, '0')}`;
                   const classesInSlot = classesBySlot.get(slotKey) || [];
-                  const totalAttendees = classesInSlot.reduce((sum, c) => sum + (c.class_attendees[0]?.count ?? 0), 0);
 
                   return (
                     <div 
@@ -374,7 +372,7 @@ const Schedule = () => {
         isOpen={isAddFormOpen} 
         onOpenChange={(isOpen) => {
           setAddFormOpen(isOpen);
-          if (!isOpen) setQuickAddSlot(null); // Limpar o slot ao fechar
+          if (!isOpen) setQuickAddSlot(null);
         }} 
         quickAddSlot={quickAddSlot}
         onQuickAdd={(date, hour) => quickAddMutation.mutate({ date, hour })}
