@@ -53,24 +53,25 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
   }));
 };
 
-// Helper para gerar slots de horário por hora
+// Helper para gerar slots de horário por hora (excluindo sábado)
 const generateTimeSlots = (start: Date, end: Date, capacity: number): any[] => {
   const slots = [];
-  let current = start;
+  let current = new Date(start);
+  
   // Ajustar para começar do início da primeira hora no range
   current = setMinutes(setSeconds(current, 0), 0);
 
   while (current < end) {
     const nextHour = addHours(current, 1);
-    // Apenas gerar slots dentro do horário de funcionamento (ex: 6h às 22h)
-    if (current.getHours() >= 6 && current.getHours() < 22) {
+    // Apenas gerar slots dentro do horário de funcionamento (6h às 22h) e excluir sábado (6)
+    if (current.getHours() >= 6 && current.getHours() < 22 && current.getDay() !== 6) {
       slots.push({
         id: `slot-${format(current, 'yyyy-MM-dd-HH')}`, // ID único para cada slot de hora
         start: current.toISOString(),
         end: nextHour.toISOString(),
         title: `Vagas: ${capacity}`,
         display: 'background', // Renderizar como evento de fundo
-        classNames: ['empty-slot'], // Classe customizada para estilização
+        classNames: ['empty-slot-background'], // Classe customizada para estilização
         extendedProps: {
           attendeeCount: 0,
           capacity: capacity,
@@ -87,7 +88,6 @@ const Schedule = () => {
   const [isAddFormOpen, setAddFormOpen] = useState(false);
   const [isDetailsOpen, setDetailsOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Partial<ClassEvent> | null>(null);
-  const [calendarView, setCalendarView] = useState('timeGridWeek'); // Definido como 'timeGridWeek' por padrão
   const [currentCalendarRange, setCurrentCalendarRange] = useState<{ start: string; end: string }>({
     start: format(new Date(), 'yyyy-MM-dd'),
     end: format(addMinutes(new Date(), 1), 'yyyy-MM-dd'), // Pequeno range inicial
@@ -135,7 +135,6 @@ const Schedule = () => {
   }) || [];
 
   // Combinar slots gerados e eventos de aulas reais
-  // O FullCalendar renderizará eventos de fundo primeiro, depois eventos regulares por cima.
   const combinedEvents = [...generatedSlots, ...actualClassEvents];
 
   const handleEventClick = (clickInfo: EventClickArg) => {
@@ -158,19 +157,17 @@ const Schedule = () => {
 
     if (isEmptySlot) {
       return (
-        <div className="p-1 text-center text-muted-foreground text-sm opacity-70">
+        <div className="p-1 text-center text-muted-foreground text-xs opacity-70">
           Vagas: {capacity}
         </div>
       );
     }
-    // Debugging: Log actual event details
-    console.log("Rendering actual event:", eventInfo.event.title, eventInfo.timeText, eventInfo.event.start);
 
     return (
       <div className="p-1 overflow-hidden">
-        <b>{eventInfo.timeText}</b>
-        <p className="truncate">{eventInfo.event.title}</p>
-        <p className="text-sm font-semibold">({attendeeCount}/{capacity})</p>
+        <b className="text-xs">{eventInfo.timeText}</b>
+        <p className="truncate text-xs">{eventInfo.event.title}</p>
+        <p className="text-xs font-semibold">({attendeeCount}/{capacity})</p>
       </div>
     );
   };
@@ -179,7 +176,7 @@ const Schedule = () => {
     const { attendeeCount, capacity, isEmptySlot } = eventInfo.event.extendedProps;
 
     if (isEmptySlot) {
-      return 'empty-slot-background'; // Classe customizada para estilizar slots vazios
+      return 'empty-slot-background';
     }
 
     if (attendeeCount >= capacity) {
@@ -200,7 +197,7 @@ const Schedule = () => {
   }, []);
 
   return (
-    <div>
+    <div className="h-full flex flex-col">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Agenda de Aulas</h1>
         <Button onClick={() => setAddFormOpen(true)}>
@@ -211,25 +208,31 @@ const Schedule = () => {
 
       <ColoredSeparator color="primary" className="my-6" />
 
-      <Tabs defaultValue="calendar">
+      <Tabs defaultValue="calendar" className="flex-1 flex flex-col">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="calendar">Calendário</TabsTrigger>
           <TabsTrigger value="recurring-templates">Modelos Recorrentes</TabsTrigger>
         </TabsList>
-        <TabsContent value="calendar" className="mt-4">
+        <TabsContent value="calendar" className="mt-4 flex-1">
           {isLoading ? (
-            <div className="flex justify-center items-center h-[60vh]">
+            <div className="flex justify-center items-center h-full">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
               <span className="ml-2 text-muted-foreground">Carregando agenda...</span>
             </div>
           ) : (
-            <div className="bg-card p-4 rounded-lg border shadow-subtle-glow">
+            <div className="bg-card p-4 rounded-lg border shadow-subtle-glow h-full">
               <FullCalendar
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-                initialView="timeGridWeek" // Padrão para visualização semanal para melhor visibilidade dos slots
+                initialView="timeGridWeek"
                 views={{
-                  timeGridDay: { buttonText: 'Dia' },
-                  timeGridWeek: { buttonText: 'Semana' },
+                  timeGridDay: { 
+                    buttonText: 'Dia',
+                    slotDuration: '00:30:00' // Slots de 30 minutos para dia
+                  },
+                  timeGridWeek: { 
+                    buttonText: 'Semana',
+                    slotDuration: '01:00:00' // Slots de 1 hora para semana
+                  },
                   timeGridTwoWeeks: {
                     type: 'timeGrid',
                     duration: { days: 14 },
@@ -242,29 +245,31 @@ const Schedule = () => {
                   right: 'timeGridDay,timeGridWeek,timeGridTwoWeeks',
                 }}
                 buttonText={{
-                  today:    'Hoje',
-                  day:      'Dia',
-                  week:     'Semana',
+                  today: 'Hoje',
+                  day: 'Dia',
+                  week: 'Semana',
                 }}
-                events={combinedEvents} // Usar eventos combinados
+                events={combinedEvents}
                 locale="pt-br"
                 allDaySlot={false}
                 slotMinTime="06:00:00"
                 slotMaxTime="22:00:00"
-                slotDuration={'01:00:00'} // Slots de uma hora
                 slotLabelFormat={{
                   hour: 'numeric',
                   minute: '2-digit',
                   omitZeroMinute: false,
                   meridiem: 'short'
                 }}
-                height="auto"
+                height="100%"
+                contentHeight="auto"
                 eventClick={handleEventClick}
                 eventContent={renderEventContent}
                 eventClassNames={getEventClassNames}
                 datesSet={handleDatesSet}
-                eventOverlap={true} // Permitir que eventos se sobreponham aos slots de fundo
-                eventDisplay='block' // Garantir que os eventos sejam exibidos como blocos
+                eventOverlap={true}
+                eventDisplay='block'
+                weekends={false} // Remover finais de semana
+                firstDay={0} // Começar na domingo (mas weekends=false remove sábado e domingo)
               />
             </div>
           )}
