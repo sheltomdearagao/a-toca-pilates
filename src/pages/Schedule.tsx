@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { fromZonedTime } from 'date-fns-tz';
 
 const HOURS = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21];
-const MAX_CLASSES_PER_LOAD = 50; // Limite máximo de aulas por carregamento
+const MAX_CLASSES_PER_LOAD = 20; // Reduzido para agilizar carregamento
 
 const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> => {
   // Otimização: Buscar apenas campos essenciais e limitar resultados
@@ -37,7 +37,7 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
     .gte('start_time', start)
     .lte('start_time', end)
     .order('start_time', { ascending: true })
-    .limit(MAX_CLASSES_PER_LOAD); // Limite de aulas carregadas
+    .limit(MAX_CLASSES_PER_LOAD); // Limite reduzido para agilizar
   
   if (error) throw new Error(error.message);
   
@@ -56,8 +56,8 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
 };
 
 const Schedule = () => {
-  const [isAddFormOpen, setAddFormOpen] = useState(false);
-  const [isDetailsOpen, setDetailsOpen] = useState(false);
+  const [isAddFormOpen, setIsAddFormOpen] = useState(false);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Partial<ClassEvent> | null>(null);
   const [currentDate, setCurrentDate] = useState(() => {
     const today = new Date();
@@ -70,19 +70,20 @@ const Schedule = () => {
   const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
   const CLASS_CAPACITY = appSettings?.class_capacity ?? 10;
 
-  // Gerar dias para exibir baseado no modo de visualização (otimizado)
+  // Gerar dias para exibir baseado no modo de visualização (corrigido para modo dia)
   const daysToDisplay = useMemo(() => {
-    const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-    
     if (viewMode === 'day') {
-      return [weekStart]; // Sempre mostrar segunda-feira para modo dia
+      // No modo dia, mostrar apenas o dia atual (ou o currentDate se navegado)
+      return [currentDate];
     } 
     
     if (viewMode === 'week') {
+      const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
       return Array.from({ length: 5 }, (_, i) => addDays(weekStart, i)); // Seg-Sex
     }
     
     // twoWeeks: máximo 10 dias úteis
+    const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
     return Array.from({ length: 10 }, (_, i) => addDays(weekStart, i)).filter(day => !isWeekend(day));
   }, [currentDate, viewMode]);
 
@@ -100,8 +101,8 @@ const Schedule = () => {
     queryKey: ['classes', dateRange.start, dateRange.end],
     queryFn: () => fetchClasses(dateRange.start, dateRange.end),
     enabled: !!dateRange.start && !!dateRange.end,
-    staleTime: 1000 * 60 * 2, // Cache reduzido para 2 minutos
-    gcTime: 1000 * 60 * 5, // Garbage collection após 5 minutos
+    staleTime: 1000 * 60 * 5, // Cache aumentado para 5 minutos
+    gcTime: 1000 * 60 * 10, // Garbage collection após 10 minutos
   });
 
   // Mapa otimizado de aulas por slot horário (usando Map para O(1) lookup)
@@ -162,11 +163,15 @@ const Schedule = () => {
 
   const handleToday = useCallback(() => {
     const today = new Date();
-    setCurrentDate(startOfWeek(today, { weekStartsOn: 1 }));
+    setCurrentDate(today); // Para modo dia, definir diretamente o dia atual
   }, []);
 
   const handleViewModeChange = useCallback((newMode: 'day' | 'week' | 'twoWeeks') => {
     setViewMode(newMode);
+    // Quando mudar para dia, ajustar currentDate para hoje se necessário
+    if (newMode === 'day') {
+      setCurrentDate(new Date());
+    }
   }, []);
 
   const handleClassClick = useCallback((classEvent: ClassEvent) => {
@@ -177,7 +182,7 @@ const Schedule = () => {
       duration_minutes: classEvent.duration_minutes,
       student_id: classEvent.student_id,
     });
-    setDetailsOpen(true);
+    setIsDetailsOpen(true);
   }, []);
 
   const handleCellClick = useCallback((day: Date, hour: number) => {
@@ -186,7 +191,7 @@ const Schedule = () => {
     
     if (classesInSlot.length === 0) {
       setQuickAddSlot({ date: day, hour });
-      setAddFormOpen(true);
+      setIsAddFormOpen(true);
     }
   }, [classesBySlot]);
 
@@ -219,7 +224,7 @@ const Schedule = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['classes'] });
       showSuccess('Aula agendada com sucesso!');
-      setAddFormOpen(false);
+      setIsAddFormOpen(false);
       setQuickAddSlot(null);
     },
     onError: (error) => {
@@ -244,7 +249,7 @@ const Schedule = () => {
         >
           {classesInSlot.length > 0 ? (
             <div className="space-y-1">
-              {classesInSlot.slice(0, 3).map(classEvent => { // Limitar a 3 aulas por célula
+              {classesInSlot.slice(0, 2).map(classEvent => { // Limitado a 2 aulas por célula para agilizar
                 const attendeeCount = classEvent.class_attendees[0]?.count ?? 0;
                 const eventTitle = classEvent.student_id && classEvent.students 
                   ? `${classEvent.students.name}` 
@@ -258,7 +263,7 @@ const Schedule = () => {
                       handleClassClick(classEvent);
                     }}
                     className={cn(
-                      "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-sm",
+                      "p-1 rounded text-xs transition-all hover:scale-[1.02] shadow-sm",
                       attendeeCount >= CLASS_CAPACITY
                         ? 'bg-destructive text-white'
                         : attendeeCount >= CLASS_CAPACITY - 3
@@ -266,24 +271,23 @@ const Schedule = () => {
                         : 'bg-primary text-white'
                     )}
                   >
-                    <div className="font-semibold truncate">{eventTitle}</div>
-                    <div className="text-[10px] opacity-90">
-                      {attendeeCount}/{CLASS_CAPACITY} alunos
+                    <div className="font-semibold truncate text-[10px]">{eventTitle}</div>
+                    <div className="text-[8px] opacity-90">
+                      {attendeeCount}/{CLASS_CAPACITY}
                     </div>
                   </div>
                 );
               })}
-              {classesInSlot.length > 3 && (
-                <div className="text-xs text-muted-foreground text-center">
-                  +{classesInSlot.length - 3} mais
+              {classesInSlot.length > 2 && (
+                <div className="text-[8px] text-muted-foreground text-center">
+                  +{classesInSlot.length - 2}
                 </div>
               )}
             </div>
           ) : (
             <div className="h-full flex items-center justify-center text-xs text-muted-foreground opacity-50">
               <div className="text-center">
-                <div className="text-lg">+</div>
-                <div>Agendar</div>
+                <div className="text-sm">+</div>
               </div>
             </div>
           )}
@@ -296,7 +300,7 @@ const Schedule = () => {
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Agenda de Aulas</h1>
-        <Button onClick={() => { setQuickAddSlot(null); setAddFormOpen(true); }}>
+        <Button onClick={() => { setQuickAddSlot(null); setIsAddFormOpen(true); }}>
           <PlusCircle className="w-4 h-4 mr-2" />
           Agendar Aula
         </Button>
@@ -379,13 +383,13 @@ const Schedule = () => {
       <AddClassDialog 
         isOpen={isAddFormOpen} 
         onOpenChange={(isOpen) => {
-          setAddFormOpen(isOpen);
+          setIsAddFormOpen(isOpen);
           if (!isOpen) setQuickAddSlot(null);
         }} 
         quickAddSlot={quickAddSlot}
         onQuickAdd={(date, hour) => quickAddMutation.mutate({ date, hour })}
       />
-      <ClassDetailsDialog isOpen={isDetailsOpen} onOpenChange={setDetailsOpen} classEvent={selectedEvent} classCapacity={CLASS_CAPACITY} />
+      <ClassDetailsDialog isOpen={isDetailsOpen} onOpenChange={setIsDetailsOpen} classEvent={selectedEvent} classCapacity={CLASS_CAPACITY} />
     </div>
   );
 };
