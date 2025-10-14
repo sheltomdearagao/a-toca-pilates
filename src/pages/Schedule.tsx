@@ -10,10 +10,10 @@ import { ClassEvent } from '@/types/schedule';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import ColoredSeparator from "@/components/ColoredSeparator";
-import { parseISO, format, addMinutes, addDays, startOfDay, endOfDay, startOfWeek, endOfWeek, isSameDay } from 'date-fns';
+import { parseISO, format, addDays, startOfDay, endOfDay, startOfWeek, endOfWeek, isSameDay, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 const HOURS = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21];
 
@@ -64,26 +64,24 @@ const Schedule = () => {
 
   // Calcular range de datas baseado no modo de visualização
   const getDateRange = () => {
+    let start: Date;
+    let end: Date;
+
     if (viewMode === 'day') {
-      return {
-        start: startOfDay(currentDate).toISOString(),
-        end: endOfDay(currentDate).toISOString(),
-      };
+      start = startOfDay(currentDate);
+      end = endOfDay(currentDate);
     } else if (viewMode === 'week') {
-      const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-      const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
-      return {
-        start: startOfDay(weekStart).toISOString(),
-        end: endOfDay(weekEnd).toISOString(),
-      };
-    } else {
-      const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-      const twoWeeksEnd = addDays(weekStart, 13);
-      return {
-        start: startOfDay(weekStart).toISOString(),
-        end: endOfDay(twoWeeksEnd).toISOString(),
-      };
+      start = startOfWeek(currentDate, { weekStartsOn: 1 });
+      end = addDays(start, 4); // Segunda a Sexta
+    } else { // twoWeeks
+      start = startOfWeek(currentDate, { weekStartsOn: 1 });
+      end = addDays(start, 9); // Duas semanas (Segunda a Sexta)
     }
+
+    return {
+      start: startOfDay(start).toISOString(),
+      end: endOfDay(end).toISOString(),
+    };
   };
 
   const dateRange = getDateRange();
@@ -99,21 +97,34 @@ const Schedule = () => {
   // Gerar dias para exibir
   const getDaysToDisplay = () => {
     if (viewMode === 'day') {
+      // Se for domingo (0) ou sábado (6), move para a próxima segunda
+      if (currentDate.getDay() === 0 || currentDate.getDay() === 6) {
+        const nextMonday = addDays(currentDate, (currentDate.getDay() === 0 ? 1 : 2));
+        setCurrentDate(nextMonday);
+        return [nextMonday];
+      }
       return [currentDate];
-    } else if (viewMode === 'week') {
-      const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-      return Array.from({ length: 5 }, (_, i) => addDays(weekStart, i)); // Seg-Sex
-    } else {
-      const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-      return Array.from({ length: 10 }, (_, i) => addDays(weekStart, i)).filter(d => d.getDay() !== 0 && d.getDay() !== 6); // Excluir sáb/dom
-    }
+    } 
+    
+    const start = startOfWeek(currentDate, { weekStartsOn: 1 });
+    
+    if (viewMode === 'week') {
+      return Array.from({ length: 5 }, (_, i) => addDays(start, i)); // Seg-Sex
+    } 
+    
+    // twoWeeks
+    return Array.from({ length: 10 }, (_, i) => addDays(start, i)).filter(d => d.getDay() !== 0 && d.getDay() !== 6); // Excluir sáb/dom
   };
 
   const daysToDisplay = getDaysToDisplay();
 
   const handlePrevious = () => {
     if (viewMode === 'day') {
-      setCurrentDate(addDays(currentDate, -1));
+      let newDate = addDays(currentDate, -1);
+      // Pular fim de semana
+      if (newDate.getDay() === 0) newDate = addDays(newDate, -2);
+      if (newDate.getDay() === 6) newDate = addDays(newDate, -1);
+      setCurrentDate(newDate);
     } else if (viewMode === 'week') {
       setCurrentDate(addDays(currentDate, -7));
     } else {
@@ -123,7 +134,11 @@ const Schedule = () => {
 
   const handleNext = () => {
     if (viewMode === 'day') {
-      setCurrentDate(addDays(currentDate, 1));
+      let newDate = addDays(currentDate, 1);
+      // Pular fim de semana
+      if (newDate.getDay() === 6) newDate = addDays(newDate, 2);
+      if (newDate.getDay() === 0) newDate = addDays(newDate, 1);
+      setCurrentDate(newDate);
     } else if (viewMode === 'week') {
       setCurrentDate(addDays(currentDate, 7));
     } else {
@@ -216,7 +231,13 @@ const Schedule = () => {
                 <div className="grid sticky top-0 bg-card z-10 border-b" style={{ gridTemplateColumns: `80px repeat(${daysToDisplay.length}, 1fr)` }}>
                   <div className="p-2 border-r font-semibold">Horário</div>
                   {daysToDisplay.map(day => (
-                    <div key={day.toISOString()} className="p-2 text-center border-r font-semibold">
+                    <div 
+                      key={day.toISOString()} 
+                      className={cn(
+                        "p-2 text-center border-r font-semibold",
+                        isToday(day) && "bg-primary/10 border-primary/50"
+                      )}
+                    >
                       <div>{format(day, 'EEE', { locale: ptBR })}</div>
                       <div className="text-sm text-muted-foreground">{format(day, 'dd/MM')}</div>
                     </div>
@@ -233,10 +254,16 @@ const Schedule = () => {
                       const classesInSlot = getClassesForSlot(day, hour);
                       const totalAttendees = classesInSlot.reduce((sum, c) => sum + (c.class_attendees[0]?.count ?? 0), 0);
                       const isFull = totalAttendees >= CLASS_CAPACITY;
-                      const isFewSpots = totalAttendees >= CLASS_CAPACITY - 3;
+                      // const isFewSpots = totalAttendees >= CLASS_CAPACITY - 3; // Não usado diretamente, mas mantido para contexto
 
                       return (
-                        <div key={`${day.toISOString()}-${hour}`} className="p-1 border-r min-h-[60px] hover:bg-muted/30 transition-colors">
+                        <div 
+                          key={`${day.toISOString()}-${hour}`} 
+                          className={cn(
+                            "p-1 border-r min-h-[60px] transition-colors",
+                            isToday(day) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30"
+                          )}
+                        >
                           {classesInSlot.length > 0 ? (
                             <div className="space-y-1">
                               {classesInSlot.map(classEvent => {
@@ -249,13 +276,14 @@ const Schedule = () => {
                                   <div
                                     key={classEvent.id}
                                     onClick={() => handleClassClick(classEvent)}
-                                    className={`p-2 rounded cursor-pointer text-xs transition-all hover:scale-[1.02] ${
+                                    className={cn(
+                                      "p-2 rounded cursor-pointer text-xs transition-all hover:scale-[1.02] shadow-sm",
                                       attendeeCount >= CLASS_CAPACITY
                                         ? 'bg-destructive text-white'
                                         : attendeeCount >= CLASS_CAPACITY - 3
                                         ? 'bg-accent text-accent-foreground'
                                         : 'bg-primary text-white'
-                                    }`}
+                                    )}
                                   >
                                     <div className="font-semibold truncate">{eventTitle}</div>
                                     <div className="text-[10px] opacity-90">

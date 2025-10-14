@@ -42,6 +42,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Loader2, MoreHorizontal, Edit, Trash2, Repeat, PlusCircle } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { format, parseISO } from 'date-fns';
@@ -74,6 +81,15 @@ const daysOfWeekOptions = [
   { label: 'Sex', value: 'friday' },
   { label: 'Sáb', value: 'saturday' },
 ];
+
+// Horários disponíveis (6h às 21h)
+const availableHours = Array.from({ length: 16 }, (_, i) => {
+  const hour = i + 6;
+  return {
+    value: `${hour.toString().padStart(2, '0')}:00`,
+    label: `${hour.toString().padStart(2, '0')}:00`,
+  };
+});
 
 const fetchRecurringClassTemplates = async (): Promise<RecurringClassTemplate[]> => {
   const { data, error } = await supabase.from('recurring_class_templates').select('*').order('title');
@@ -277,7 +293,24 @@ const RecurringClassTemplatesTab = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="start_time_of_day">Hora de Início</Label>
-                <Controller name="start_time_of_day" control={control} render={({ field }) => <Input id="start_time_of_day" type="time" {...field} />} />
+                <Controller
+                  name="start_time_of_day"
+                  control={control}
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o horário..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableHours.map(hour => (
+                          <SelectItem key={hour.value} value={hour.value}>
+                            {hour.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
                 {errors.start_time_of_day && <p className="text-sm text-destructive mt-1">{errors.start_time_of_day.message}</p>}
               </div>
 
