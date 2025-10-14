@@ -324,6 +324,15 @@
   color: white;
 }
 
+/* Estilo para slots vazios */
+.fc-event.empty-slot-background {
+  background-color: hsl(var(--muted)/0.3);
+  border-color: hsl(var(--border));
+  color: hsl(var(--muted-foreground));
+  border-style: dashed;
+  opacity: 0.7;
+}
+
 /* Tabelas com Melhor Legibilidade */
 .table-striped tbody tr:nth-child(odd) {
   @apply bg-muted/30;

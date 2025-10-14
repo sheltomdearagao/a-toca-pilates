@@ -163,6 +163,8 @@ const Schedule = () => {
         </div>
       );
     }
+    // Debugging: Log actual event details
+    console.log("Rendering actual event:", eventInfo.event.title, eventInfo.timeText, eventInfo.event.start);
 
     return (
       <div className="p-1 overflow-hidden">
@@ -261,16 +263,8 @@ const Schedule = () => {
                 eventContent={renderEventContent}
                 eventClassNames={getEventClassNames}
                 datesSet={handleDatesSet}
-                // Estilização customizada para slots vazios
-                eventDidMount={(info) => {
-                  if (info.event.extendedProps.isEmptySlot) {
-                    info.el.style.backgroundColor = 'hsl(var(--muted)/0.3)'; // Fundo claro para slots vazios
-                    info.el.style.borderColor = 'hsl(var(--border))';
-                    info.el.style.color = 'hsl(var(--muted-foreground))';
-                    info.el.style.borderStyle = 'dashed';
-                    info.el.style.opacity = '0.7';
-                  }
-                }}
+                eventOverlap={true} // Permitir que eventos se sobreponham aos slots de fundo
+                eventDisplay='block' // Garantir que os eventos sejam exibidos como blocos
               />
             </div>
           )}
