@@ -5,9 +5,16 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Check, ChevronsUpDown } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, set } from 'date-fns';
 import { ClassEvent } from '@/types/schedule';
 import { StudentOption } from '@/types/student';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -18,7 +25,8 @@ import { fromZonedTime } from 'date-fns-tz';
 const classSchema = z.object({
   student_id: z.string().optional().nullable(),
   title: z.string().min(3, 'O título é obrigatório.').optional(),
-  start_time: z.string().min(1, 'A data e hora de início são obrigatórias.'),
+  date: z.string().min(1, 'A data é obrigatória.'),
+  time: z.string().min(1, 'O horário é obrigatório.'),
   notes: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (!data.student_id && (!data.title || data.title.trim() === '')) {
@@ -31,6 +39,15 @@ const classSchema = z.object({
 });
 
 export type ClassFormData = z.infer<typeof classSchema>;
+
+// Horários disponíveis (6h às 21h)
+const availableHours = Array.from({ length: 16 }, (_, i) => {
+  const hour = i + 6;
+  return {
+    value: `${hour.toString().padStart(2, '0')}:00`,
+    label: `${hour.toString().padStart(2, '0')}:00`,
+  };
+});
 
 interface ClassEditFormProps {
   classEvent: Partial<ClassEvent> | null;
@@ -54,7 +71,8 @@ const ClassEditForm = ({
     defaultValues: {
       student_id: null,
       title: '',
-      start_time: '',
+      date: format(new Date(), 'yyyy-MM-dd'),
+      time: '08:00',
       notes: '',
     },
   });
@@ -62,10 +80,12 @@ const ClassEditForm = ({
   const selectedStudentId = watch('student_id');
 
   useEffect(() => {
-    if (classEvent) {
+    if (classEvent && classEvent.start_time) {
+      const startTime = parseISO(classEvent.start_time);
       reset({
         title: classEvent.title || '',
-        start_time: classEvent.start_time ? format(parseISO(classEvent.start_time), "yyyy-MM-dd'T'HH:mm") : '',
+        date: format(startTime, 'yyyy-MM-dd'),
+        time: format(startTime, 'HH:mm'),
         notes: classEvent.notes || '',
         student_id: classEvent.student_id || null,
       });
@@ -132,17 +152,41 @@ const ClassEditForm = ({
 
         {!selectedStudentId && (
           <div className="space-y-2">
-            <Label htmlFor="title">Título da Aula (Obrigatório se nenhum aluno for selecionado)</Label>
+            <Label htmlFor="title">Título da Aula</Label>
             <Controller name="title" control={control} render={({ field }) => <Input id="title" {...field} />} />
             {errors.title && <p className="text-sm text-destructive mt-1">{errors.title.message}</p>}
           </div>
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="start_time">Início</Label>
-          <Controller name="start_time" control={control} render={({ field }) => <Input id="start_time" type="datetime-local" {...field} />} />
-          {errors.start_time && <p className="text-sm text-destructive mt-1">{errors.start_time.message}</p>}
+          <Label htmlFor="date">Data</Label>
+          <Controller name="date" control={control} render={({ field }) => <Input id="date" type="date" {...field} />} />
+          {errors.date && <p className="text-sm text-destructive mt-1">{errors.date.message}</p>}
         </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="time">Horário</Label>
+          <Controller
+            name="time"
+            control={control}
+            render={({ field }) => (
+              <Select onValueChange={field.onChange} value={field.value}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o horário..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableHours.map(hour => (
+                    <SelectItem key={hour.value} value={hour.value}>
+                      {hour.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          {errors.time && <p className="text-sm text-destructive mt-1">{errors.time.message}</p>}
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="notes">Notas (Opcional)</Label>
           <Controller name="notes" control={control} render={({ field }) => <Textarea id="notes" {...field} />} />

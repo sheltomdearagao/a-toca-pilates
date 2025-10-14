@@ -15,11 +15,18 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Check, ChevronsUpDown } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { Checkbox } from '@/components/ui/checkbox';
-import { format, parseISO } from 'date-fns';
+import { format, parse, set } from 'date-fns';
 import { fromZonedTime } from 'date-fns-tz';
 import { StudentOption } from '@/types/student';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -29,22 +36,15 @@ import { cn } from '@/lib/utils';
 const classSchema = z.object({
   student_id: z.string().optional().nullable(),
   title: z.string().min(3, 'O título é obrigatório.').optional(),
-  start_time: z.string().min(1, 'A data e hora de início são obrigatórias.'),
+  date: z.string().min(1, 'A data é obrigatória.'),
+  time: z.string().min(1, 'O horário é obrigatório.'),
   notes: z.string().optional(),
   is_recurring: z.boolean().optional(),
   recurrence_days_of_week: z.array(z.string()).optional(),
   recurrence_start_date: z.string().optional(),
   recurrence_end_date: z.string().optional().nullable(),
 }).superRefine((data, ctx) => {
-  if (!data.is_recurring) {
-    if (!data.start_time) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'A data e hora de início são obrigatórias.',
-        path: ['start_time'],
-      });
-    }
-  } else {
+  if (data.is_recurring) {
     if (!data.recurrence_days_of_week || data.recurrence_days_of_week.length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -64,13 +64,6 @@ const classSchema = z.object({
         code: z.ZodIssueCode.custom,
         message: 'A data de término da recorrência deve ser posterior à data de início.',
         path: ['recurrence_end_date'],
-      });
-    }
-    if (!data.start_time) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'A hora de início é obrigatória para aulas recorrentes.',
-        path: ['start_time'],
       });
     }
   }
@@ -101,6 +94,15 @@ const daysOfWeek = [
   { label: 'Sáb', value: 'saturday' },
 ];
 
+// Horários disponíveis (6h às 21h)
+const availableHours = Array.from({ length: 16 }, (_, i) => {
+  const hour = i + 6;
+  return {
+    value: `${hour.toString().padStart(2, '0')}:00`,
+    label: `${hour.toString().padStart(2, '0')}:00`,
+  };
+});
+
 const fetchAllStudents = async (): Promise<StudentOption[]> => {
   const { data, error } = await supabase
     .from('students')
@@ -118,7 +120,8 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
     defaultValues: {
       student_id: initialStudentId || null,
       title: '',
-      start_time: '',
+      date: format(new Date(), 'yyyy-MM-dd'),
+      time: '08:00',
       notes: '',
       is_recurring: false,
       recurrence_days_of_week: [],
@@ -139,17 +142,15 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
 
   useEffect(() => {
     if (isOpen) {
-      const now = new Date();
-      const defaultStartTime = format(now, "yyyy-MM-dd'T'HH:mm");
-
       reset({
         student_id: initialStudentId || null,
         title: '',
-        start_time: defaultStartTime,
+        date: format(new Date(), 'yyyy-MM-dd'),
+        time: '08:00',
         notes: '',
         is_recurring: false,
         recurrence_days_of_week: [],
-        recurrence_start_date: format(now, 'yyyy-MM-dd'),
+        recurrence_start_date: format(new Date(), 'yyyy-MM-dd'),
         recurrence_end_date: null,
       });
       if (initialStudentId && students) {
@@ -174,8 +175,8 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
         const dataToSubmit = {
           user_id: user.id,
           title: classTitle,
-          start_time_of_day: format(parseISO(formData.start_time), 'HH:mm:ss'),
-          duration_minutes: 60, // Duração fixa
+          start_time_of_day: `${formData.time}:00`,
+          duration_minutes: 60,
           notes: formData.notes,
           recurrence_days_of_week: formData.recurrence_days_of_week,
           recurrence_start_date: formData.recurrence_start_date,
@@ -184,13 +185,22 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
         const { error } = await supabase.from('recurring_class_templates').insert([dataToSubmit]);
         if (error) throw error;
       } else {
-        const startUtc = fromZonedTime(parseISO(formData.start_time), Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
+        // Criar datetime combinando data e hora
+        const [hours, minutes] = formData.time.split(':');
+        const dateTime = set(new Date(formData.date), {
+          hours: parseInt(hours),
+          minutes: parseInt(minutes),
+          seconds: 0,
+          milliseconds: 0,
+        });
+        
+        const startUtc = fromZonedTime(dateTime, Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
         
         const dataToSubmit = {
           user_id: user.id,
           title: classTitle,
           start_time: startUtc,
-          duration_minutes: 60, // Duração fixa
+          duration_minutes: 60,
           notes: formData.notes,
           student_id: formData.student_id || null,
         };
@@ -303,9 +313,26 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
             {isRecurring ? (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="start_time">Hora de Início</Label>
-                  <Controller name="start_time" control={control} render={({ field }) => <Input id="start_time" type="time" {...field} />} />
-                  {errors.start_time && <p className="text-sm text-destructive mt-1">{errors.start_time.message}</p>}
+                  <Label htmlFor="time">Horário</Label>
+                  <Controller
+                    name="time"
+                    control={control}
+                    render={({ field }) => (
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o horário..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableHours.map(hour => (
+                            <SelectItem key={hour.value} value={hour.value}>
+                              {hour.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {errors.time && <p className="text-sm text-destructive mt-1">{errors.time.message}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label>Dias da Semana</Label>
@@ -344,11 +371,35 @@ const AddClassDialog = ({ isOpen, onOpenChange, initialStudentId }: AddClassDial
                 </div>
               </>
             ) : (
-              <div className="space-y-2">
-                <Label htmlFor="start_time">Data e Hora</Label>
-                <Controller name="start_time" control={control} render={({ field }) => <Input id="start_time" type="datetime-local" {...field} />} />
-                {errors.start_time && <p className="text-sm text-destructive mt-1">{errors.start_time.message}</p>}
-              </div>
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="date">Data</Label>
+                  <Controller name="date" control={control} render={({ field }) => <Input id="date" type="date" {...field} />} />
+                  {errors.date && <p className="text-sm text-destructive mt-1">{errors.date.message}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="time">Horário</Label>
+                  <Controller
+                    name="time"
+                    control={control}
+                    render={({ field }) => (
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o horário..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableHours.map(hour => (
+                            <SelectItem key={hour.value} value={hour.value}>
+                              {hour.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {errors.time && <p className="text-sm text-destructive mt-1">{errors.time.message}</p>}
+                </div>
+              </>
             )}
             <div className="space-y-2">
               <Label htmlFor="notes">Notas (Opcional)</Label>

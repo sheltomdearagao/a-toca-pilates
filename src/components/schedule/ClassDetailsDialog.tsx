@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Loader2, Edit, Trash2 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { parseISO, format } from 'date-fns';
+import { parseISO, format, set } from 'date-fns';
 import { fromZonedTime } from 'date-fns-tz';
 
 // Importar os novos componentes modulares
@@ -53,7 +53,6 @@ const fetchClassDetails = async (classId: string): Promise<Partial<ClassEvent> |
   if (data) {
     return {
       ...data,
-      // Ajustado para garantir que students seja um objeto único ou null
       students: (data.students as { name: string }[] | null)?.[0] || null,
     };
   }
@@ -179,12 +178,20 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
         ? allStudents?.find(s => s.id === formData.student_id)?.name || 'Aula com Aluno'
         : formData.title;
 
-      const startUtc = fromZonedTime(parseISO(formData.start_time), Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
+      // Criar datetime combinando data e hora
+      const [hours, minutes] = formData.time.split(':');
+      const dateTime = set(new Date(formData.date), {
+        hours: parseInt(hours),
+        minutes: parseInt(minutes),
+        seconds: 0,
+        milliseconds: 0,
+      });
+      
+      const startUtc = fromZonedTime(dateTime, Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
       
       const dataToSubmit = {
         title: classTitle,
         start_time: startUtc,
-        // Removido duration_minutes pois não existe no formData e todas as aulas são de 1 hora
         notes: formData.notes,
         student_id: formData.student_id || null,
       };
