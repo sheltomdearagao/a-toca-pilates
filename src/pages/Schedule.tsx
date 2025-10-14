@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback, memo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState, useMemo, useCallback, memo, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -9,11 +9,13 @@ import { ClassEvent } from '@/types/schedule';
 import { StudentOption } from '@/types/student';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import ColoredSeparator from "@/components/ColoredSeparator";
-import { parseISO, format, addDays, startOfDay, endOfDay, startOfWeek, isToday, isWeekend, addWeeks, subWeeks } from 'date-fns';
+import { parseISO, format, addDays, startOfDay, endOfDay, startOfWeek, isToday, set, isWeekend, addWeeks, subWeeks } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { showError, showSuccess } from '@/utils/toast';
+import { fromZonedTime } from 'date-fns-tz';
 
 // Horários reduzidos: 7h às 20h (14 slots)
 const HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
@@ -75,6 +77,7 @@ const Schedule = () => {
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'twoWeeks'>('week');
   const [quickAddSlot, setQuickAddSlot] = useState<{ date: Date; hour: number } | null>(null);
 
+  const queryClient = useQueryClient();
   const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
   const CLASS_CAPACITY = appSettings?.class_capacity ?? 10;
 
@@ -94,11 +97,34 @@ const Schedule = () => {
     return { start, end };
   }, [daysToDisplay]);
 
-  const { data: classes, isLoading: isLoadingClasses } = useQuery({
+  const { data: classes, isLoading: isLoadingClasses, isFetching } = useQuery({
     queryKey: ['classes', dateRange.start, dateRange.end],
     queryFn: () => fetchClasses(dateRange.start, dateRange.end),
     staleTime: 1000 * 60 * 3,
+    keepPreviousData: true, // Otimização: Mantém dados antigos visíveis durante o carregamento
   });
+
+  // Otimização: Pré-carregamento inteligente de dados
+  useEffect(() => {
+    const weeksToPrefetch = viewMode === 'week' ? 1 : 2;
+    const nextDate = addWeeks(currentDate, weeksToPrefetch);
+    const prevDate = subWeeks(currentDate, weeksToPrefetch);
+
+    const nextRangeStart = startOfDay(startOfWeek(nextDate, { weekStartsOn: 1 })).toISOString();
+    const nextRangeEnd = endOfDay(addDays(startOfWeek(nextDate, { weekStartsOn: 1 }), viewMode === 'week' ? 4 : 9)).toISOString();
+    
+    const prevRangeStart = startOfDay(startOfWeek(prevDate, { weekStartsOn: 1 })).toISOString();
+    const prevRangeEnd = endOfDay(addDays(startOfWeek(prevDate, { weekStartsOn: 1 }), viewMode === 'week' ? 4 : 9)).toISOString();
+
+    queryClient.prefetchQuery({
+      queryKey: ['classes', nextRangeStart, nextRangeEnd],
+      queryFn: () => fetchClasses(nextRangeStart, nextRangeEnd),
+    });
+    queryClient.prefetchQuery({
+      queryKey: ['classes', prevRangeStart, prevRangeEnd],
+      queryFn: () => fetchClasses(prevRangeStart, prevRangeEnd),
+    });
+  }, [dateRange, viewMode, queryClient, currentDate]);
 
   const classesBySlot = useMemo(() => {
     if (!classes) return new Map<string, ClassEvent[]>();
@@ -169,7 +195,7 @@ const Schedule = () => {
           <Button variant={viewMode === 'twoWeeks' ? 'default' : 'outline'} onClick={() => handleViewModeChange('twoWeeks')}>15 Dias</Button>
         </div>
       </div>
-      <Card className="flex-1 overflow-auto shadow-subtle-glow">
+      <Card className={cn("flex-1 overflow-auto shadow-subtle-glow transition-opacity", isFetching ? "opacity-75" : "opacity-100")}>
         <div className="min-w-max">
           <div className="grid sticky top-0 bg-card z-10 border-b" style={{ gridTemplateColumns: `80px repeat(${daysToDisplay.length}, 1fr)` }}>
             <div className="p-2 border-r font-semibold">Horário</div>
@@ -180,7 +206,7 @@ const Schedule = () => {
               </div>
             ))}
           </div>
-          {isLoading ? (
+          {isLoading && !classes ? ( // Mostrar Skeleton apenas no carregamento inicial
             HOURS.map(hour => (
               <div key={hour} className="grid border-b" style={{ gridTemplateColumns: `80px repeat(${daysToDisplay.length}, 1fr)` }}>
                 <div className="p-2 border-r"><Skeleton className="h-5 w-12" /></div>
