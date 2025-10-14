@@ -54,12 +54,11 @@ interface AddClassDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   quickAddSlot?: { date: Date; hour: number } | null;
-  onQuickAdd?: (date: Date, hour: number) => void;
 }
 
-// Horários disponíveis (6h às 21h)
-const availableHours = Array.from({ length: 16 }, (_, i) => {
-  const hour = i + 6;
+// Horários disponíveis (7h às 20h)
+const availableHours = Array.from({ length: 14 }, (_, i) => {
+  const hour = i + 7;
   return {
     value: `${hour.toString().padStart(2, '0')}:00`,
     label: `${hour.toString().padStart(2, '0')}:00`,
@@ -76,7 +75,7 @@ const fetchAllStudents = async (): Promise<StudentOption[]> => {
   return data || [];
 };
 
-const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, onQuickAdd }: AddClassDialogProps) => {
+const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot }: AddClassDialogProps) => {
   const queryClient = useQueryClient();
   const { control, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<ClassFormData>({
     resolver: zodResolver(classSchema),
@@ -121,14 +120,10 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, onQuickAdd }: AddC
 
   const mutation = useMutation({
     mutationFn: async (formData: ClassFormData) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Usuário não autenticado.');
-
       const classTitle = formData.student_id
-        ? students?.find(s => s.id === formData.student_id)?.name || 'Aula com Aluno'
-        : formData.title;
+        ? students?.find(s => s.id === formData.student_id)?.name || 'Aula'
+        : formData.title!;
 
-      // Criar datetime combinando data e hora
       const [hours, minutes] = formData.time.split(':');
       const dateTime = set(new Date(formData.date), {
         hours: parseInt(hours),
@@ -139,15 +134,14 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, onQuickAdd }: AddC
       
       const startUtc = fromZonedTime(dateTime, Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
       
-      const dataToSubmit = {
-        user_id: user.id,
-        title: classTitle,
-        start_time: startUtc,
-        duration_minutes: 60,
-        notes: formData.notes,
-        student_id: formData.student_id || null,
-      };
-      const { error } = await supabase.from('classes').insert([dataToSubmit]);
+      const { error } = await supabase.rpc('create_class_with_attendee', {
+        p_title: classTitle,
+        p_start_time: startUtc,
+        p_duration_minutes: 60,
+        p_notes: formData.notes || '',
+        p_student_id: formData.student_id || null,
+      });
+
       if (error) throw error;
     },
     onSuccess: () => {
@@ -165,142 +159,119 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, onQuickAdd }: AddC
     mutation.mutate(data);
   };
 
-  const handleQuickAdd = () => {
-    if (quickAddSlot && onQuickAdd) {
-      onQuickAdd(quickAddSlot.date, quickAddSlot.hour);
-    }
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Agendar Nova Aula</DialogTitle>
         </DialogHeader>
-        {quickAddSlot ? (
-          <div className="py-4">
-            <p className="text-center text-muted-foreground mb-4">
-              Agendamento rápido para {format(quickAddSlot.date, 'dd/MM/yyyy')} às {quickAddSlot.hour}:00
-            </p>
-            <div className="flex justify-center gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleQuickAdd} disabled={mutation.isPending}>
-                {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Confirmar Agendamento
-              </Button>
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="student_id">Aluno (Opcional)</Label>
+              <Controller
+                name="student_id"
+                control={control}
+                render={({ field }) => (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className={cn(
+                          "w-full justify-between",
+                          !field.value && "text-muted-foreground"
+                        )}
+                        disabled={isLoadingStudents}
+                      >
+                        {field.value
+                          ? students?.find((student) => student.id === field.value)?.name
+                          : "Selecione um aluno..."}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                      <Command>
+                        <CommandInput placeholder="Buscar aluno..." />
+                        <CommandEmpty>Nenhum aluno encontrado.</CommandEmpty>
+                        <CommandGroup>
+                          {students?.map((student) => (
+                            <CommandItem
+                              value={student.name}
+                              key={student.id}
+                              onSelect={() => {
+                                field.onChange(student.id);
+                                setValue('title', `Aula com ${student.name}`);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  student.id === field.value ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {student.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              />
+              {errors.student_id && <p className="text-sm text-destructive mt-1">{errors.student_id.message}</p>}
+            </div>
+
+            {!selectedStudentId && (
+              <div className="space-y-2">
+                <Label htmlFor="title">Título da Aula</Label>
+                <Controller name="title" control={control} render={({ field }) => <Input id="title" {...field} />} />
+                {errors.title && <p className="text-sm text-destructive mt-1">{errors.title.message}</p>}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="date">Data</Label>
+              <Controller name="date" control={control} render={({ field }) => <Input id="date" type="date" {...field} />} />
+              {errors.date && <p className="text-sm text-destructive mt-1">{errors.date.message}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="time">Horário</Label>
+              <Controller
+                name="time"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o horário..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableHours.map(hour => (
+                        <SelectItem key={hour.value} value={hour.value}>
+                          {hour.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.time && <p className="text-sm text-destructive mt-1">{errors.time.message}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notas (Opcional)</Label>
+              <Controller name="notes" control={control} render={({ field }) => <Textarea id="notes" {...field} />} />
             </div>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit(onSubmit)}>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="student_id">Aluno (Opcional)</Label>
-                <Controller
-                  name="student_id"
-                  control={control}
-                  render={({ field }) => (
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          className={cn(
-                            "w-full justify-between",
-                            !field.value && "text-muted-foreground"
-                          )}
-                          disabled={isLoadingStudents}
-                        >
-                          {field.value
-                            ? students?.find((student) => student.id === field.value)?.name
-                            : "Selecione um aluno..."}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                        <Command>
-                          <CommandInput placeholder="Buscar aluno..." />
-                          <CommandEmpty>Nenhum aluno encontrado.</CommandEmpty>
-                          <CommandGroup>
-                            {students?.map((student) => (
-                              <CommandItem
-                                value={student.name}
-                                key={student.id}
-                                onSelect={() => {
-                                  field.onChange(student.id);
-                                  setValue('title', `Aula com ${student.name}`);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    student.id === field.value ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
-                                {student.name}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  )}
-                />
-                {errors.student_id && <p className="text-sm text-destructive mt-1">{errors.student_id.message}</p>}
-              </div>
-
-              {!selectedStudentId && (
-                <div className="space-y-2">
-                  <Label htmlFor="title">Título da Aula</Label>
-                  <Controller name="title" control={control} render={({ field }) => <Input id="title" {...field} />} />
-                  {errors.title && <p className="text-sm text-destructive mt-1">{errors.title.message}</p>}
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="date">Data</Label>
-                <Controller name="date" control={control} render={({ field }) => <Input id="date" type="date" {...field} />} />
-                {errors.date && <p className="text-sm text-destructive mt-1">{errors.date.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="time">Horário</Label>
-                <Controller
-                  name="time"
-                  control={control}
-                  render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o horário..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableHours.map(hour => (
-                          <SelectItem key={hour.value} value={hour.value}>
-                            {hour.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-                {errors.time && <p className="text-sm text-destructive mt-1">{errors.time.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notas (Opcional)</Label>
-                <Controller name="notes" control={control} render={({ field }) => <Textarea id="notes" {...field} />} />
-              </div>
-            </div>
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button type="button" variant="secondary">Cancelar</Button>
-              </DialogClose>
-              <Button type="submit" disabled={mutation.isPending}>
-                {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Agendar
-              </Button>
-            </DialogFooter>
-          </form>
-        )}
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="secondary">Cancelar</Button>
+            </DialogClose>
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Agendar
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

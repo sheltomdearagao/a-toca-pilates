@@ -1,21 +1,19 @@
 import { useState, useMemo, useCallback, memo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { PlusCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import AddClassDialog from '@/components/schedule/AddClassDialog';
 import ClassDetailsDialog from '@/components/schedule/ClassDetailsDialog';
 import { ClassEvent } from '@/types/schedule';
 import { StudentOption } from '@/types/student';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import ColoredSeparator from "@/components/ColoredSeparator";
-import { parseISO, format, addDays, startOfDay, endOfDay, startOfWeek, isToday, set, isWeekend, addWeeks, subWeeks } from 'date-fns';
+import { parseISO, format, addDays, startOfDay, endOfDay, startOfWeek, isToday, isWeekend, addWeeks, subWeeks } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { showError, showSuccess } from '@/utils/toast';
-import { fromZonedTime } from 'date-fns-tz';
 
 // Horários reduzidos: 7h às 20h (14 slots)
 const HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
@@ -35,7 +33,7 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
     .limit(MAX_CLASSES_PER_LOAD);
   
   if (error) throw new Error(error.message);
-  return (data as any[]) || [];
+  return (data as any[] || []);
 };
 
 const fetchAllStudents = async (): Promise<StudentOption[]> => {
@@ -77,7 +75,6 @@ const Schedule = () => {
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'twoWeeks'>('week');
   const [quickAddSlot, setQuickAddSlot] = useState<{ date: Date; hour: number } | null>(null);
 
-  const queryClient = useQueryClient();
   const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
   const CLASS_CAPACITY = appSettings?.class_capacity ?? 10;
 
@@ -150,23 +147,6 @@ const Schedule = () => {
     }
   }, [classesBySlot]);
 
-  const quickAddMutation = useMutation({
-    mutationFn: async ({ date, hour }: { date: Date; hour: number }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Usuário não autenticado.');
-      const startUtc = fromZonedTime(set(date, { hours: hour }), Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
-      const { error } = await supabase.from('classes').insert([{ user_id: user.id, title: 'Nova Aula', start_time: startUtc, duration_minutes: 60 }]);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['classes'] });
-      showSuccess('Aula agendada com sucesso!');
-      setIsAddFormOpen(false);
-      setQuickAddSlot(null);
-    },
-    onError: (error) => showError(error.message),
-  });
-
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between mb-6">
@@ -221,7 +201,7 @@ const Schedule = () => {
           )}
         </div>
       </Card>
-      <AddClassDialog isOpen={isAddFormOpen} onOpenChange={(open) => { setIsAddFormOpen(open); if (!open) setQuickAddSlot(null); }} quickAddSlot={quickAddSlot} onQuickAdd={(date, hour) => quickAddMutation.mutate({ date, hour })} />
+      <AddClassDialog isOpen={isAddFormOpen} onOpenChange={(open) => { setIsAddFormOpen(open); if (!open) setQuickAddSlot(null); }} quickAddSlot={quickAddSlot} />
       <ClassDetailsDialog isOpen={isDetailsOpen} onOpenChange={setIsDetailsOpen} classEvent={selectedEvent} classCapacity={CLASS_CAPACITY} />
     </div>
   );
