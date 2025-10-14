@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -16,8 +16,10 @@ import { showError, showSuccess } from '@/utils/toast';
 import { fromZonedTime } from 'date-fns-tz';
 
 const HOURS = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21];
+const MAX_CLASSES_PER_LOAD = 50; // Limite máximo de aulas por carregamento
 
 const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> => {
+  // Otimização: Buscar apenas campos essenciais e limitar resultados
   const { data, error } = await supabase
     .from('classes')
     .select(`
@@ -34,7 +36,8 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
     `)
     .gte('start_time', start)
     .lte('start_time', end)
-    .order('start_time', { ascending: true });
+    .order('start_time', { ascending: true })
+    .limit(MAX_CLASSES_PER_LOAD); // Limite de aulas carregadas
   
   if (error) throw new Error(error.message);
   
@@ -58,7 +61,6 @@ const Schedule = () => {
   const [selectedEvent, setSelectedEvent] = useState<Partial<ClassEvent> | null>(null);
   const [currentDate, setCurrentDate] = useState(() => {
     const today = new Date();
-    // Sempre começar na segunda-feira da semana atual
     return startOfWeek(today, { weekStartsOn: 1 });
   });
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'twoWeeks'>('week');
@@ -68,31 +70,23 @@ const Schedule = () => {
   const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
   const CLASS_CAPACITY = appSettings?.class_capacity ?? 10;
 
-  // Gerar dias para exibir baseado no modo de visualização
+  // Gerar dias para exibir baseado no modo de visualização (otimizado)
   const daysToDisplay = useMemo(() => {
+    const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+    
     if (viewMode === 'day') {
-      // Para visualização diária, mostrar apenas o dia atual (sempre segunda a sexta)
-      let displayDate = currentDate;
-      if (isWeekend(displayDate)) {
-        // Se for fim de semana, mostrar a segunda-feira da semana
-        displayDate = startOfWeek(displayDate, { weekStartsOn: 1 });
-      }
-      return [displayDate];
+      return [weekStart]; // Sempre mostrar segunda-feira para modo dia
     } 
     
     if (viewMode === 'week') {
-      // Semana: segunda a sexta
-      const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-      return Array.from({ length: 5 }, (_, i) => addDays(weekStart, i));
+      return Array.from({ length: 5 }, (_, i) => addDays(weekStart, i)); // Seg-Sex
     }
     
-    // twoWeeks: 10 dias úteis (2 semanas sem fins de semana)
-    const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-    const allDays = Array.from({ length: 14 }, (_, i) => addDays(weekStart, i));
-    return allDays.filter(day => !isWeekend(day));
+    // twoWeeks: máximo 10 dias úteis
+    return Array.from({ length: 10 }, (_, i) => addDays(weekStart, i)).filter(day => !isWeekend(day));
   }, [currentDate, viewMode]);
 
-  // Calcular range de datas para a query
+  // Calcular range de datas para a query (otimizado)
   const dateRange = useMemo(() => {
     if (daysToDisplay.length === 0) return { start: '', end: '' };
     
@@ -106,10 +100,11 @@ const Schedule = () => {
     queryKey: ['classes', dateRange.start, dateRange.end],
     queryFn: () => fetchClasses(dateRange.start, dateRange.end),
     enabled: !!dateRange.start && !!dateRange.end,
-    staleTime: 1000 * 60 * 5, // Cache por 5 minutos
+    staleTime: 1000 * 60 * 2, // Cache reduzido para 2 minutos
+    gcTime: 1000 * 60 * 5, // Garbage collection após 5 minutos
   });
 
-  // Mapa otimizado de aulas por slot horário
+  // Mapa otimizado de aulas por slot horário (usando Map para O(1) lookup)
   const classesBySlot = useMemo(() => {
     if (!classes || classes.length === 0) return new Map<string, ClassEvent[]>();
 
@@ -121,10 +116,12 @@ const Schedule = () => {
       const dayKey = format(classStart, 'yyyy-MM-dd');
       const slotKey = `${dayKey}-${hour.toString().padStart(2, '0')}`;
       
-      if (!map.has(slotKey)) {
-        map.set(slotKey, []);
+      const slotClasses = map.get(slotKey);
+      if (slotClasses) {
+        slotClasses.push(classEvent);
+      } else {
+        map.set(slotKey, [classEvent]);
       }
-      map.get(slotKey)!.push(classEvent);
     }
     
     return map;
@@ -132,47 +129,47 @@ const Schedule = () => {
 
   const isLoading = isLoadingSettings || isLoadingClasses;
 
-  // Navegação simplificada
-  const handlePrevious = () => {
-    if (viewMode === 'day') {
-      // Para dia, pular fins de semana
-      let newDate = addDays(currentDate, -1);
-      while (isWeekend(newDate)) {
-        newDate = addDays(newDate, -1);
+  // Navegação otimizada com useCallback
+  const handlePrevious = useCallback(() => {
+    setCurrentDate(prev => {
+      if (viewMode === 'day') {
+        let newDate = addDays(prev, -1);
+        while (isWeekend(newDate)) {
+          newDate = addDays(newDate, -1);
+        }
+        return newDate;
+      } else {
+        const weeksToSubtract = viewMode === 'week' ? 1 : 2;
+        return subWeeks(prev, weeksToSubtract);
       }
-      setCurrentDate(newDate);
-    } else {
-      // Para semana/duas semanas, mover por semanas
-      const weeksToSubtract = viewMode === 'week' ? 1 : 2;
-      setCurrentDate(prev => subWeeks(prev, weeksToSubtract));
-    }
-  };
+    });
+  }, [viewMode]);
 
-  const handleNext = () => {
-    if (viewMode === 'day') {
-      // Para dia, pular fins de semana
-      let newDate = addDays(currentDate, 1);
-      while (isWeekend(newDate)) {
-        newDate = addDays(newDate, 1);
+  const handleNext = useCallback(() => {
+    setCurrentDate(prev => {
+      if (viewMode === 'day') {
+        let newDate = addDays(prev, 1);
+        while (isWeekend(newDate)) {
+          newDate = addDays(newDate, 1);
+        }
+        return newDate;
+      } else {
+        const weeksToAdd = viewMode === 'week' ? 1 : 2;
+        return addWeeks(prev, weeksToAdd);
       }
-      setCurrentDate(newDate);
-    } else {
-      // Para semana/duas semanas, mover por semanas
-      const weeksToAdd = viewMode === 'week' ? 1 : 2;
-      setCurrentDate(prev => addWeeks(prev, weeksToAdd));
-    }
-  };
+    });
+  }, [viewMode]);
 
-  const handleToday = () => {
+  const handleToday = useCallback(() => {
     const today = new Date();
     setCurrentDate(startOfWeek(today, { weekStartsOn: 1 }));
-  };
+  }, []);
 
-  const handleViewModeChange = (newMode: 'day' | 'week' | 'twoWeeks') => {
+  const handleViewModeChange = useCallback((newMode: 'day' | 'week' | 'twoWeeks') => {
     setViewMode(newMode);
-  };
+  }, []);
 
-  const handleClassClick = (classEvent: ClassEvent) => {
+  const handleClassClick = useCallback((classEvent: ClassEvent) => {
     setSelectedEvent({
       id: classEvent.id,
       title: classEvent.title,
@@ -181,9 +178,9 @@ const Schedule = () => {
       student_id: classEvent.student_id,
     });
     setDetailsOpen(true);
-  };
+  }, []);
 
-  const handleCellClick = (day: Date, hour: number) => {
+  const handleCellClick = useCallback((day: Date, hour: number) => {
     const slotKey = `${format(day, 'yyyy-MM-dd')}-${hour.toString().padStart(2, '0')}`;
     const classesInSlot = classesBySlot.get(slotKey) || [];
     
@@ -191,7 +188,7 @@ const Schedule = () => {
       setQuickAddSlot({ date: day, hour });
       setAddFormOpen(true);
     }
-  };
+  }, [classesBySlot]);
 
   const quickAddMutation = useMutation({
     mutationFn: async ({ date, hour }: { date: Date; hour: number }) => {
@@ -229,6 +226,71 @@ const Schedule = () => {
       showError(error.message);
     },
   });
+
+  // Componente otimizado para célula da grade
+  const ScheduleCell = useMemo(() => {
+    return ({ day, hour }: { day: Date; hour: number }) => {
+      const slotKey = `${format(day, 'yyyy-MM-dd')}-${hour.toString().padStart(2, '0')}`;
+      const classesInSlot = classesBySlot.get(slotKey) || [];
+
+      return (
+        <div 
+          className={cn(
+            "p-1 border-r min-h-[60px] transition-colors cursor-pointer",
+            isToday(day) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30",
+            classesInSlot.length === 0 && "hover:bg-primary/10"
+          )}
+          onClick={() => handleCellClick(day, hour)}
+        >
+          {classesInSlot.length > 0 ? (
+            <div className="space-y-1">
+              {classesInSlot.slice(0, 3).map(classEvent => { // Limitar a 3 aulas por célula
+                const attendeeCount = classEvent.class_attendees[0]?.count ?? 0;
+                const eventTitle = classEvent.student_id && classEvent.students 
+                  ? `${classEvent.students.name}` 
+                  : classEvent.title || 'Aula';
+
+                return (
+                  <div
+                    key={classEvent.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleClassClick(classEvent);
+                    }}
+                    className={cn(
+                      "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-sm",
+                      attendeeCount >= CLASS_CAPACITY
+                        ? 'bg-destructive text-white'
+                        : attendeeCount >= CLASS_CAPACITY - 3
+                        ? 'bg-accent text-accent-foreground'
+                        : 'bg-primary text-white'
+                    )}
+                  >
+                    <div className="font-semibold truncate">{eventTitle}</div>
+                    <div className="text-[10px] opacity-90">
+                      {attendeeCount}/{CLASS_CAPACITY} alunos
+                    </div>
+                  </div>
+                );
+              })}
+              {classesInSlot.length > 3 && (
+                <div className="text-xs text-muted-foreground text-center">
+                  +{classesInSlot.length - 3} mais
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="h-full flex items-center justify-center text-xs text-muted-foreground opacity-50">
+              <div className="text-center">
+                <div className="text-lg">+</div>
+                <div>Agendar</div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+  }, [classesBySlot, handleCellClick, handleClassClick, CLASS_CAPACITY]);
 
   return (
     <div className="h-full flex flex-col">
@@ -299,69 +361,15 @@ const Schedule = () => {
               ))}
             </div>
 
-            {/* Grid de horários */}
+            {/* Grid de horários - renderização otimizada */}
             {HOURS.map(hour => (
               <div key={hour} className="grid border-b" style={{ gridTemplateColumns: `80px repeat(${daysToDisplay.length}, 1fr)` }}>
                 <div className="p-2 border-r text-sm font-medium text-muted-foreground">
                   {`${hour}:00`}
                 </div>
-                {daysToDisplay.map(day => {
-                  const slotKey = `${format(day, 'yyyy-MM-dd')}-${hour.toString().padStart(2, '0')}`;
-                  const classesInSlot = classesBySlot.get(slotKey) || [];
-
-                  return (
-                    <div 
-                      key={`${day.toISOString()}-${hour}`} 
-                      className={cn(
-                        "p-1 border-r min-h-[60px] transition-colors cursor-pointer",
-                        isToday(day) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30",
-                        classesInSlot.length === 0 && "hover:bg-primary/10"
-                      )}
-                      onClick={() => handleCellClick(day, hour)}
-                    >
-                      {classesInSlot.length > 0 ? (
-                        <div className="space-y-1">
-                          {classesInSlot.map(classEvent => {
-                            const attendeeCount = classEvent.class_attendees[0]?.count ?? 0;
-                            const eventTitle = classEvent.student_id && classEvent.students 
-                              ? `${classEvent.students.name}` 
-                              : classEvent.title || 'Aula';
-
-                            return (
-                              <div
-                                key={classEvent.id}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleClassClick(classEvent);
-                                }}
-                                className={cn(
-                                  "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-sm",
-                                  attendeeCount >= CLASS_CAPACITY
-                                    ? 'bg-destructive text-white'
-                                    : attendeeCount >= CLASS_CAPACITY - 3
-                                    ? 'bg-accent text-accent-foreground'
-                                    : 'bg-primary text-white'
-                                )}
-                              >
-                                <div className="font-semibold truncate">{eventTitle}</div>
-                                <div className="text-[10px] opacity-90">
-                                  {attendeeCount}/{CLASS_CAPACITY} alunos
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="h-full flex items-center justify-center text-xs text-muted-foreground opacity-50">
-                          <div className="text-center">
-                            <div className="text-lg">+</div>
-                            <div>Agendar</div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                {daysToDisplay.map(day => (
+                  <ScheduleCell key={`${day.toISOString()}-${hour}`} day={day} hour={hour} />
+                ))}
               </div>
             ))}
           </div>
