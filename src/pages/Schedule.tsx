@@ -53,7 +53,7 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
   }));
 };
 
-// Helper para gerar slots de horário por hora (excluindo sábado)
+// Helper para gerar slots de horário por hora (excluindo sábado e domingo)
 const generateTimeSlots = (start: Date, end: Date, capacity: number): any[] => {
   const slots = [];
   let current = new Date(start);
@@ -63,8 +63,8 @@ const generateTimeSlots = (start: Date, end: Date, capacity: number): any[] => {
 
   while (current < end) {
     const nextHour = addHours(current, 1);
-    // Apenas gerar slots dentro do horário de funcionamento (6h às 22h) e excluir sábado (6)
-    if (current.getHours() >= 6 && current.getHours() < 22 && current.getDay() !== 6) {
+    // Apenas gerar slots dentro do horário de funcionamento (6h às 22h) e excluir sábado (6) e domingo (0)
+    if (current.getHours() >= 6 && current.getHours() < 22 && current.getDay() !== 6 && current.getDay() !== 0) {
       slots.push({
         id: `slot-${format(current, 'yyyy-MM-dd-HH')}`, // ID único para cada slot de hora
         start: current.toISOString(),
@@ -269,7 +269,7 @@ const Schedule = () => {
                 eventOverlap={true}
                 eventDisplay='block'
                 weekends={false} // Remover finais de semana
-                firstDay={0} // Começar na domingo (mas weekends=false remove sábado e domingo)
+                firstDay={1} // Começar na segunda-feira
               />
             </div>
           )}

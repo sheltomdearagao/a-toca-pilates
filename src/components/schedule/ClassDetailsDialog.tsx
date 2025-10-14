@@ -184,7 +184,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
       const dataToSubmit = {
         title: classTitle,
         start_time: startUtc,
-        duration_minutes: formData.duration_minutes,
+        // Removido duration_minutes pois não existe no formData e todas as aulas são de 1 hora
         notes: formData.notes,
         student_id: formData.student_id || null,
       };
