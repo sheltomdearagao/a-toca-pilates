@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -121,6 +121,24 @@ const Schedule = () => {
     staleTime: 1000 * 60 * 1,
   });
 
+  // Otimização: Pré-processar as aulas em um mapa para busca rápida
+  const classesBySlot = useMemo(() => {
+    if (!classes) return new Map<string, ClassEvent[]>();
+
+    const map = new Map<string, ClassEvent[]>();
+    for (const classEvent of classes) {
+      const classStart = parseISO(classEvent.start_time);
+      const key = format(classStart, 'yyyy-MM-dd-HH'); // Chave: "2023-10-27-09"
+      const slotClasses = map.get(key);
+      if (slotClasses) {
+        slotClasses.push(classEvent);
+      } else {
+        map.set(key, [classEvent]);
+      }
+    }
+    return map;
+  }, [classes]);
+
   const isLoading = isLoadingSettings || isLoadingClasses;
 
   // Lógica de navegação corrigida
@@ -152,13 +170,6 @@ const Schedule = () => {
     setCurrentDate(today);
   };
 
-  const getClassesForSlot = (day: Date, hour: number) => {
-    return classes?.filter(c => {
-      const classStart = parseISO(c.start_time);
-      return isSameDay(classStart, day) && classStart.getHours() === hour;
-    }) || [];
-  };
-
   const handleClassClick = (classEvent: ClassEvent) => {
     setSelectedEvent({
       id: classEvent.id,
@@ -172,10 +183,9 @@ const Schedule = () => {
   };
 
   const handleCellClick = (day: Date, hour: number) => {
-    const classesInSlot = getClassesForSlot(day, hour);
-    const totalAttendees = classesInSlot.reduce((sum, c) => sum + (c.class_attendees[0]?.count ?? 0), 0);
-    const isFull = totalAttendees >= CLASS_CAPACITY;
-
+    const slotKey = `${format(day, 'yyyy-MM-dd')}-${hour.toString().padStart(2, '0')}`;
+    const classesInSlot = classesBySlot.get(slotKey) || [];
+    
     // Se a célula estiver vazia, abre o agendamento rápido
     if (classesInSlot.length === 0) {
       setQuickAddSlot({ date: day, hour });
@@ -225,7 +235,7 @@ const Schedule = () => {
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Agenda de Aulas</h1>
-        <Button onClick={() => setAddFormOpen(true)}>
+        <Button onClick={() => { setQuickAddSlot(null); setAddFormOpen(true); }}>
           <PlusCircle className="w-4 h-4 mr-2" />
           Agendar Aula
         </Button>
@@ -290,16 +300,16 @@ const Schedule = () => {
               ))}
             </div>
 
-            {/* Grid de horários - RENDERIZAÇÃO ULTRA RÁPIDA */}
+            {/* Grid de horários */}
             {HOURS.map(hour => (
               <div key={hour} className="grid border-b" style={{ gridTemplateColumns: `80px repeat(${daysToDisplay.length}, 1fr)` }}>
                 <div className="p-2 border-r text-sm font-medium text-muted-foreground">
                   {`${hour}:00`}
                 </div>
                 {daysToDisplay.map(day => {
-                  const classesInSlot = getClassesForSlot(day, hour);
+                  const slotKey = `${format(day, 'yyyy-MM-dd')}-${hour.toString().padStart(2, '0')}`;
+                  const classesInSlot = classesBySlot.get(slotKey) || [];
                   const totalAttendees = classesInSlot.reduce((sum, c) => sum + (c.class_attendees[0]?.count ?? 0), 0);
-                  const isFull = totalAttendees >= CLASS_CAPACITY;
 
                   return (
                     <div 
@@ -362,7 +372,10 @@ const Schedule = () => {
       
       <AddClassDialog 
         isOpen={isAddFormOpen} 
-        onOpenChange={setAddFormOpen} 
+        onOpenChange={(isOpen) => {
+          setAddFormOpen(isOpen);
+          if (!isOpen) setQuickAddSlot(null); // Limpar o slot ao fechar
+        }} 
         quickAddSlot={quickAddSlot}
         onQuickAdd={(date, hour) => quickAddMutation.mutate({ date, hour })}
       />
