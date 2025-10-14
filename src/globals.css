@@ -54,20 +54,20 @@
     --sidebar-gradient-end: 210 30% 94%;
 
     /* Cores de Status */
-    --status-active: 142 60% 35%; /* Verde mais profundo */
-    --status-inactive: 210 10% 50%; /* Cinza-azul ligeiramente mais escuro */
-    --status-experimental: 40 80% 50%; /* Amarelo-laranja mais profundo */
-    --status-blocked: 0 70% 45%; /* Vermelho mais profundo */
+    --status-active: 142 70% 40%; /* Verde mais vibrante */
+    --status-inactive: 210 15% 60%; /* Cinza-azul mais claro */
+    --status-experimental: 40 90% 55%; /* Amarelo-laranja mais vibrante */
+    --status-blocked: 0 80% 50%; /* Vermelho mais vibrante */
 
     /* Cores de Presença */
-    --attendance-scheduled: 210 50% 60%; /* Azul mais profundo */
-    --attendance-present: 142 60% 35%; /* Verde mais profundo */
-    --attendance-absent: 0 70% 45%; /* Vermelho mais profundo */
+    --attendance-scheduled: 210 60% 65%; /* Azul mais vibrante */
+    --attendance-present: 142 70% 40%; /* Verde mais vibrante */
+    --attendance-absent: 0 80% 50%; /* Vermelho mais vibrante */
 
     /* Cores de Pagamento */
-    --payment-pending: 40 80% 50%; /* Amarelo-laranja mais profundo */
-    --payment-paid: 142 60% 35%; /* Verde mais profundo */
-    --payment-overdue: 0 70% 45%; /* Vermelho mais profundo */
+    --payment-pending: 40 90% 55%; /* Amarelo-laranja mais vibrante */
+    --payment-paid: 142 70% 40%; /* Verde mais vibrante */
+    --payment-overdue: 0 80% 50%; /* Vermelho mais vibrante */
 
     /* New subtle light/color touches */
     --glow-h: 210;
@@ -132,20 +132,20 @@
     --sidebar-gradient-end: 210 20% 91%;
 
     /* Cores de Status (Admin - Claro) */
-    --status-active: 142 60% 35%;
-    --status-inactive: 210 10% 50%;
-    --status-experimental: 40 80% 50%;
-    --status-blocked: 0 70% 45%;
+    --status-active: 142 70% 40%;
+    --status-inactive: 210 15% 60%;
+    --status-experimental: 40 90% 55%;
+    --status-blocked: 0 80% 50%;
 
     /* Cores de Presença (Admin - Claro) */
-    --attendance-scheduled: 210 50% 60%;
-    --attendance-present: 142 60% 35%;
-    --attendance-absent: 0 70% 45%;
+    --attendance-scheduled: 210 60% 65%;
+    --attendance-present: 142 70% 40%;
+    --attendance-absent: 0 80% 50%;
 
     /* Cores de Pagamento (Admin - Claro) */
-    --payment-pending: 40 80% 50%;
-    --payment-paid: 142 60% 35%;
-    --payment-overdue: 0 70% 45%;
+    --payment-pending: 40 90% 55%;
+    --payment-paid: 142 70% 40%;
+    --payment-overdue: 0 80% 50%;
 
     --glow-h: 210;
     --glow-s: 20%;

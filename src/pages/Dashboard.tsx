@@ -84,28 +84,28 @@ const Dashboard = () => {
           value={stats?.activeStudents ?? 0}
           icon={<Users className="h-6 w-6" />}
           isLoading={isLoading}
-          variant="default" 
+          variant="bordered-green" // Usando a nova variante de borda verde
         />
         <StatCard
           title="Receita do Mês"
           value={stats?.monthlyRevenue ?? formatCurrency(0)}
           icon={<DollarSign className="h-6 w-6" />}
           isLoading={isLoading}
-          variant="default"
+          variant="bordered-green" // Usando a nova variante de borda verde
         />
         <StatCard
           title="Inadimplência"
           value={stats?.totalOverdue ?? formatCurrency(0)}
           icon={<AlertCircle className="h-6 w-6" />}
           isLoading={isLoading}
-          variant="default"
+          variant="bordered-red" // Usando a nova variante de borda vermelha
         />
         <StatCard
           title="Aulas Hoje"
           value={stats?.todayClasses ?? 0}
           icon={<Calendar className="h-6 w-6" />}
           isLoading={isLoading}
-          variant="bordered"
+          variant="bordered-yellow" // Usando a nova variante de borda amarela
         />
       </div>
       
