@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, memo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -15,11 +15,12 @@ import { cn } from '@/lib/utils';
 import { showError, showSuccess } from '@/utils/toast';
 import { fromZonedTime } from 'date-fns-tz';
 
-const HOURS = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21];
-const MAX_CLASSES_PER_LOAD = 20; // Reduzido para agilizar carregamento
+// Horários reduzidos: 7h às 20h (14 slots)
+const HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+const MAX_CLASSES_PER_LOAD = 15; // Reduzido ainda mais
 
 const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> => {
-  // Otimização: Buscar apenas campos essenciais e limitar resultados
+  // Query otimizada: buscar apenas dados essenciais
   const { data, error } = await supabase
     .from('classes')
     .select(`
@@ -37,7 +38,7 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
     .gte('start_time', start)
     .lte('start_time', end)
     .order('start_time', { ascending: true })
-    .limit(MAX_CLASSES_PER_LOAD); // Limite reduzido para agilizar
+    .limit(MAX_CLASSES_PER_LOAD);
   
   if (error) throw new Error(error.message);
   
@@ -55,6 +56,71 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
   }));
 };
 
+// Componente memoizado para célula da grade
+const ScheduleCell = memo(({ 
+  day, 
+  hour, 
+  classesInSlot, 
+  onCellClick, 
+  onClassClick, 
+  classCapacity 
+}: {
+  day: Date;
+  hour: number;
+  classesInSlot: ClassEvent[];
+  onCellClick: (day: Date, hour: number) => void;
+  onClassClick: (classEvent: ClassEvent) => void;
+  classCapacity: number;
+}) => {
+  const hasClass = classesInSlot.length > 0;
+  const classEvent = classesInSlot[0]; // Apenas a primeira aula do slot
+  const attendeeCount = classEvent?.class_attendees[0]?.count ?? 0;
+  const eventTitle = classEvent?.student_id && classEvent?.students 
+    ? `${classEvent.students.name}` 
+    : classEvent?.title || 'Aula';
+
+  return (
+    <div 
+      className={cn(
+        "p-1 border-r min-h-[50px] transition-colors cursor-pointer",
+        isToday(day) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30",
+        !hasClass && "hover:bg-primary/10"
+      )}
+      onClick={() => onCellClick(day, hour)}
+    >
+      {hasClass ? (
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            onClassClick(classEvent);
+          }}
+          className={cn(
+            "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-sm h-full flex flex-col justify-center",
+            attendeeCount >= classCapacity
+              ? 'bg-destructive text-white'
+              : attendeeCount >= classCapacity - 3
+              ? 'bg-accent text-accent-foreground'
+              : 'bg-primary text-white'
+          )}
+        >
+          <div className="font-semibold truncate">{eventTitle}</div>
+          <div className="text-[10px] opacity-90">
+            {attendeeCount}/{classCapacity} alunos
+          </div>
+        </div>
+      ) : (
+        <div className="h-full flex items-center justify-center text-xs text-muted-foreground opacity-50">
+          <div className="text-center">
+            <div className="text-sm">+</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
+ScheduleCell.displayName = 'ScheduleCell';
+
 const Schedule = () => {
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -70,24 +136,22 @@ const Schedule = () => {
   const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
   const CLASS_CAPACITY = appSettings?.class_capacity ?? 10;
 
-  // Gerar dias para exibir baseado no modo de visualização (corrigido para modo dia)
+  // Gerar dias para exibir baseado no modo de visualização
   const daysToDisplay = useMemo(() => {
     if (viewMode === 'day') {
-      // No modo dia, mostrar apenas o dia atual (ou o currentDate se navegado)
       return [currentDate];
     } 
     
     if (viewMode === 'week') {
       const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-      return Array.from({ length: 5 }, (_, i) => addDays(weekStart, i)); // Seg-Sex
+      return Array.from({ length: 5 }, (_, i) => addDays(weekStart, i));
     }
     
-    // twoWeeks: máximo 10 dias úteis
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
     return Array.from({ length: 10 }, (_, i) => addDays(weekStart, i)).filter(day => !isWeekend(day));
   }, [currentDate, viewMode]);
 
-  // Calcular range de datas para a query (otimizado)
+  // Calcular range de datas para a query
   const dateRange = useMemo(() => {
     if (daysToDisplay.length === 0) return { start: '', end: '' };
     
@@ -101,11 +165,11 @@ const Schedule = () => {
     queryKey: ['classes', dateRange.start, dateRange.end],
     queryFn: () => fetchClasses(dateRange.start, dateRange.end),
     enabled: !!dateRange.start && !!dateRange.end,
-    staleTime: 1000 * 60 * 5, // Cache aumentado para 5 minutos
-    gcTime: 1000 * 60 * 10, // Garbage collection após 10 minutos
+    staleTime: 1000 * 60 * 3, // Cache reduzido
+    gcTime: 1000 * 60 * 5,
   });
 
-  // Mapa otimizado de aulas por slot horário (usando Map para O(1) lookup)
+  // Mapa otimizado de aulas por slot horário
   const classesBySlot = useMemo(() => {
     if (!classes || classes.length === 0) return new Map<string, ClassEvent[]>();
 
@@ -117,12 +181,10 @@ const Schedule = () => {
       const dayKey = format(classStart, 'yyyy-MM-dd');
       const slotKey = `${dayKey}-${hour.toString().padStart(2, '0')}`;
       
-      const slotClasses = map.get(slotKey);
-      if (slotClasses) {
-        slotClasses.push(classEvent);
-      } else {
-        map.set(slotKey, [classEvent]);
+      if (!map.has(slotKey)) {
+        map.set(slotKey, []);
       }
+      map.get(slotKey)!.push(classEvent);
     }
     
     return map;
@@ -130,7 +192,7 @@ const Schedule = () => {
 
   const isLoading = isLoadingSettings || isLoadingClasses;
 
-  // Navegação otimizada com useCallback
+  // Callbacks memoizados
   const handlePrevious = useCallback(() => {
     setCurrentDate(prev => {
       if (viewMode === 'day') {
@@ -163,15 +225,11 @@ const Schedule = () => {
 
   const handleToday = useCallback(() => {
     const today = new Date();
-    setCurrentDate(today); // Para modo dia, definir diretamente o dia atual
+    setCurrentDate(startOfWeek(today, { weekStartsOn: 1 }));
   }, []);
 
   const handleViewModeChange = useCallback((newMode: 'day' | 'week' | 'twoWeeks') => {
     setViewMode(newMode);
-    // Quando mudar para dia, ajustar currentDate para hoje se necessário
-    if (newMode === 'day') {
-      setCurrentDate(new Date());
-    }
   }, []);
 
   const handleClassClick = useCallback((classEvent: ClassEvent) => {
@@ -231,70 +289,6 @@ const Schedule = () => {
       showError(error.message);
     },
   });
-
-  // Componente otimizado para célula da grade
-  const ScheduleCell = useMemo(() => {
-    return ({ day, hour }: { day: Date; hour: number }) => {
-      const slotKey = `${format(day, 'yyyy-MM-dd')}-${hour.toString().padStart(2, '0')}`;
-      const classesInSlot = classesBySlot.get(slotKey) || [];
-
-      return (
-        <div 
-          className={cn(
-            "p-1 border-r min-h-[60px] transition-colors cursor-pointer",
-            isToday(day) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30",
-            classesInSlot.length === 0 && "hover:bg-primary/10"
-          )}
-          onClick={() => handleCellClick(day, hour)}
-        >
-          {classesInSlot.length > 0 ? (
-            <div className="space-y-1">
-              {classesInSlot.slice(0, 2).map(classEvent => { // Limitado a 2 aulas por célula para agilizar
-                const attendeeCount = classEvent.class_attendees[0]?.count ?? 0;
-                const eventTitle = classEvent.student_id && classEvent.students 
-                  ? `${classEvent.students.name}` 
-                  : classEvent.title || 'Aula';
-
-                return (
-                  <div
-                    key={classEvent.id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleClassClick(classEvent);
-                    }}
-                    className={cn(
-                      "p-1 rounded text-xs transition-all hover:scale-[1.02] shadow-sm",
-                      attendeeCount >= CLASS_CAPACITY
-                        ? 'bg-destructive text-white'
-                        : attendeeCount >= CLASS_CAPACITY - 3
-                        ? 'bg-accent text-accent-foreground'
-                        : 'bg-primary text-white'
-                    )}
-                  >
-                    <div className="font-semibold truncate text-[10px]">{eventTitle}</div>
-                    <div className="text-[8px] opacity-90">
-                      {attendeeCount}/{CLASS_CAPACITY}
-                    </div>
-                  </div>
-                );
-              })}
-              {classesInSlot.length > 2 && (
-                <div className="text-[8px] text-muted-foreground text-center">
-                  +{classesInSlot.length - 2}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="h-full flex items-center justify-center text-xs text-muted-foreground opacity-50">
-              <div className="text-center">
-                <div className="text-sm">+</div>
-              </div>
-            </div>
-          )}
-        </div>
-      );
-    };
-  }, [classesBySlot, handleCellClick, handleClassClick, CLASS_CAPACITY]);
 
   return (
     <div className="h-full flex flex-col">
@@ -371,9 +365,22 @@ const Schedule = () => {
                 <div className="p-2 border-r text-sm font-medium text-muted-foreground">
                   {`${hour}:00`}
                 </div>
-                {daysToDisplay.map(day => (
-                  <ScheduleCell key={`${day.toISOString()}-${hour}`} day={day} hour={hour} />
-                ))}
+                {daysToDisplay.map(day => {
+                  const slotKey = `${format(day, 'yyyy-MM-dd')}-${hour.toString().padStart(2, '0')}`;
+                  const classesInSlot = classesBySlot.get(slotKey) || [];
+
+                  return (
+                    <ScheduleCell 
+                      key={`${day.toISOString()}-${hour}`}
+                      day={day}
+                      hour={hour}
+                      classesInSlot={classesInSlot}
+                      onCellClick={handleCellClick}
+                      onClassClick={handleClassClick}
+                      classCapacity={CLASS_CAPACITY}
+                    />
+                  );
+                })}
               </div>
             ))}
           </div>
