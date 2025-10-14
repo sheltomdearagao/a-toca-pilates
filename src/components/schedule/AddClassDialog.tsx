@@ -25,7 +25,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Check, ChevronsUpDown } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { format, parse, set } from 'date-fns';
+import { format, set } from 'date-fns';
 import { fromZonedTime } from 'date-fns-tz';
 import { StudentOption } from '@/types/student';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';

@@ -14,7 +14,6 @@ import AllTransactionsTable from "@/components/financial/AllTransactionsTable";
 import OverdueTransactionsTable from "@/components/financial/OverdueTransactionsTable";
 import AddEditTransactionDialog, { TransactionFormData } from "@/components/financial/AddEditTransactionDialog";
 import DeleteTransactionAlertDialog from "@/components/financial/DeleteTransactionAlertDialog";
-import RecurringExpenseTemplatesTab from "@/components/financial/RecurringExpenseTemplatesTab";
 import { showError, showSuccess } from "@/utils/toast";
 import ColoredSeparator from "@/components/ColoredSeparator"; // Importar o novo componente
 import { Card } from "@/components/ui/card"; // Importar Card para usar a sombra
@@ -223,10 +222,9 @@ const Financial = () => {
       <ColoredSeparator color="primary" className="my-6" /> {/* Separador colorido */}
 
       <Tabs defaultValue="overview">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="all">Todos os Lançamentos</TabsTrigger>
-          <TabsTrigger value="recurring-expenses">Modelos Recorrentes</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="mt-4 space-y-6"> {/* Adicionado espaçamento vertical */}
           <FinancialOverviewCards stats={stats} isLoading={isLoadingStats} formatCurrency={formatCurrency} />
@@ -242,9 +240,6 @@ const Financial = () => {
              onDelete={handleDelete}
              onMarkAsPaid={markAsPaidMutation.mutate}
            />
-        </TabsContent>
-        <TabsContent value="recurring-expenses" className="mt-4">
-          <RecurringExpenseTemplatesTab />
         </TabsContent>
       </Tabs>
 
