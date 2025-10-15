@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, MoreHorizontal } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import FinancialTableSkeleton from '@/components/financial/FinancialTableSkeleton'; // Reutilizando o skeleton de tabela
 
 interface StudentsTableProps {
   students: Student[] | undefined;
@@ -29,17 +30,13 @@ interface StudentsTableProps {
 
 const StudentsTable = ({ students, isLoading, onEdit, onDelete }: StudentsTableProps) => {
   if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return <FinancialTableSkeleton columns={5} rows={10} />; // Usando o skeleton com 5 colunas e 10 linhas
   }
 
   if (!students || students.length === 0) {
     return (
-      <Card className="flex flex-col items-center justify-center h-64 border-2 border-dashed border-primary/50 shadow-subtle-glow"> {/* Added shadow-subtle-glow */}
-        <Loader2 className="w-12 h-12 text-muted-foreground mb-4" /> {/* Changed to Loader2 for consistency with other loading states */}
+      <Card className="flex flex-col items-center justify-center h-64 border-2 border-dashed border-primary/50 shadow-subtle-glow">
+        <Loader2 className="w-12 h-12 text-muted-foreground mb-4" />
         <h3 className="text-lg font-semibold">Nenhum aluno encontrado</h3>
         <p className="text-sm text-muted-foreground">Comece adicionando o primeiro aluno.</p>
       </Card>
@@ -47,7 +44,7 @@ const StudentsTable = ({ students, isLoading, onEdit, onDelete }: StudentsTableP
   }
 
   return (
-    <Card className="shadow-subtle-glow"> {/* Added shadow-subtle-glow */}
+    <Card className="shadow-subtle-glow">
       <Table>
         <TableHeader>
           <TableRow>
