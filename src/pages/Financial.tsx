@@ -7,16 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlusCircle } from "lucide-react";
 import { format, startOfMonth, endOfMonth, parseISO, subMonths } from "date-fns";
-import { ptBR } from 'date-fns/locale/pt-BR'; // Corrigido o caminho de importação
+import { ptBR } from 'date-fns/locale/pt-BR';
 import FinancialOverviewCards from "@/components/financial/FinancialOverviewCards";
 import MonthlyFinancialChart from "@/components/financial/MonthlyFinancialChart";
 import AllTransactionsTable from "@/components/financial/AllTransactionsTable";
 import OverdueTransactionsTable from "@/components/financial/OverdueTransactionsTable";
 import AddEditTransactionDialog, { TransactionFormData } from "@/components/financial/AddEditTransactionDialog";
 import DeleteTransactionAlertDialog from "@/components/financial/DeleteTransactionAlertDialog";
+import FinancialTableSkeleton from "@/components/financial/FinancialTableSkeleton"; // Importar o novo componente
 import { showError, showSuccess } from "@/utils/toast";
-import ColoredSeparator from "@/components/ColoredSeparator"; // Importar o novo componente
-import { Card } from "@/components/ui/card"; // Importar Card para usar a sombra
+import ColoredSeparator from "@/components/ColoredSeparator";
+import { Card } from "@/components/ui/card";
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -42,23 +43,34 @@ const fetchFinancialStats = async () => {
   const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
 
-  const { data: revenueData, error: revenueError } = await supabase
-    .from('financial_transactions').select('amount').eq('type', 'revenue').eq('status', 'Pago')
-    .gte('paid_at', monthStart.toISOString()).lte('paid_at', monthEnd.toISOString());
-  if (revenueError) throw new Error(revenueError.message);
-  const monthlyRevenue = revenueData?.reduce((sum, t) => sum + t.amount, 0) || 0;
+  const [revenueResult, expenseResult, overdueResult] = await Promise.all([
+    supabase
+      .from('financial_transactions')
+      .select('amount')
+      .eq('type', 'revenue')
+      .eq('status', 'Pago')
+      .gte('paid_at', monthStart.toISOString())
+      .lte('paid_at', monthEnd.toISOString()),
+    supabase
+      .from('financial_transactions')
+      .select('amount')
+      .eq('type', 'expense')
+      .gte('created_at', monthStart.toISOString())
+      .lte('created_at', monthEnd.toISOString()),
+    supabase
+      .from('financial_transactions')
+      .select('amount')
+      .eq('type', 'revenue')
+      .or(`status.eq.Atrasado,and(status.eq.Pendente,due_date.lt.${now.toISOString()})`),
+  ]);
 
-  const { data: expenseData, error: expenseError } = await supabase
-    .from('financial_transactions').select('amount').eq('type', 'expense')
-    .gte('created_at', monthStart.toISOString()).lte('created_at', monthEnd.toISOString());
-  if (expenseError) throw new Error(expenseError.message);
-  const monthlyExpense = expenseData?.reduce((sum, t) => sum + t.amount, 0) || 0;
+  if (revenueResult.error) throw new Error(revenueResult.error.message);
+  if (expenseResult.error) throw new Error(expenseResult.error.message);
+  if (overdueResult.error) throw new Error(overdueResult.error.message);
 
-  const { data: overdueData, error: overdueError } = await supabase
-    .from('financial_transactions').select('amount').eq('type', 'revenue')
-    .or(`status.eq.Atrasado,and(status.eq.Pendente,due_date.lt.${now.toISOString()})`);
-  if (overdueError) throw new Error(overdueError.message);
-  const totalOverdue = overdueData?.reduce((sum, t) => sum + t.amount, 0) || 0;
+  const monthlyRevenue = revenueResult.data?.reduce((sum, t) => sum + t.amount, 0) || 0;
+  const monthlyExpense = expenseResult.data?.reduce((sum, t) => sum + t.amount, 0) || 0;
+  const totalOverdue = overdueResult.data?.reduce((sum, t) => sum + t.amount, 0) || 0;
 
   return { monthlyRevenue, monthlyExpense, totalOverdue };
 };
@@ -76,36 +88,47 @@ const fetchOverdueTransactions = async (): Promise<FinancialTransaction[]> => {
 
 const fetchMonthlyChartData = async () => {
   const chartData = [];
+  const promises = [];
+
   for (let i = 5; i >= 0; i--) { // Last 6 months
     const date = subMonths(new Date(), i);
     const monthStart = startOfMonth(date);
     const monthEnd = endOfMonth(date);
 
-    const { data: revenueData, error: revenueError } = await supabase
-      .from('financial_transactions')
-      .select('amount')
-      .eq('type', 'revenue')
-      .eq('status', 'Pago')
-      .gte('paid_at', monthStart.toISOString())
-      .lte('paid_at', monthEnd.toISOString());
-    if (revenueError) throw new Error(revenueError.message);
-    const monthlyRevenue = revenueData?.reduce((sum, t) => sum + t.amount, 0) || 0;
+    promises.push(
+      (async () => {
+        const [revenueResult, expenseResult] = await Promise.all([
+          supabase
+            .from('financial_transactions')
+            .select('amount')
+            .eq('type', 'revenue')
+            .eq('status', 'Pago')
+            .gte('paid_at', monthStart.toISOString())
+            .lte('paid_at', monthEnd.toISOString()),
+          supabase
+            .from('financial_transactions')
+            .select('amount')
+            .eq('type', 'expense')
+            .gte('created_at', monthStart.toISOString())
+            .lte('created_at', monthEnd.toISOString()),
+        ]);
 
-    const { data: expenseData, error: expenseError } = await supabase
-      .from('financial_transactions')
-      .select('amount')
-      .eq('type', 'expense')
-      .gte('created_at', monthStart.toISOString())
-      .lte('created_at', monthEnd.toISOString());
-    if (expenseError) throw new Error(expenseError.message);
-    const monthlyExpense = expenseData?.reduce((sum, t) => sum + t.amount, 0) || 0;
+        if (revenueResult.error) throw new Error(revenueResult.error.message);
+        if (expenseResult.error) throw new Error(expenseResult.error.message);
 
-    chartData.push({
-      month: format(date, 'MMM/yy', { locale: ptBR }),
-      Receita: monthlyRevenue,
-      Despesa: monthlyExpense,
-    });
+        const monthlyRevenue = revenueResult.data?.reduce((sum, t) => sum + t.amount, 0) || 0;
+        const monthlyExpense = expenseResult.data?.reduce((sum, t) => sum + t.amount, 0) || 0;
+
+        return {
+          month: format(date, 'MMM/yy', { locale: ptBR }),
+          Receita: monthlyRevenue,
+          Despesa: monthlyExpense,
+        };
+      })()
+    );
   }
+  const results = await Promise.all(promises);
+  chartData.push(...results);
   return chartData;
 };
 
@@ -213,33 +236,48 @@ const Financial = () => {
   const onSubmitTransaction = (data: TransactionFormData) => { mutation.mutate(data); };
 
   return (
-    <div className="space-y-6"> {/* Adicionado espaçamento vertical */}
+    <div className="space-y-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Módulo Financeiro</h1>
         <Button onClick={handleAddNew}><PlusCircle className="w-4 h-4 mr-2" />Adicionar Lançamento</Button>
       </div>
 
-      <ColoredSeparator color="primary" className="my-6" /> {/* Separador colorido */}
+      <ColoredSeparator color="primary" className="my-6" />
 
       <Tabs defaultValue="overview">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="all">Todos os Lançamentos</TabsTrigger>
         </TabsList>
-        <TabsContent value="overview" className="mt-4 space-y-6"> {/* Adicionado espaçamento vertical */}
+        <TabsContent value="overview" className="mt-4 space-y-6">
           <FinancialOverviewCards stats={stats} isLoading={isLoadingStats} formatCurrency={formatCurrency} />
-          <ColoredSeparator color="accent" className="my-6" /> {/* Separador colorido */}
+          <ColoredSeparator color="accent" className="my-6" />
           <MonthlyFinancialChart data={monthlyChartData || []} isLoading={isLoadingMonthlyChart} />
+          <h2 className="text-2xl font-bold mb-4">Lançamentos Atrasados</h2>
+          {isLoadingOverdue ? (
+            <FinancialTableSkeleton columns={6} rows={3} />
+          ) : (
+            <OverdueTransactionsTable
+              overdueTransactions={overdueTransactions}
+              isLoading={isLoadingOverdue}
+              formatCurrency={formatCurrency}
+              onMarkAsPaid={markAsPaidMutation.mutate}
+            />
+          )}
         </TabsContent>
         <TabsContent value="all" className="mt-4">
-           <AllTransactionsTable
-             transactions={transactions}
-             isLoading={isLoadingTransactions}
-             formatCurrency={formatCurrency}
-             onEdit={handleEdit}
-             onDelete={handleDelete}
-             onMarkAsPaid={markAsPaidMutation.mutate}
-           />
+           {isLoadingTransactions ? (
+             <FinancialTableSkeleton columns={8} rows={10} />
+           ) : (
+             <AllTransactionsTable
+               transactions={transactions}
+               isLoading={isLoadingTransactions}
+               formatCurrency={formatCurrency}
+               onEdit={handleEdit}
+               onDelete={handleDelete}
+               onMarkAsPaid={markAsPaidMutation.mutate}
+             />
+           )}
         </TabsContent>
       </Tabs>
 

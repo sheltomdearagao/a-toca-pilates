@@ -23,7 +23,8 @@ import { Loader2, MoreHorizontal, Repeat, CheckCircle, Edit, Trash2 } from "luci
 import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import React from "react";
-import { Badge } from "@/components/ui/badge"; // Importar Badge
+import { Badge } from "@/components/ui/badge";
+import FinancialTableSkeleton from "./FinancialTableSkeleton"; // Importar o Skeleton
 
 interface AllTransactionsTableProps {
   transactions: FinancialTransaction[] | undefined;
@@ -43,15 +44,11 @@ const AllTransactionsTable = ({
   onMarkAsPaid,
 }: AllTransactionsTableProps) => {
   if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return <FinancialTableSkeleton columns={8} rows={10} />;
   }
 
   return (
-    <div className="bg-card rounded-lg border shadow-impressionist shadow-subtle-glow"> {/* Aplicando a nova sombra */}
+    <div className="bg-card rounded-lg border shadow-impressionist shadow-subtle-glow">
       <Table>
         <TableHeader>
           <TableRow>
@@ -71,10 +68,10 @@ const AllTransactionsTable = ({
               key={t.id} 
               className={cn(
                 "hover:bg-muted/50 transition-colors",
-                t.type === 'revenue' && "bg-green-50/5", // Fundo sutil para receita
-                t.type === 'expense' && "bg-red-50/5"    // Fundo sutil para despesa
+                t.type === 'revenue' && "bg-green-50/5",
+                t.type === 'expense' && "bg-red-50/5"
               )}
-            > {/* Efeito de hover sutil */}
+            >
               <TableCell className="font-medium flex items-center">
                 {t.description}
                 {t.is_recurring && (

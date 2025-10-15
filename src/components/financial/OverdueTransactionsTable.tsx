@@ -17,6 +17,7 @@ import {
 import { Loader2, MoreHorizontal, CheckCircle } from "lucide-react";
 import { format, parseISO, differenceInDays } from "date-fns";
 import React from "react";
+import FinancialTableSkeleton from "./FinancialTableSkeleton"; // Importar o Skeleton
 
 interface OverdueTransactionsTableProps {
   overdueTransactions: FinancialTransaction[] | undefined;
@@ -32,15 +33,11 @@ const OverdueTransactionsTable = ({
   onMarkAsPaid,
 }: OverdueTransactionsTableProps) => {
   if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return <FinancialTableSkeleton columns={6} rows={3} />;
   }
 
   return (
-    <div className="bg-card rounded-lg border shadow-impressionist shadow-subtle-glow"> {/* Aplicando a nova sombra */}
+    <div className="bg-card rounded-lg border shadow-impressionist shadow-subtle-glow">
       <Table>
         <TableHeader>
           <TableRow>
@@ -54,7 +51,7 @@ const OverdueTransactionsTable = ({
         </TableHeader>
         <TableBody>
           {overdueTransactions?.map((t) => (
-            <TableRow key={t.id} className="bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"> {/* Fundo sutilmente vermelho para atrasados */}
+            <TableRow key={t.id} className="bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors">
               <TableCell className="font-medium">{t.students?.name || 'N/A'}</TableCell>
               <TableCell>{t.description}</TableCell>
               <TableCell>{t.due_date ? format(parseISO(t.due_date), 'dd/MM/yyyy') : '-'}</TableCell>
