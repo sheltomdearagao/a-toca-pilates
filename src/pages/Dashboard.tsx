@@ -18,40 +18,43 @@ const fetchDashboardStats = async () => {
   const todayStart = startOfDay(now);
   const todayEnd = endOfDay(now);
 
-  // 1. Active Students
-  const { count: activeStudents, error: studentsError } = await supabase
-    .from('students')
-    .select('id', { count: 'exact', head: true })
-    .eq('status', 'Ativo');
+  // Executa todas as consultas em paralelo usando Promise.all
+  const [
+    { count: activeStudents, error: studentsError },
+    { data: revenueData, error: revenueError },
+    { data: overdueData, error: overdueError },
+    { count: todayClasses, error: classesError },
+  ] = await Promise.all([
+    supabase
+      .from('students')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'Ativo'),
+    supabase
+      .from('financial_transactions')
+      .select('amount')
+      .eq('type', 'revenue')
+      .eq('status', 'Pago')
+      .gte('paid_at', monthStart.toISOString())
+      .lte('paid_at', monthEnd.toISOString()),
+    supabase
+      .from('financial_transactions')
+      .select('amount')
+      .eq('type', 'revenue')
+      .or(`status.eq.Atrasado,and(status.eq.Pendente,due_date.lt.${now.toISOString()})`),
+    supabase
+      .from('classes')
+      .select('id', { count: 'exact', head: true })
+      .gte('start_time', todayStart.toISOString())
+      .lte('start_time', todayEnd.toISOString()),
+  ]);
+
   if (studentsError) throw new Error(`Alunos: ${studentsError.message}`);
-
-  // 2. Monthly Revenue (paid transactions this month)
-  const { data: revenueData, error: revenueError } = await supabase
-    .from('financial_transactions')
-    .select('amount')
-    .eq('type', 'revenue')
-    .eq('status', 'Pago')
-    .gte('paid_at', monthStart.toISOString())
-    .lte('paid_at', monthEnd.toISOString());
   if (revenueError) throw new Error(`Receita: ${revenueError.message}`);
-  const monthlyRevenue = revenueData?.reduce((sum, t) => sum + t.amount, 0) || 0;
-
-  // 3. Overdue Payments
-  const { data: overdueData, error: overdueError } = await supabase
-    .from('financial_transactions')
-    .select('amount')
-    .eq('type', 'revenue')
-    .or(`status.eq.Atrasado,and(status.eq.Pendente,due_date.lt.${now.toISOString()})`);
   if (overdueError) throw new Error(`Inadimplência: ${overdueError.message}`);
-  const totalOverdue = overdueData?.reduce((sum, t) => sum + t.amount, 0) || 0;
-
-  // 4. Today's Classes
-  const { count: todayClasses, error: classesError } = await supabase
-    .from('classes')
-    .select('id', { count: 'exact', head: true })
-    .gte('start_time', todayStart.toISOString())
-    .lte('start_time', todayEnd.toISOString());
   if (classesError) throw new Error(`Aulas: ${classesError.message}`);
+
+  const monthlyRevenue = revenueData?.reduce((sum, t) => sum + t.amount, 0) || 0;
+  const totalOverdue = overdueData?.reduce((sum, t) => sum + t.amount, 0) || 0;
 
   return {
     activeStudents: activeStudents ?? 0,
@@ -65,6 +68,7 @@ const Dashboard = () => {
   const { data: stats, isLoading } = useQuery({
     queryKey: ['dashboardStats'],
     queryFn: fetchDashboardStats,
+    staleTime: 1000 * 60 * 5, // Cache por 5 minutos
   });
 
   return (
@@ -84,34 +88,34 @@ const Dashboard = () => {
           value={stats?.activeStudents ?? 0}
           icon={<Users className="h-6 w-6" />}
           isLoading={isLoading}
-          variant="bordered-green" // Usando a nova variante de borda verde
+          variant="bordered-green"
         />
         <StatCard
           title="Receita do Mês"
           value={stats?.monthlyRevenue ?? formatCurrency(0)}
           icon={<DollarSign className="h-6 w-6" />}
           isLoading={isLoading}
-          variant="bordered-green" // Usando a nova variante de borda verde
+          variant="bordered-green"
         />
         <StatCard
           title="Inadimplência"
           value={stats?.totalOverdue ?? formatCurrency(0)}
           icon={<AlertCircle className="h-6 w-6" />}
           isLoading={isLoading}
-          variant="bordered-red" // Usando a nova variante de borda vermelha
+          variant="bordered-red"
         />
         <StatCard
           title="Aulas Hoje"
           value={stats?.todayClasses ?? 0}
           icon={<Calendar className="h-6 w-6" />}
           isLoading={isLoading}
-          variant="bordered-yellow" // Usando a nova variante de borda amarela
+          variant="bordered-yellow"
         />
       </div>
       
       <ColoredSeparator color="primary" className="my-8" />
       
-      <Card className="shadow-impressionist shadow-subtle-glow"> {/* Added shadow-subtle-glow */}
+      <Card className="shadow-impressionist shadow-subtle-glow">
         <BirthdayCard />
       </Card>
       

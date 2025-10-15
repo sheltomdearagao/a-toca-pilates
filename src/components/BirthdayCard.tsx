@@ -14,10 +14,12 @@ type BirthdayStudent = {
 };
 
 const fetchBirthdayStudents = async (): Promise<BirthdayStudent[]> => {
+  const currentMonth = new Date().getMonth() + 1; // getMonth é 0-indexed, então adicionamos 1
   const { data, error } = await supabase
     .from('students')
     .select('id, name, date_of_birth')
-    .not('date_of_birth', 'is', null);
+    .not('date_of_birth', 'is', null)
+    .filter('EXTRACT(MONTH FROM date_of_birth)::int', 'eq', currentMonth); // Filtra por mês no SQL
   if (error) throw new Error(error.message);
   return (data as BirthdayStudent[]) || [];
 };
@@ -26,14 +28,10 @@ const BirthdayCard = () => {
   const { data: students, isLoading } = useQuery<BirthdayStudent[]>({
     queryKey: ['birthdayStudents'],
     queryFn: fetchBirthdayStudents,
+    staleTime: 1000 * 60 * 10, // Cache por 10 minutos
   });
 
-  const currentMonth = getMonth(new Date());
-
-  const birthdaysThisMonth = students?.filter(student => {
-    const dob = parseISO(student.date_of_birth);
-    return getMonth(dob) === currentMonth;
-  }).sort((a, b) => {
+  const birthdaysThisMonth = students?.sort((a, b) => {
     const dateA = getDate(parseISO(a.date_of_birth));
     const dateB = getDate(parseISO(b.date_of_birth));
     return dateA - dateB;
@@ -48,7 +46,7 @@ const BirthdayCard = () => {
         </CardTitle>
         <div className="flex items-center text-sm text-muted-foreground">
           <Cake className="w-4 h-4 mr-1" />
-          {birthdaysThisMonth?.length || 0} aniversários
+          {isLoading ? <Skeleton className="h-4 w-8" /> : `${birthdaysThisMonth?.length || 0} aniversários`}
         </div>
       </CardHeader>
       <CardContent>
@@ -64,12 +62,12 @@ const BirthdayCard = () => {
               <div
                 key={student.id}
                 className={cn(
-                  "flex items-center justify-between p-4 rounded-xl border bg-secondary/20 transition-colors duration-200", // Estilos mais sutis
-                  "hover:bg-secondary/40 hover:scale-[1.01] hover:shadow-subtle-glow" // Added hover glow
+                  "flex items-center justify-between p-4 rounded-xl border bg-secondary/20 transition-colors duration-200",
+                  "hover:bg-secondary/40 hover:scale-[1.01] hover:shadow-subtle-glow"
                 )}
               >
                 <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-primary rounded-lg"> {/* Usando cor primária sólida */}
+                  <div className="p-2 bg-primary rounded-lg">
                     <User className="w-4 h-4 text-white" />
                   </div>
                   <div>

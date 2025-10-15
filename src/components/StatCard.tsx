@@ -50,7 +50,7 @@ const StatCard = ({ title, value, description, icon, isLoading, variant = "defau
         {isLoading ? (
           <>
             <Skeleton className="h-8 w-24 mb-2" />
-            <Skeleton className="h-4 w-32" />
+            {description && <Skeleton className="h-4 w-32" />}
           </>
         ) : (
           <>
