@@ -33,7 +33,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
       if (session) {
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('*')
+          .select('id, full_name, role') // Selecionando apenas as colunas necessárias
           .eq('id', session.user.id)
           .single();
         setProfile(profileData);
@@ -48,7 +48,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
       if (session) {
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('*')
+          .select('id, full_name, role') // Selecionando apenas as colunas necessárias
           .eq('id', session.user.id)
           .single();
         setProfile(profileData);
