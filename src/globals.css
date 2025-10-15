@@ -14,7 +14,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 220 15% 20%;
 
-    --primary: 210 40% 40%; /* Azul escuro elegante */
+    --primary: 200 60% 40%; /* Azul/Verde-água elegante e convidativo */
     --primary-foreground: 0 0% 100%; /* Texto branco para contraste */
 
     --secondary: 210 40% 94%; /* Um cinza-azul claro e arejado */
@@ -23,57 +23,57 @@
     --muted: 210 40% 96%; /* Um tom ainda mais suave para elementos secundários */
     --muted-foreground: 215 15% 55%; /* Cinza médio para texto muted */
 
-    --accent: 210 20% 70%; /* Um cinza-azul médio para acentos */
-    --accent-foreground: 220 15% 20%;
+    --accent: 40 70% 60%; /* Dourado/Pêssego suave para acentos de luz e alegria */
+    --accent-foreground: 220 15% 20%; /* Texto escuro para contraste no acento */
 
-    --destructive: 0 70% 50%; /* Vermelho mais suave para ações destrutivas */
+    --destructive: 0 75% 45%; /* Vermelho mais rico e claro para ações destrutivas */
     --destructive-foreground: 0 0% 100%;
 
     --border: 210 20% 90%; /* Borda muito sutil */
     --input: 210 20% 90%;
-    --ring: 210 40% 40%; /* Anel de foco com a cor primária */
+    --ring: 200 60% 40%; /* Anel de foco com a cor primária */
 
     --radius: 0.5rem;
 
     /* Gradientes Suaves */
-    --gradient-primary: linear-gradient(135deg, hsl(210 40% 40%), hsl(210 40% 50%));
-    --gradient-accent: linear-gradient(135deg, hsl(210 20% 70%), hsl(210 20% 80%));
-    --gradient-destructive: linear-gradient(135deg, hsl(0 70% 50%), hsl(0 70% 60%));
+    --gradient-primary: linear-gradient(135deg, hsl(200 60% 40%), hsl(200 60% 50%));
+    --gradient-accent: linear-gradient(135deg, hsl(40 70% 60%), hsl(40 70% 70%));
+    --gradient-destructive: linear-gradient(135deg, hsl(0 75% 45%), hsl(0 75% 55%));
     --gradient-sidebar: linear-gradient(180deg, hsl(210 30% 98%), hsl(210 30% 94%));
 
     /* Cores do Sidebar */
     --sidebar-background: hsl(210 30% 96%);
     --sidebar-foreground: 220 15% 20%;
-    --sidebar-primary: 210 40% 40%;
+    --sidebar-primary: 200 60% 40%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 20% 70%;
+    --sidebar-accent: 40 70% 60%;
     --sidebar-accent-foreground: 220 15% 20%;
     --sidebar-border: 210 20% 90%;
-    --sidebar-ring: 210 40% 40%;
+    --sidebar-ring: 200 60% 40%;
     --sidebar-gradient-start: 210 30% 98%;
     --sidebar-gradient-end: 210 30% 94%;
 
     /* Cores de Status */
-    --status-active: 142 70% 40%; /* Verde mais vibrante */
+    --status-active: 140 60% 40%; /* Verde mais suave e natural */
     --status-inactive: 210 15% 60%; /* Cinza-azul mais claro */
-    --status-experimental: 40 90% 55%; /* Amarelo-laranja mais vibrante */
-    --status-blocked: 0 80% 50%; /* Vermelho mais vibrante */
+    --status-experimental: 30 80% 55%; /* Laranja mais sofisticado */
+    --status-blocked: 0 80% 50%; /* Vermelho claro e direto */
 
     /* Cores de Presença */
-    --attendance-scheduled: 210 60% 65%; /* Azul mais vibrante */
-    --attendance-present: 142 70% 40%; /* Verde mais vibrante */
-    --attendance-absent: 0 80% 50%; /* Vermelho mais vibrante */
+    --attendance-scheduled: 210 50% 60%; /* Azul suave para agendado */
+    --attendance-present: 140 60% 40%; /* Verde para presente */
+    --attendance-absent: 0 80% 50%; /* Vermelho para faltou */
 
     /* Cores de Pagamento */
-    --payment-pending: 40 90% 55%; /* Amarelo-laranja mais vibrante */
-    --payment-paid: 142 70% 40%; /* Verde mais vibrante */
-    --payment-overdue: 0 80% 50%; /* Vermelho mais vibrante */
+    --payment-pending: 30 80% 55%; /* Laranja para pendente */
+    --payment-paid: 140 60% 40%; /* Verde para pago */
+    --payment-overdue: 0 80% 50%; /* Vermelho para atrasado */
 
     /* New subtle light/color touches */
-    --glow-h: 210;
-    --glow-s: 40%;
+    --glow-h: 200;
+    --glow-s: 60%;
     --glow-l: 90%;
-    --glow-rgb: 230, 238, 242; /* Approximate RGB for 210 40% 90% */
+    --glow-rgb: 217, 239, 247; /* Approximate RGB for 200 60% 90% */
 
     --subtle-gradient-start-h: 210;
     --subtle-gradient-start-s: 30%;
@@ -94,7 +94,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 220 15% 15%;
 
-    --primary: 220 25% 30%; /* Azul marinho profundo, elegante */
+    --primary: 220 35% 25%; /* Azul marinho profundo, elegante e autoritário */
     --primary-foreground: 0 0% 100%;
 
     --secondary: 210 30% 92%;
@@ -103,54 +103,54 @@
     --muted: 210 30% 94%;
     --muted-foreground: 215 15% 50%;
 
-    --accent: 210 30% 88%;
-    --accent-foreground: 220 15% 15%;
+    --accent: 190 30% 40%; /* Teal profundo e discreto para acentos profissionais */
+    --accent-foreground: 0 0% 100%; /* Texto branco para contraste no acento */
 
-    --destructive: 0 70% 50%;
+    --destructive: 0 75% 45%;
     --destructive-foreground: 0 0% 100%;
 
     --border: 210 15% 85%;
     --input: 210 15% 85%;
-    --ring: 220 25% 30%;
+    --ring: 220 35% 25%;
 
     /* Gradientes Profissionais */
-    --gradient-primary: linear-gradient(135deg, hsl(220 25% 30%), hsl(220 25% 40%));
-    --gradient-accent: linear-gradient(135deg, hsl(210 30% 88%), hsl(210 30% 92%));
-    --gradient-destructive: linear-gradient(135deg, hsl(0 70% 50%), hsl(0 70% 60%));
+    --gradient-primary: linear-gradient(135deg, hsl(220 35% 25%), hsl(220 35% 35%));
+    --gradient-accent: linear-gradient(135deg, hsl(190 30% 40%), hsl(190 30% 50%));
+    --gradient-destructive: linear-gradient(135deg, hsl(0 75% 45%), hsl(0 75% 55%));
     --gradient-sidebar: linear-gradient(180deg, hsl(210 20% 95%), hsl(210 20% 91%));
 
     /* Cores do Sidebar Admin */
     --sidebar-background: hsl(210 20% 93%);
     --sidebar-foreground: 220 15% 15%;
-    --sidebar-primary: 220 25% 30%;
+    --sidebar-primary: 220 35% 25%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 30% 88%;
-    --sidebar-accent-foreground: 220 15% 15%;
+    --sidebar-accent: 190 30% 40%;
+    --sidebar-accent-foreground: 0 0% 100%;
     --sidebar-border: 210 15% 85%;
-    --sidebar-ring: 220 25% 30%;
+    --sidebar-ring: 220 35% 25%;
     --sidebar-gradient-start: 210 20% 95%;
     --sidebar-gradient-end: 210 20% 91%;
 
     /* Cores de Status (Admin - Claro) */
-    --status-active: 142 70% 40%;
+    --status-active: 140 60% 40%;
     --status-inactive: 210 15% 60%;
-    --status-experimental: 40 90% 55%;
+    --status-experimental: 30 80% 55%;
     --status-blocked: 0 80% 50%;
 
     /* Cores de Presença (Admin - Claro) */
-    --attendance-scheduled: 210 60% 65%;
-    --attendance-present: 142 70% 40%;
+    --attendance-scheduled: 210 50% 60%;
+    --attendance-present: 140 60% 40%;
     --attendance-absent: 0 80% 50%;
 
     /* Cores de Pagamento (Admin - Claro) */
-    --payment-pending: 40 90% 55%;
-    --payment-paid: 142 70% 40%;
+    --payment-pending: 30 80% 55%;
+    --payment-paid: 140 60% 40%;
     --payment-overdue: 0 80% 50%;
 
-    --glow-h: 210;
-    --glow-s: 20%;
+    --glow-h: 220;
+    --glow-s: 35%;
     --glow-l: 90%;
-    --glow-rgb: 230, 234, 238; /* Approximate RGB for 210 20% 90% */
+    --glow-rgb: 229, 234, 240; /* Approximate RGB for 220 35% 90% */
 
     --subtle-gradient-start-h: 210;
     --subtle-gradient-start-s: 20%;
