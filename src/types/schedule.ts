@@ -20,3 +20,23 @@ export type ClassAttendee = {
   status: AttendanceStatus;
   students: Student;
 };
+
+// Novos tipos para aulas recorrentes
+export type RecurrencePatternItem = {
+  day: string; // 'monday', 'tuesday', etc.
+  time: string; // 'HH:mm'
+};
+
+export type RecurringClassTemplate = {
+  id: string;
+  user_id: string;
+  student_id: string | null;
+  title: string;
+  duration_minutes: number;
+  notes: string | null;
+  recurrence_pattern: RecurrencePatternItem[];
+  recurrence_start_date: string; // ISO date string
+  recurrence_end_date: string | null; // ISO date string
+  created_at: string;
+  students?: { name: string }; // Para join
+};

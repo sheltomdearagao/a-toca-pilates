@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { PlusCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import AddClassDialog from '@/components/schedule/AddClassDialog';
 import ClassDetailsDialog from '@/components/schedule/ClassDetailsDialog';
+import AddRecurringClassTemplateDialog from '@/components/schedule/AddRecurringClassTemplateDialog'; // Importar novo componente
 import { ClassEvent } from '@/types/schedule';
 import { StudentOption } from '@/types/student';
 import { useAppSettings } from '@/hooks/useAppSettings';
@@ -69,6 +70,7 @@ ScheduleCell.displayName = 'ScheduleCell';
 
 const Schedule = () => {
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
+  const [isRecurringFormOpen, setIsRecurringFormOpen] = useState(false); // Novo estado
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Partial<ClassEvent> | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -151,7 +153,14 @@ const Schedule = () => {
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Agenda de Aulas</h1>
-        <Button onClick={() => { setQuickAddSlot(null); setIsAddFormOpen(true); }}><PlusCircle className="w-4 h-4 mr-2" />Agendar Aula</Button>
+        <div className="flex gap-2">
+          <Button onClick={() => { setQuickAddSlot(null); setIsAddFormOpen(true); }}>
+            <PlusCircle className="w-4 h-4 mr-2" />Agendar Aula
+          </Button>
+          <Button variant="outline" onClick={() => setIsRecurringFormOpen(true)}>
+            <PlusCircle className="w-4 h-4 mr-2" />Agendar Recorrência
+          </Button>
+        </div>
       </div>
       <ColoredSeparator color="primary" className="my-6" />
       <div className="flex items-center justify-between mb-4">
@@ -202,6 +211,7 @@ const Schedule = () => {
         </div>
       </Card>
       <AddClassDialog isOpen={isAddFormOpen} onOpenChange={(open) => { setIsAddFormOpen(open); if (!open) setQuickAddSlot(null); }} quickAddSlot={quickAddSlot} />
+      <AddRecurringClassTemplateDialog isOpen={isRecurringFormOpen} onOpenChange={setIsRecurringFormOpen} /> {/* Novo diálogo */}
       <ClassDetailsDialog isOpen={isDetailsOpen} onOpenChange={setIsDetailsOpen} classEvent={selectedEvent} classCapacity={CLASS_CAPACITY} />
     </div>
   );
