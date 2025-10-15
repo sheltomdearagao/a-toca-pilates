@@ -147,7 +147,7 @@ const Schedule = () => {
       setQuickAddSlot({ date: day, hour });
       setIsAddFormOpen(true);
     }
-  }, [classesBySlot]);
+  }, [classesBySlot]); // Adicionado classesBySlot como dependência
 
   return (
     <div className="h-full flex flex-col">

@@ -18,10 +18,7 @@ import FinancialTableSkeleton from "@/components/financial/FinancialTableSkeleto
 import { showError, showSuccess } from "@/utils/toast";
 import ColoredSeparator from "@/components/ColoredSeparator";
 import { Card } from "@/components/ui/card";
-
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-}
+import { formatCurrency } from "@/utils/formatters"; // Importar do utilitário
 
 const fetchTransactions = async (): Promise<FinancialTransaction[]> => {
   const { data, error } = await supabase

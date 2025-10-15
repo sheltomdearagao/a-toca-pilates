@@ -25,6 +25,7 @@ import { useSession } from '@/contexts/SessionProvider';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import FinancialTableSkeleton from '@/components/financial/FinancialTableSkeleton'; // Reutilizando o skeleton de tabela
+import { formatCurrency } from "@/utils/formatters"; // Importar do utilitário
 
 type ClassAttendance = {
   id: string;
@@ -74,10 +75,6 @@ const fetchStudentProfile = async (studentId: string): Promise<StudentProfileDat
     transactions: transactions || [], 
     attendance: (attendance as any) || [] 
   };
-};
-
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
 
 const StudentProfile = () => {

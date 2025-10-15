@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { format, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR'; // Corrigido o caminho de importação
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatCurrency } from "@/utils/formatters"; // Importar do utilitário
 
 interface ChartData {
   month: string;
@@ -14,10 +15,6 @@ interface MonthlyFinancialChartProps {
   data: ChartData[];
   isLoading: boolean;
 }
-
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-};
 
 const MonthlyFinancialChart = ({ data, isLoading }: MonthlyFinancialChartProps) => {
   return (

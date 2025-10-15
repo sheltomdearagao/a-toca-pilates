@@ -6,10 +6,7 @@ import { startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
 import BirthdayCard from "@/components/BirthdayCard";
 import ColoredSeparator from "@/components/ColoredSeparator";
 import { Card } from "@/components/ui/card";
-
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-}
+import { formatCurrency } from "@/utils/formatters"; // Importar do utilitário
 
 const fetchDashboardStats = async () => {
   const now = new Date();
