@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button';
 import { PlusCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import AddClassDialog from '@/components/schedule/AddClassDialog';
 import ClassDetailsDialog from '@/components/schedule/ClassDetailsDialog';
-import AddRecurringClassTemplateDialog from '@/components/schedule/AddRecurringClassTemplateDialog'; // Importar novo componente
-import { ClassEvent } from '@/types/schedule';
+import AddRecurringClassTemplateDialog from '@/components/schedule/AddRecurringClassTemplateDialog';
+import RecurringTemplatesList from '@/components/schedule/RecurringTemplatesList'; // Importar o novo componente
+import { ClassEvent, RecurringClassTemplate } from '@/types/schedule';
 import { StudentOption } from '@/types/student';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import ColoredSeparator from "@/components/ColoredSeparator";
@@ -15,6 +16,7 @@ import { ptBR } from 'date-fns/locale/pt-BR';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { showError } from '@/utils/toast'; // Importação adicionada
 
 // Horários reduzidos: 7h às 20h (14 slots)
 const HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
@@ -70,7 +72,7 @@ ScheduleCell.displayName = 'ScheduleCell';
 
 const Schedule = () => {
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
-  const [isRecurringFormOpen, setIsRecurringFormOpen] = useState(false); // Novo estado
+  const [isRecurringFormOpen, setIsRecurringFormOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Partial<ClassEvent> | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -147,7 +149,13 @@ const Schedule = () => {
       setQuickAddSlot({ date: day, hour });
       setIsAddFormOpen(true);
     }
-  }, [classesBySlot]); // Adicionado classesBySlot como dependência
+  }, [classesBySlot]);
+
+  const handleEditRecurringTemplate = useCallback((template: RecurringClassTemplate) => {
+    // Implementar lógica de edição aqui, se necessário
+    showError("Funcionalidade de edição de modelo recorrente ainda não implementada.");
+    console.log("Editar modelo recorrente:", template);
+  }, []);
 
   return (
     <div className="h-full flex flex-col">
@@ -210,8 +218,13 @@ const Schedule = () => {
           )}
         </div>
       </Card>
+
+      <ColoredSeparator color="accent" className="my-6" />
+
+      <RecurringTemplatesList onEditTemplate={handleEditRecurringTemplate} />
+
       <AddClassDialog isOpen={isAddFormOpen} onOpenChange={(open) => { setIsAddFormOpen(open); if (!open) setQuickAddSlot(null); }} quickAddSlot={quickAddSlot} />
-      <AddRecurringClassTemplateDialog isOpen={isRecurringFormOpen} onOpenChange={setIsRecurringFormOpen} /> {/* Novo diálogo */}
+      <AddRecurringClassTemplateDialog isOpen={isRecurringFormOpen} onOpenChange={setIsRecurringFormOpen} />
       <ClassDetailsDialog isOpen={isDetailsOpen} onOpenChange={setIsDetailsOpen} classEvent={selectedEvent} classCapacity={CLASS_CAPACITY} />
     </div>
   );
