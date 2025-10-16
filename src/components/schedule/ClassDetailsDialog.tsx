@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { ClassEvent, ClassAttendee, AttendanceStatus } from '@/types/schedule';
 import { StudentOption } from '@/types/student';
@@ -25,6 +25,7 @@ import AddAttendeeSection from './class-details/AddAttendeeSection';
 import DeleteClassAlertDialog from './class-details/DeleteClassAlertDialog';
 import DeleteAttendeeAlertDialog from './class-details/DeleteAttendeeAlertDialog';
 import DisplaceConfirmationAlertDialog from './class-details/DisplaceConfirmationAlertDialog';
+import { useClassManagement } from '@/hooks/useClassManagement'; // Importar o novo hook
 
 interface ClassDetailsDialogProps {
   isOpen: boolean;
@@ -115,117 +116,22 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
     staleTime: 1000 * 60 * 5,
   });
 
-  const addAttendeeMutation = useMutation({
-    mutationFn: async ({ studentId, displaceAttendeeId }: { studentId: string, displaceAttendeeId?: string }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || !classId) throw new Error('Dados inválidos.');
+  const {
+    addAttendee,
+    isAddingAttendee,
+    updateAttendeeStatus,
+    isUpdatingAttendeeStatus,
+    removeAttendee,
+    isRemovingAttendee,
+    updateClass,
+    isUpdatingClass,
+    deleteClass,
+    isDeletingClass,
+  } = useClassManagement({ classId, allStudents });
 
-      if (displaceAttendeeId) {
-        const { error: deleteError } = await supabase.from('class_attendees').delete().eq('id', displaceAttendeeId);
-        if (deleteError) throw deleteError;
-      }
-
-      const { error: insertError } = await supabase.from('class_attendees').insert({
-        user_id: user.id,
-        class_id: classId,
-        status: 'Agendado',
-        student_id: studentId,
-      });
-      if (insertError) throw insertError;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['classAttendees', classId] });
-      queryClient.invalidateQueries({ queryKey: ['classes'] });
-      showSuccess('Aluno adicionado à aula!');
-      setDisplaceConfirmationOpen(false);
-      setStudentToDisplace(null);
-      setNewStudentForDisplacement(null);
-    },
-    onError: (error) => { showError(error.message); },
-  });
-
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ attendeeId, status }: { attendeeId: string; status: AttendanceStatus }) => {
-      const { error } = await supabase.from('class_attendees').update({ status }).eq('id', attendeeId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['classAttendees', classId] });
-      showSuccess('Status de presença atualizado.');
-    },
-    onError: (error) => { showError(error.message); },
-  });
-
-  const removeAttendeeMutation = useMutation({
-    mutationFn: async (attendeeId: string) => {
-      const { error } = await supabase.from('class_attendees').delete().eq('id', attendeeId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['classAttendees', classId] });
-      queryClient.invalidateQueries({ queryKey: ['classes'] });
-      showSuccess('Aluno removido da aula!');
-      setDeleteAttendeeAlertOpen(false);
-      setAttendeeToDelete(null);
-    },
-    onError: (error) => { showError(error.message); },
-  });
-
-  const updateClassMutation = useMutation({
-    mutationFn: async (formData: ClassFormData) => {
-      if (!classId) throw new Error("ID da aula não encontrado.");
-      const classTitle = formData.student_id
-        ? allStudents?.find(s => s.id === formData.student_id)?.name || 'Aula com Aluno'
-        : formData.title;
-
-      // Criar datetime combinando data e hora
-      const [hours, minutes] = formData.time.split(':');
-      const dateTime = set(new Date(formData.date), {
-        hours: parseInt(hours),
-        minutes: parseInt(minutes),
-        seconds: 0,
-        milliseconds: 0,
-      });
-      
-      const startUtc = fromZonedTime(dateTime, Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
-      
-      const dataToSubmit = {
-        title: classTitle,
-        start_time: startUtc,
-        notes: formData.notes,
-        student_id: formData.student_id || null,
-      };
-      const { error } = await supabase.from('classes').update(dataToSubmit).eq('id', classId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['classes'] });
-      queryClient.invalidateQueries({ queryKey: ['classDetails', classId] });
-      showSuccess('Aula atualizada com sucesso!');
-      setIsEditMode(false);
-    },
-    onError: (error) => { showError(error.message); },
-  });
-
-  const deleteClassMutation = useMutation({
-    mutationFn: async () => {
-      if (!classId) throw new Error("ID da aula não encontrado.");
-      const { error } = await supabase.from('classes').delete().eq('id', classId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['classes'] });
-      showSuccess("Aula excluída com sucesso!");
-      onOpenChange(false);
-    },
-    onError: (error) => { showError(error.message); }
-  });
-
-  const availableStudentsForAdd = allStudents?.filter(s => !attendees?.some(a => a.students.id === s.id));
-  const isClassFull = (attendees?.length || 0) >= classCapacity;
-
-  const handleEditSubmit = (data: ClassFormData) => {
-    updateClassMutation.mutate(data);
+  const handleEditSubmit = async (data: ClassFormData) => {
+    await updateClass(data);
+    setIsEditMode(false); // Fechar modo de edição após sucesso
   };
 
   const confirmRemoveAttendee = (attendee: ClassAttendee) => {
@@ -233,28 +139,40 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
     setDeleteAttendeeAlertOpen(true);
   };
 
-  const handleConfirmDeleteAttendee = () => {
+  const handleConfirmDeleteAttendee = async () => {
     if (attendeeToDelete) {
-      removeAttendeeMutation.mutate(attendeeToDelete.id);
+      await removeAttendee(attendeeToDelete.id);
+      setDeleteAttendeeAlertOpen(false);
+      setAttendeeToDelete(null);
     }
   };
 
-  const handleConfirmDeleteClass = () => {
-    deleteClassMutation.mutate();
+  const handleConfirmDeleteClass = async () => {
+    await deleteClass();
+    onOpenChange(false); // Fechar o diálogo principal após exclusão da aula
   };
 
-  const handleAddAttendee = (studentId: string) => {
-    addAttendeeMutation.mutate({ studentId });
+  const handleAddAttendee = async (studentId: string) => {
+    await addAttendee({ studentId });
+    setDisplaceConfirmationOpen(false); // Fechar diálogo de confirmação de deslocamento se estiver aberto
+    setStudentToDisplace(null);
+    setNewStudentForDisplacement(null);
   };
 
-  const handleConfirmDisplacement = () => {
+  const handleConfirmDisplacement = async () => {
     if (newStudentForDisplacement && studentToDisplace) {
-      addAttendeeMutation.mutate({
+      await addAttendee({
         studentId: newStudentForDisplacement.id,
         displaceAttendeeId: studentToDisplace.id,
       });
+      setDisplaceConfirmationOpen(false);
+      setStudentToDisplace(null);
+      setNewStudentForDisplacement(null);
     }
   };
+
+  const availableStudentsForAdd = allStudents?.filter(s => !attendees?.some(a => a.students.id === s.id));
+  const isClassFull = (attendees?.length || 0) >= classCapacity;
 
   return (
     <>
@@ -280,7 +198,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                   isLoadingAllStudents={isLoadingAllStudents}
                   onSubmit={handleEditSubmit}
                   onCancelEdit={() => setIsEditMode(false)}
-                  isSubmitting={updateClassMutation.isPending}
+                  isSubmitting={isUpdatingClass}
                 />
               ) : (
                 <>
@@ -290,7 +208,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                       attendees={attendees}
                       isLoadingAttendees={isLoadingAttendees}
                       classCapacity={classCapacity}
-                      onUpdateStatus={(attendeeId, status) => updateStatusMutation.mutate({ attendeeId, status })}
+                      onUpdateStatus={(attendeeId, status) => updateAttendeeStatus({ attendeeId, status })}
                       onRemoveAttendee={confirmRemoveAttendee}
                     />
                     <AddAttendeeSection
@@ -299,7 +217,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                       isClassFull={isClassFull}
                       onAddAttendee={handleAddAttendee}
                       onConfirmDisplacement={handleConfirmDisplacement}
-                      isAddingAttendee={addAttendeeMutation.isPending}
+                      isAddingAttendee={isAddingAttendee}
                       isDisplaceConfirmationOpen={isDisplaceConfirmationOpen}
                       onDisplaceConfirmationChange={setDisplaceConfirmationOpen}
                       setStudentToDisplace={setStudentToDisplace}
@@ -333,7 +251,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
         onOpenChange={setDeleteClassAlertOpen}
         classTitle={details?.title}
         onConfirmDelete={handleConfirmDeleteClass}
-        isDeleting={deleteClassMutation.isPending}
+        isDeleting={isDeletingClass}
       />
 
       <DeleteAttendeeAlertDialog
@@ -341,7 +259,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
         onOpenChange={setDeleteAttendeeAlertOpen}
         attendeeName={attendeeToDelete?.students.name}
         onConfirmDelete={handleConfirmDeleteAttendee}
-        isDeleting={removeAttendeeMutation.isPending}
+        isDeleting={isRemovingAttendee}
       />
 
       <DisplaceConfirmationAlertDialog
@@ -350,7 +268,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
         studentToDisplace={studentToDisplace}
         newStudentForDisplacement={newStudentForDisplacement}
         onConfirmDisplacement={handleConfirmDisplacement}
-        isSubmitting={addAttendeeMutation.isPending}
+        isSubmitting={isAddingAttendee}
       />
     </>
   );
