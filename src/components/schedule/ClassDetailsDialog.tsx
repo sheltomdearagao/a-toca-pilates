@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react'; // Adicionado useMemo
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { ClassEvent, ClassAttendee, AttendanceStatus } from '@/types/schedule';
@@ -171,7 +171,11 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
     }
   };
 
-  const availableStudentsForAdd = allStudents?.filter(s => !attendees?.some(a => a.students.id === s.id));
+  // Memoize this calculation to prevent re-running on every render
+  const availableStudentsForAdd = useMemo(() => {
+    return allStudents?.filter(s => !attendees?.some(a => a.students.id === s.id));
+  }, [allStudents, attendees]);
+
   const isClassFull = (attendees?.length || 0) >= classCapacity;
 
   return (
@@ -194,7 +198,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
               {isEditMode ? (
                 <ClassEditForm
                   classEvent={details}
-                  allStudents={allStudents}
+                  allStudents={availableStudentsForAdd} // Passando a lista memoizada
                   isLoadingAllStudents={isLoadingAllStudents}
                   onSubmit={handleEditSubmit}
                   onCancelEdit={() => setIsEditMode(false)}
