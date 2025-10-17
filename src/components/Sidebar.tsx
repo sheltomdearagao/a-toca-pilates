@@ -32,9 +32,8 @@ const Sidebar = () => {
   return (
     <aside className="w-64 h-screen p-4 border-r border-sidebar-border flex flex-col bg-gradient-to-b from-sidebar-gradient-start to-sidebar-gradient-end">
       <div className="flex items-center mb-8">
-        <div className="p-2 bg-white rounded-xl mr-3">
-          <img src={logoUrl} alt="A Toca Pilates Logo" className="w-6 h-6 object-contain" />
-        </div>
+        {/* Removido o div com o frame, a imagem agora está diretamente no flex container */}
+        <img src={logoUrl} alt="A Toca Pilates Logo" className="w-6 h-6 object-contain mr-3" />
         <h1 className="text-xl font-bold text-foreground">
           A Toca
         </h1>
