@@ -12,14 +12,14 @@ const Login = () => {
     return <Navigate to="/" replace />;
   }
 
-  const logoUrl = "https://nkwsvsmmzvukdghlyxpm.supabase.co/storage/v1/object/public/app-assets/a%20toca%20logo.png";
+  const logoUrl = "https://nkwsvsmmzvukdghlyxpm.supabase.co/storage/v1/object/public/app-assets/atocalogo.png";
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background to-secondary">
       <div className="w-full max-w-md p-8 space-y-8">
         <div className="flex flex-col items-center">
-          <div className="p-2 rounded-full shadow-xl bg-white"> {/* Ajustado o padding e background para a logo */}
-            <img src={logoUrl} alt="A Toca Pilates Logo" className="w-24 h-24 object-contain" /> {/* Usando a imagem da logo */}
+          <div className="p-2 rounded-full shadow-xl bg-white">
+            <img src={logoUrl} alt="A Toca Pilates Logo" className="w-24 h-24 object-contain" />
           </div>
           <h1 className="mt-6 text-3xl font-bold text-center text-foreground">
             A Toca Pilates

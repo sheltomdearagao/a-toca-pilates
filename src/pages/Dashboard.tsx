@@ -68,12 +68,17 @@ const Dashboard = () => {
     staleTime: 1000 * 60 * 5, // Cache por 5 minutos
   });
 
+  const logoUrl = "https://nkwsvsmmzvukdghlyxpm.supabase.co/storage/v1/object/public/app-assets/atocalogo.png";
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-4xl font-bold text-foreground">
-          Dashboard
-        </h1>
+        <div className="flex items-center space-x-4">
+          <img src={logoUrl} alt="A Toca Pilates Logo" className="w-10 h-10 object-contain" />
+          <h1 className="text-4xl font-bold text-foreground">
+            Dashboard
+          </h1>
+        </div>
         <div className="text-sm text-muted-foreground">
           Bem-vindo de volta! 👋
         </div>

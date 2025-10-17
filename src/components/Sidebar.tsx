@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Users, DollarSign, Calendar, Dumbbell, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, DollarSign, Calendar, LogOut } from "lucide-react";
 import { Button } from "./ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
@@ -10,12 +10,14 @@ const Sidebar = () => {
   const navigate = useNavigate();
   const { profile } = useSession();
 
+  const logoUrl = "https://nkwsvsmmzvukdghlyxpm.supabase.co/storage/v1/object/public/app-assets/atocalogo.png";
+
   const navLinkClasses = ({ isActive }: { isActive: boolean }) =>
     cn(
       "flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 ease-in-out group",
       isActive
-        ? "bg-primary text-primary-foreground shadow-md shadow-subtle-glow" // Added shadow-subtle-glow to active link
-        : "text-sidebar-foreground hover:bg-secondary hover:text-secondary-foreground" // Hover mais suave
+        ? "bg-primary text-primary-foreground shadow-md shadow-subtle-glow"
+        : "text-sidebar-foreground hover:bg-secondary hover:text-secondary-foreground"
     );
 
   const handleLogout = async () => {
@@ -30,8 +32,8 @@ const Sidebar = () => {
   return (
     <aside className="w-64 h-screen p-4 border-r border-sidebar-border flex flex-col bg-gradient-to-b from-sidebar-gradient-start to-sidebar-gradient-end">
       <div className="flex items-center mb-8">
-        <div className="p-2 bg-primary rounded-xl mr-3">
-          <Dumbbell className="w-6 h-6 text-white" />
+        <div className="p-2 bg-white rounded-xl mr-3">
+          <img src={logoUrl} alt="A Toca Pilates Logo" className="w-6 h-6 object-contain" />
         </div>
         <h1 className="text-xl font-bold text-foreground">
           A Toca
