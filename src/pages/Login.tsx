@@ -20,11 +20,9 @@ const Login = () => {
             <Dumbbell className="w-12 h-12 text-white" />
           </div>
           <h1 className="mt-6 text-3xl font-bold text-center text-foreground">
-            A Toca Experience Platform
+            A Toca Pilates
           </h1>
-          <p className="text-muted-foreground text-center mt-2">
-            Sua plataforma completa de gestão
-          </p>
+          {/* Subtítulo removido */}
         </div>
         <div className="p-8 bg-card rounded-2xl shadow-impressionist border border-border shadow-subtle-glow"> {/* Added shadow-subtle-glow */}
           <Auth
