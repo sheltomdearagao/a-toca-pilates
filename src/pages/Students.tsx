@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Student } from "@/types/student";
+import { Student, StudentStatus, PlanType, EnrollmentType } from "@/types/student";
 import { showError, showSuccess } from "@/utils/toast";
 
 // Importar os novos componentes modulares
@@ -9,6 +9,9 @@ import StudentsHeader from '@/components/students/StudentsHeader';
 import StudentsTable from '@/components/students/StudentsTable';
 import AddEditStudentDialog from '@/components/students/AddEditStudentDialog';
 import DeleteStudentAlertDialog from '@/components/students/DeleteStudentAlertDialog';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAppSettings } from '@/hooks/useAppSettings'; // Importar o hook de configurações
 
 // Moved fetchStudents outside the component
 const fetchStudents = async (): Promise<Student[]> => {
@@ -22,9 +25,15 @@ const Students = () => {
   const [isFormOpen, setFormOpen] = useState(false);
   const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [filterRecurring, setFilterRecurring] = useState(false);
+
+  // Estados para os filtros
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState<StudentStatus | 'all'>('all');
+  const [filterPlanType, setFilterPlanType] = useState<PlanType | 'all'>('all');
+  const [filterEnrollmentType, setFilterEnrollmentType] = useState<EnrollmentType | 'all'>('all');
 
   const { data: students, isLoading } = useQuery({ queryKey: ["students"], queryFn: fetchStudents });
+  const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
 
   const addEditMutation = useMutation({
     mutationFn: async (formData: any) => { // Use 'any' for formData here, actual schema is in dialog
@@ -93,31 +102,77 @@ const Students = () => {
     addEditMutation.mutate(data);
   };
 
-  // Filtrar alunos recorrentes
-  const filteredStudents = students?.filter(student => {
-    if (!filterRecurring) return true;
-    return student.plan_type !== 'Avulso';
-  }) || [];
+  // Lógica de filtragem combinada
+  const filteredStudents = useMemo(() => {
+    if (!students) return [];
+
+    return students.filter(student => {
+      // Filtro por termo de busca (nome, email, telefone)
+      const matchesSearchTerm = searchTerm.trim() === '' ||
+        student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (student.email && student.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (student.phone && student.phone.toLowerCase().includes(searchTerm.toLowerCase()));
+
+      // Filtro por status
+      const matchesStatus = filterStatus === 'all' || student.status === filterStatus;
+
+      // Filtro por tipo de plano
+      const matchesPlanType = filterPlanType === 'all' || student.plan_type === filterPlanType;
+
+      // Filtro por tipo de matrícula
+      const matchesEnrollmentType = filterEnrollmentType === 'all' || student.enrollment_type === filterEnrollmentType;
+
+      return matchesSearchTerm && matchesStatus && matchesPlanType && matchesEnrollmentType;
+    });
+  }, [students, searchTerm, filterStatus, filterPlanType, filterEnrollmentType]);
 
   return (
     <div className="space-y-8">
       <StudentsHeader studentCount={filteredStudents?.length} onAddNewStudent={handleAddNew} />
 
-      <div className="flex items-center gap-4 mb-4">
-        <label className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            checked={filterRecurring}
-            onChange={(e) => setFilterRecurring(e.target.checked)}
-            className="rounded"
-          />
-          <span>Mostrar apenas alunos com planos recorrentes</span>
-        </label>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <Input
+          placeholder="Buscar por nome, email ou telefone..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="col-span-full lg:col-span-1"
+        />
+
+        <Select value={filterStatus} onValueChange={(value: StudentStatus | 'all') => setFilterStatus(value)}>
+          <SelectTrigger><SelectValue placeholder="Filtrar por Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os Status</SelectItem>
+            <SelectItem value="Ativo">Ativo</SelectItem>
+            <SelectItem value="Inativo">Inativo</SelectItem>
+            <SelectItem value="Experimental">Experimental</SelectItem>
+            <SelectItem value="Bloqueado">Bloqueado</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={filterPlanType} onValueChange={(value: PlanType | 'all') => setFilterPlanType(value)} disabled={isLoadingSettings}>
+          <SelectTrigger><SelectValue placeholder="Filtrar por Plano" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os Planos</SelectItem>
+            {appSettings?.plan_types.map(type => (
+              <SelectItem key={type} value={type}>{type}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={filterEnrollmentType} onValueChange={(value: EnrollmentType | 'all') => setFilterEnrollmentType(value)} disabled={isLoadingSettings}>
+          <SelectTrigger><SelectValue placeholder="Filtrar por Matrícula" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os Tipos de Matrícula</SelectItem>
+            {appSettings?.enrollment_types.map(type => (
+              <SelectItem key={type} value={type}>{type}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <StudentsTable
         students={filteredStudents}
-        isLoading={isLoading}
+        isLoading={isLoading || isLoadingSettings}
         onEdit={handleEdit}
         onDelete={handleDelete}
       />
