@@ -27,7 +27,7 @@ interface AddAttendeeSectionProps {
   allStudents: StudentOption[] | undefined;
 }
 
-const AddAttendeeSection = ({
+const AddAttendeeSection = React.memo(({
   availableStudentsForAdd,
   isLoadingAllStudents,
   isClassFull,
@@ -97,6 +97,6 @@ const AddAttendeeSection = ({
       </div>
     </div>
   );
-};
+});
 
 export default AddAttendeeSection;

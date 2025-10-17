@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'; // Adicionado useMemo
+import { useState, useEffect, useMemo, useCallback } from 'react'; // Adicionado useCallback
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { ClassEvent, ClassAttendee, AttendanceStatus } from '@/types/schedule';
@@ -129,37 +129,37 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
     isDeletingClass,
   } = useClassManagement({ classId, allStudents });
 
-  const handleEditSubmit = async (data: ClassFormData) => {
+  const handleEditSubmit = useCallback(async (data: ClassFormData) => {
     await updateClass(data);
     setIsEditMode(false); // Fechar modo de edição após sucesso
-  };
+  }, [updateClass]);
 
-  const confirmRemoveAttendee = (attendee: ClassAttendee) => {
+  const confirmRemoveAttendee = useCallback((attendee: ClassAttendee) => {
     setAttendeeToDelete(attendee);
     setDeleteAttendeeAlertOpen(true);
-  };
+  }, []);
 
-  const handleConfirmDeleteAttendee = async () => {
+  const handleConfirmDeleteAttendee = useCallback(async () => {
     if (attendeeToDelete) {
       await removeAttendee(attendeeToDelete.id);
       setDeleteAttendeeAlertOpen(false);
       setAttendeeToDelete(null);
     }
-  };
+  }, [attendeeToDelete, removeAttendee]);
 
-  const handleConfirmDeleteClass = async () => {
+  const handleConfirmDeleteClass = useCallback(async () => {
     await deleteClass();
     onOpenChange(false); // Fechar o diálogo principal após exclusão da aula
-  };
+  }, [deleteClass, onOpenChange]);
 
-  const handleAddAttendee = async (studentId: string) => {
+  const handleAddAttendee = useCallback(async (studentId: string) => {
     await addAttendee({ studentId });
     setDisplaceConfirmationOpen(false); // Fechar diálogo de confirmação de deslocamento se estiver aberto
     setStudentToDisplace(null);
     setNewStudentForDisplacement(null);
-  };
+  }, [addAttendee]);
 
-  const handleConfirmDisplacement = async () => {
+  const handleConfirmDisplacement = useCallback(async () => {
     if (newStudentForDisplacement && studentToDisplace) {
       await addAttendee({
         studentId: newStudentForDisplacement.id,
@@ -169,7 +169,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
       setStudentToDisplace(null);
       setNewStudentForDisplacement(null);
     }
-  };
+  }, [newStudentForDisplacement, studentToDisplace, addAttendee]);
 
   // Memoize this calculation to prevent re-running on every render
   const availableStudentsForAdd = useMemo(() => {
@@ -212,7 +212,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                       attendees={attendees}
                       isLoadingAttendees={isLoadingAttendees}
                       classCapacity={classCapacity}
-                      onUpdateStatus={(attendeeId, status) => updateAttendeeStatus({ attendeeId, status })}
+                      onUpdateStatus={useCallback((attendeeId, status) => updateAttendeeStatus({ attendeeId, status }), [updateAttendeeStatus])}
                       onRemoveAttendee={confirmRemoveAttendee}
                     />
                     <AddAttendeeSection
@@ -223,9 +223,9 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                       onConfirmDisplacement={handleConfirmDisplacement}
                       isAddingAttendee={isAddingAttendee}
                       isDisplaceConfirmationOpen={isDisplaceConfirmationOpen}
-                      onDisplaceConfirmationChange={setDisplaceConfirmationOpen}
-                      setStudentToDisplace={setStudentToDisplace}
-                      setNewStudentForDisplacement={setNewStudentForDisplacement}
+                      onDisplaceConfirmationChange={useCallback((open) => setDisplaceConfirmationOpen(open), [])}
+                      setStudentToDisplace={useCallback((attendee) => setStudentToDisplace(attendee), [])}
+                      setNewStudentForDisplacement={useCallback((student) => setNewStudentForDisplacement(student), [])}
                       attendees={attendees}
                       allStudents={allStudents}
                     />
@@ -252,7 +252,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
 
       <DeleteClassAlertDialog
         isOpen={isDeleteClassAlertOpen}
-        onOpenChange={setDeleteClassAlertOpen}
+        onOpenChange={useCallback((open) => setDeleteClassAlertOpen(open), [])}
         classTitle={details?.title}
         onConfirmDelete={handleConfirmDeleteClass}
         isDeleting={isDeletingClass}
@@ -260,7 +260,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
 
       <DeleteAttendeeAlertDialog
         isOpen={isDeleteAttendeeAlertOpen}
-        onOpenChange={setDeleteAttendeeAlertOpen}
+        onOpenChange={useCallback((open) => setDeleteAttendeeAlertOpen(open), [])}
         attendeeName={attendeeToDelete?.students.name}
         onConfirmDelete={handleConfirmDeleteAttendee}
         isDeleting={isRemovingAttendee}
@@ -268,7 +268,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
 
       <DisplaceConfirmationAlertDialog
         isOpen={isDisplaceConfirmationOpen}
-        onOpenChange={setDisplaceConfirmationOpen}
+        onOpenChange={useCallback((open) => setDisplaceConfirmationOpen(open), [])}
         studentToDisplace={studentToDisplace}
         newStudentForDisplacement={newStudentForDisplacement}
         onConfirmDisplacement={handleConfirmDisplacement}
