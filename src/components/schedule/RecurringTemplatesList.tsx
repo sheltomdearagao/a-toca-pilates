@@ -135,8 +135,8 @@ const RecurringTemplatesList = ({ onEditTemplate }: RecurringTemplatesListProps)
                   <TableCell className="font-medium">{template.title}</TableCell>
                   <TableCell>{template.students?.name || '-'}</TableCell>
                   <TableCell>
-                    {template.recurrence_pattern.map((pattern, index) => (
-                      <div key={index} className="text-xs text-muted-foreground">
+                    {template.recurrence_pattern.map((pattern) => (
+                      <div key={pattern.day} className="text-xs text-muted-foreground"> {/* Usando pattern.day como key */}
                         {DAYS_OF_WEEK_MAP[pattern.day]} às {pattern.time}
                       </div>
                     ))}
