@@ -12,7 +12,7 @@ interface StatCardProps {
   variant?: "default" | "gradient" | "gradient-accent" | "gradient-destructive" | "bordered" | "bordered-green" | "bordered-red" | "bordered-yellow"; // Adicionado novas variantes
 }
 
-const StatCard = ({ title, value, description, icon, isLoading, variant = "default" }: StatCardProps) => {
+const StatCard = React.memo(({ title, value, description, icon, isLoading, variant = "default" }: StatCardProps) => {
   return (
     <Card 
       variant={variant} // Usando a nova prop variant
@@ -77,6 +77,6 @@ const StatCard = ({ title, value, description, icon, isLoading, variant = "defau
       </CardContent>
     </Card>
   );
-};
+});
 
 export default StatCard;
