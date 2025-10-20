@@ -28,7 +28,7 @@ interface StudentsTableProps {
   onDelete: (student: Student) => void;
 }
 
-const StudentsTable = ({ students, isLoading, onEdit, onDelete }: StudentsTableProps) => {
+const StudentsTable = React.memo(({ students, isLoading, onEdit, onDelete }: StudentsTableProps) => {
   if (isLoading) {
     return <FinancialTableSkeleton columns={5} rows={10} />; // Usando o skeleton com 5 colunas e 10 linhas
   }
@@ -118,6 +118,6 @@ const StudentsTable = ({ students, isLoading, onEdit, onDelete }: StudentsTableP
       </Table>
     </Card>
   );
-};
+});
 
 export default StudentsTable;

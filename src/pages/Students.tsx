@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Student, StudentStatus, PlanType, EnrollmentType } from "@/types/student";
@@ -83,24 +83,24 @@ const Students = () => {
     onError: (error) => { showError(error.message); },
   });
 
-  const handleAddNew = () => {
+  const handleAddNew = useCallback(() => {
     setSelectedStudent(null);
     setFormOpen(true);
-  };
+  }, []);
 
-  const handleEdit = (student: Student) => {
+  const handleEdit = useCallback((student: Student) => {
     setSelectedStudent(student);
     setFormOpen(true);
-  };
+  }, []);
 
-  const handleDelete = (student: Student) => {
+  const handleDelete = useCallback((student: Student) => {
     setSelectedStudent(student);
     setDeleteAlertOpen(true);
-  };
+  }, []);
 
-  const onSubmitStudent = (data: any) => { // Use 'any' here, actual schema is in dialog
+  const onSubmitStudent = useCallback((data: any) => { // Use 'any' here, actual schema is in dialog
     addEditMutation.mutate(data);
-  };
+  }, [addEditMutation]);
 
   // Lógica de filtragem combinada
   const filteredStudents = useMemo(() => {
