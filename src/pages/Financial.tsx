@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { FinancialTransaction } from "@/types/financial";
@@ -215,22 +215,24 @@ const Financial = () => {
     onError: (error) => { showError(error.message); },
   });
 
-  const handleAddNew = () => {
+  const handleAddNew = useCallback(() => {
     setSelectedTransaction(null);
     setFormOpen(true);
-  };
+  }, []);
 
-  const handleEdit = (transaction: FinancialTransaction) => {
+  const handleEdit = useCallback((transaction: FinancialTransaction) => {
     setSelectedTransaction(transaction);
     setFormOpen(true);
-  };
+  }, []);
 
-  const handleDelete = (transaction: FinancialTransaction) => {
+  const handleDelete = useCallback((transaction: FinancialTransaction) => {
     setSelectedTransaction(transaction);
     setDeleteAlertOpen(true);
-  };
+  }, []);
   
-  const onSubmitTransaction = (data: TransactionFormData) => { mutation.mutate(data); };
+  const onSubmitTransaction = useCallback((data: TransactionFormData) => {
+    mutation.mutate(data);
+  }, [mutation]);
 
   return (
     <div className="space-y-6">
@@ -292,7 +294,7 @@ const Financial = () => {
         isOpen={isDeleteAlertOpen}
         onOpenChange={setDeleteAlertOpen}
         selectedTransaction={selectedTransaction}
-        onConfirmDelete={deleteMutation.mutate}
+        onConfirmDelete={() => selectedTransaction && deleteMutation.mutate(selectedTransaction.id)}
         isDeleting={deleteMutation.isPending}
       />
     </div>
