@@ -83,9 +83,22 @@ const StudentProfile = () => {
 
   const updateStudentMutation = useMutation({
     mutationFn: async (formData: any) => {
+      const dataToSubmit = { ...formData };
+      if (dataToSubmit.date_of_birth === "") {
+        dataToSubmit.date_of_birth = null;
+      }
+      if (dataToSubmit.validity_date === "") {
+        dataToSubmit.validity_date = null;
+      }
+      if (dataToSubmit.plan_type === 'Avulso') {
+        dataToSubmit.plan_frequency = null;
+        dataToSubmit.payment_method = null;
+        dataToSubmit.monthly_fee = 0;
+      }
+
       const { error } = await supabase
         .from("students")
-        .update(formData)
+        .update(dataToSubmit)
         .eq("id", studentId!);
       if (error) throw error;
     },
