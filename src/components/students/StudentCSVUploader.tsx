@@ -118,27 +118,42 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
         }
 
         try {
-          const processedData = results.data.map((row: any) => {
-            // Data validation and transformation
-            if (!row.Nome || !row.Plano) {
-              throw new Error(`Linha inválida encontrada: ${JSON.stringify(row)}`);
-            }
-            const [plan_type, plan_frequency] = row.Plano.split(' ');
-            const monthly_fee = parseFloat(row['Valor pago'].replace(',', '.'));
-            const [day, month, year] = row['Data de vencimento'].split('/');
-            const due_date = new Date(`${year}-${month}-${day}`).toISOString();
+          const processedData = results.data.map((row: any, index: number) => {
+            try {
+              if (!row.Nome || !row.Plano) {
+                throw new Error(`As colunas 'Nome' e 'Plano' são obrigatórias.`);
+              }
+              const [plan_type, plan_frequency] = row.Plano.split(' ');
+              const monthly_fee = parseFloat(String(row['Valor pago']).replace(/[^0-9,.]/g, '').replace(',', '.'));
+              
+              const dateString = row['Data de vencimento'];
+              if (!dateString) throw new Error("A coluna 'Data de vencimento' está vazia.");
 
-            return {
-              ...row,
-              plan_type,
-              plan_frequency,
-              monthly_fee,
-              due_date,
-            };
+              const dateParts = dateString.split(/[/.-]/); // Aceita /, . ou - como separador
+              if (dateParts.length !== 3) throw new Error(`Formato de data inválido: "${dateString}"`);
+              
+              const [day, month, year] = dateParts;
+              const parsedDate = new Date(`${year}-${month}-${day}T12:00:00Z`); // Adiciona T12:00:00Z para evitar problemas de fuso horário
+              
+              if (isNaN(parsedDate.getTime())) {
+                throw new Error(`Data inválida: "${dateString}"`);
+              }
+              const due_date = parsedDate.toISOString();
+
+              return {
+                ...row,
+                plan_type,
+                plan_frequency,
+                monthly_fee,
+                due_date,
+              };
+            } catch (innerError: any) {
+              throw new Error(`Erro na linha ${index + 2} do seu arquivo: ${innerError.message}`);
+            }
           });
           mutation.mutate(processedData);
         } catch (error: any) {
-          showError(`Erro ao processar os dados do CSV: ${error.message}`);
+          showError(error.message);
           setIsProcessing(false);
         }
       },
