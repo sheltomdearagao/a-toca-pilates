@@ -140,6 +140,9 @@ const AddEditStudentDialog = ({
       if (selectedStudent) {
         reset({
           ...selectedStudent,
+          email: selectedStudent.email || '', // Convert null to empty string
+          phone: selectedStudent.phone || '', // Convert null to empty string
+          notes: selectedStudent.notes || '', // Also good practice for notes
           date_of_birth: selectedStudent.date_of_birth ? format(new Date(selectedStudent.date_of_birth), 'yyyy-MM-dd') : "",
           validity_date: selectedStudent.validity_date ? format(new Date(selectedStudent.validity_date), 'yyyy-MM-dd') : "",
           plan_type: (selectedStudent.plan_type as z.infer<typeof studentSchema>['plan_type']) || (appSettings?.plan_types?.[0] || "Avulso"),
