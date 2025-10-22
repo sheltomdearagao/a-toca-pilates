@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Student } from '@/types/student';
 import { FinancialTransaction } from '@/types/financial';
-import { Loader2, ArrowLeft, User, Mail, Phone, StickyNote, DollarSign, Calendar, Calculator, MoreHorizontal, CheckCircle, Cake, PlusCircle, CalendarCheck } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Mail, Phone, StickyNote, DollarSign, Calendar, Calculator, MoreHorizontal, CheckCircle, Cake, PlusCircle, CalendarCheck, Edit } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -19,13 +19,14 @@ import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import ProRataCalculator from '../components/students/ProRataCalculator';
 import AddClassDialog from '@/components/schedule/AddClassDialog';
+import AddEditStudentDialog from '@/components/students/AddEditStudentDialog';
 import { showError, showSuccess } from '@/utils/toast';
 import ColoredSeparator from "@/components/ColoredSeparator";
 import { useSession } from '@/contexts/SessionProvider';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
-import FinancialTableSkeleton from '@/components/financial/FinancialTableSkeleton'; // Reutilizando o skeleton de tabela
-import { formatCurrency } from "@/utils/formatters"; // Importar do utilitário
+import FinancialTableSkeleton from '@/components/financial/FinancialTableSkeleton';
+import { formatCurrency } from "@/utils/formatters";
 
 type ClassAttendance = {
   id: string;
@@ -43,27 +44,14 @@ type StudentProfileData = {
 };
 
 const fetchStudentProfile = async (studentId: string): Promise<StudentProfileData> => {
-  // Executa todas as consultas em paralelo usando Promise.all
   const [
     { data: student, error: studentError },
     { data: transactions, error: transactionsError },
     { data: attendance, error: attendanceError },
   ] = await Promise.all([
-    supabase
-      .from('students')
-      .select('*')
-      .eq('id', studentId)
-      .single(),
-    supabase
-      .from('financial_transactions')
-      .select('*, students(name)') // Inclui students(name) para consistência, embora já tenhamos o aluno principal
-      .eq('student_id', studentId)
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('class_attendees')
-      .select('id, status, classes!inner(title, start_time)')
-      .eq('student_id', studentId)
-      .order('start_time', { foreignTable: 'classes', ascending: false }),
+    supabase.from('students').select('*').eq('id', studentId).single(),
+    supabase.from('financial_transactions').select('*, students(name)').eq('student_id', studentId).order('created_at', { ascending: false }),
+    supabase.from('class_attendees').select('id, status, classes!inner(title, start_time)').eq('student_id', studentId).order('start_time', { foreignTable: 'classes', ascending: false }),
   ]);
 
   if (studentError) throw new Error(`Erro ao carregar dados do aluno: ${studentError.message}`);
@@ -82,6 +70,7 @@ const StudentProfile = () => {
   const queryClient = useQueryClient();
   const [isProRataOpen, setProRataOpen] = useState(false);
   const [isAddClassOpen, setAddClassOpen] = useState(false);
+  const [isEditFormOpen, setEditFormOpen] = useState(false);
   const { profile } = useSession();
   const isAdmin = profile?.role === 'admin';
 
@@ -89,18 +78,29 @@ const StudentProfile = () => {
     queryKey: ['studentProfile', studentId],
     queryFn: () => fetchStudentProfile(studentId!),
     enabled: !!studentId,
-    staleTime: 1000 * 60 * 2, // Cache por 2 minutos
+    staleTime: 1000 * 60 * 2,
+  });
+
+  const updateStudentMutation = useMutation({
+    mutationFn: async (formData: any) => {
+      const { error } = await supabase
+        .from("students")
+        .update(formData)
+        .eq("id", studentId!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['studentProfile', studentId] });
+      showSuccess(`Aluno atualizado com sucesso!`);
+      setEditFormOpen(false);
+    },
+    onError: (error: any) => { showError(error.message); },
   });
 
   const markAsPaidMutation = useMutation({
     mutationFn: async (transactionId: string) => {
-      if (!isAdmin) {
-        throw new Error("Você não tem permissão para marcar transações como pagas.");
-      }
-      const { error } = await supabase
-        .from('financial_transactions')
-        .update({ status: 'Pago', paid_at: new Date().toISOString() })
-        .eq('id', transactionId);
+      if (!isAdmin) throw new Error("Você não tem permissão para marcar transações como pagas.");
+      const { error } = await supabase.from('financial_transactions').update({ status: 'Pago', paid_at: new Date().toISOString() }).eq('id', transactionId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -164,9 +164,14 @@ const StudentProfile = () => {
               <>
                 <Skeleton className="h-10 w-36" />
                 <Skeleton className="h-10 w-36" />
+                <Skeleton className="h-10 w-36" />
               </>
             ) : (
               <>
+                <Button variant="outline" onClick={() => setEditFormOpen(true)}>
+                  <Edit className="w-4 h-4 mr-2" />
+                  Editar Cadastro
+                </Button>
                 {student?.plan_type !== 'Avulso' && (
                   <Button onClick={() => setProRataOpen(true)}>
                     <Calculator className="w-4 h-4 mr-2" />
@@ -344,6 +349,15 @@ const StudentProfile = () => {
       </div>
       {student && <ProRataCalculator isOpen={isProRataOpen} onOpenChange={setProRataOpen} student={student} />}
       {student && <AddClassDialog isOpen={isAddClassOpen} onOpenChange={setAddClassOpen} />}
+      {student && (
+        <AddEditStudentDialog
+          isOpen={isEditFormOpen}
+          onOpenChange={setEditFormOpen}
+          selectedStudent={student}
+          onSubmit={(data) => updateStudentMutation.mutate(data)}
+          isSubmitting={updateStudentMutation.isPending}
+        />
+      )}
     </div>
   );
 };
