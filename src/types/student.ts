@@ -19,6 +19,7 @@ export type Student = {
   monthly_fee?: number;
   enrollment_type: EnrollmentType; // Novo campo
   date_of_birth?: string | null; // Novo campo
+  validity_date?: string | null; // Novo campo de validade
 };
 
 // Novo tipo para uso em dropdowns e seletores de aluno

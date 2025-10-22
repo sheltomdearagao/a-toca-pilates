@@ -70,6 +70,7 @@ const createStudentSchema = (appSettings: any) => {
     monthly_fee: z.number().optional(),
     enrollment_type: dynamicEnrollmentTypeSchema.default("Particular"),
     date_of_birth: z.string().optional().nullable(),
+    validity_date: z.string().optional().nullable(), // Novo campo
   }).superRefine((data, ctx) => {
     if (data.plan_type !== 'Avulso') {
       if (!data.plan_frequency) {
@@ -116,7 +117,8 @@ const AddEditStudentDialog = ({
       name: "", email: "", phone: "", status: "Experimental", notes: "",
       plan_type: appSettings?.plan_types?.[0] || "Avulso",
       enrollment_type: appSettings?.enrollment_types?.[0] || "Particular",
-      date_of_birth: ""
+      date_of_birth: "",
+      validity_date: ""
     },
   });
 
@@ -139,6 +141,7 @@ const AddEditStudentDialog = ({
         reset({
           ...selectedStudent,
           date_of_birth: selectedStudent.date_of_birth ? format(new Date(selectedStudent.date_of_birth), 'yyyy-MM-dd') : "",
+          validity_date: selectedStudent.validity_date ? format(new Date(selectedStudent.validity_date), 'yyyy-MM-dd') : "",
           plan_type: (selectedStudent.plan_type as z.infer<typeof studentSchema>['plan_type']) || (appSettings?.plan_types?.[0] || "Avulso"),
           plan_frequency: (selectedStudent.plan_frequency as z.infer<typeof studentSchema>['plan_frequency']),
           payment_method: (selectedStudent.payment_method as z.infer<typeof studentSchema>['payment_method']),
@@ -149,7 +152,8 @@ const AddEditStudentDialog = ({
           name: "", email: "", phone: "", status: "Experimental", notes: "",
           plan_type: appSettings?.plan_types?.[0] || "Avulso",
           enrollment_type: appSettings?.enrollment_types?.[0] || "Particular",
-          date_of_birth: ""
+          date_of_birth: "",
+          validity_date: ""
         });
       }
     }
@@ -280,14 +284,25 @@ const AddEditStudentDialog = ({
                 </>
               )} />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="date_of_birth">Data de Nascimento</Label>
-              <Controller name="date_of_birth" control={control} render={({ field, fieldState }) => (
-                <>
-                  <Input id="date_of_birth" type="date" {...field} />
-                  {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
-                </>
-              )} />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="date_of_birth">Data de Nascimento</Label>
+                <Controller name="date_of_birth" control={control} render={({ field, fieldState }) => (
+                  <>
+                    <Input id="date_of_birth" type="date" {...field} value={field.value || ''} />
+                    {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                  </>
+                )} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="validity_date">Data de Validade</Label>
+                <Controller name="validity_date" control={control} render={({ field, fieldState }) => (
+                  <>
+                    <Input id="validity_date" type="date" {...field} value={field.value || ''} />
+                    {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                  </>
+                )} />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Notas</Label>

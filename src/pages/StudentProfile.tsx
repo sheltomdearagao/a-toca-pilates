@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Student } from '@/types/student';
 import { FinancialTransaction } from '@/types/financial';
-import { Loader2, ArrowLeft, User, Mail, Phone, StickyNote, DollarSign, Calendar, Calculator, MoreHorizontal, CheckCircle, Cake, PlusCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Mail, Phone, StickyNote, DollarSign, Calendar, Calculator, MoreHorizontal, CheckCircle, Cake, PlusCircle, CalendarCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -212,6 +212,12 @@ const StudentProfile = () => {
                   <div className="flex items-center">
                     <Cake className="w-4 h-4 mr-3 text-muted-foreground" />
                     <span>{format(parseISO(student.date_of_birth), 'dd/MM/yyyy')}</span>
+                  </div>
+                )}
+                {student?.validity_date && (
+                  <div className="flex items-center">
+                    <CalendarCheck className="w-4 h-4 mr-3 text-muted-foreground" />
+                    <span>Validade: {format(parseISO(student.validity_date), 'dd/MM/yyyy')}</span>
                   </div>
                 )}
                 {student?.notes && (

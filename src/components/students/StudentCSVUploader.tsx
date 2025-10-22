@@ -41,8 +41,9 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
         plan_frequency: s.plan_frequency,
         monthly_fee: s.monthly_fee,
         payment_method: s.payment_method,
-        status: 'Ativo', // Default status for new imported students
-        enrollment_type: 'Particular', // Default enrollment type
+        status: 'Ativo',
+        enrollment_type: 'Particular',
+        validity_date: s.validity_date, // Adicionando o novo campo
       }));
 
       const { data: insertedStudents, error: studentError } = await supabase
@@ -53,7 +54,7 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
       if (studentError) throw new Error(`Erro ao inserir alunos: ${studentError.message}`);
       if (!insertedStudents) throw new Error("Nenhum aluno foi inserido.");
 
-      // 2. Criar as transações financeiras para cada aluno inserido
+      // 2. Criar as transações financeiras
       const transactionsToInsert = insertedStudents.map(student => {
         const originalData = studentsData.find(s => s.Nome === student.name);
         if (!originalData) return null;
@@ -96,6 +97,16 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
     }
   });
 
+  const parseDate = (dateString: string) => {
+    if (!dateString) return null;
+    const dateParts = dateString.split(/[/.-]/);
+    if (dateParts.length !== 3) throw new Error(`Formato de data inválido: "${dateString}"`);
+    const [day, month, year] = dateParts;
+    const parsedDate = new Date(`${year}-${month}-${day}T12:00:00Z`);
+    if (isNaN(parsedDate.getTime())) throw new Error(`Data inválida: "${dateString}"`);
+    return parsedDate.toISOString();
+  };
+
   const handleFileUpload = () => {
     if (!csvFile) {
       showError("Por favor, selecione um arquivo CSV.");
@@ -107,7 +118,7 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
       header: true,
       skipEmptyLines: true,
       complete: (results) => {
-        const requiredColumns = ['Nome', 'Plano', 'Valor pago', 'Forma de pagamento', 'Status', 'Data de vencimento'];
+        const requiredColumns = ['Nome', 'Plano', 'Valor pago', 'Forma de pagamento', 'Status', 'Data de vencimento', 'Validade'];
         const headers = results.meta.fields || [];
         const missingColumns = requiredColumns.filter(col => !headers.includes(col));
 
@@ -126,26 +137,13 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
               const [plan_type, plan_frequency] = row.Plano.split(' ');
               const monthly_fee = parseFloat(String(row['Valor pago']).replace(/[^0-9,.]/g, '').replace(',', '.'));
               
-              const dateString = row['Data de vencimento'];
-              if (!dateString) throw new Error("A coluna 'Data de vencimento' está vazia.");
-
-              const dateParts = dateString.split(/[/.-]/); // Aceita /, . ou - como separador
-              if (dateParts.length !== 3) throw new Error(`Formato de data inválido: "${dateString}"`);
-              
-              const [day, month, year] = dateParts;
-              const parsedDate = new Date(`${year}-${month}-${day}T12:00:00Z`); // Adiciona T12:00:00Z para evitar problemas de fuso horário
-              
-              if (isNaN(parsedDate.getTime())) {
-                throw new Error(`Data inválida: "${dateString}"`);
-              }
-              const due_date = parsedDate.toISOString();
-
               return {
                 ...row,
                 plan_type,
                 plan_frequency,
                 monthly_fee,
-                due_date,
+                due_date: parseDate(row['Data de vencimento']),
+                validity_date: parseDate(row['Validade']),
               };
             } catch (innerError: any) {
               throw new Error(`Erro na linha ${index + 2} do seu arquivo: ${innerError.message}`);
@@ -170,8 +168,7 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
         <DialogHeader>
           <DialogTitle>Importar Alunos via CSV</DialogTitle>
           <DialogDescription>
-            Selecione um arquivo CSV para cadastrar múltiplos alunos de uma vez.
-            O arquivo deve conter as colunas: `Nome`, `Plano`, `Valor pago`, `Forma de pagamento`, `Status`, `Data de vencimento`.
+            O arquivo deve conter as colunas: `Nome`, `Plano`, `Valor pago`, `Forma de pagamento`, `Status`, `Data de vencimento`, `Validade`.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
