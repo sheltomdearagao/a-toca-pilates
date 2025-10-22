@@ -9,9 +9,10 @@ import StudentsHeader from '@/components/students/StudentsHeader';
 import StudentsTable from '@/components/students/StudentsTable';
 import AddEditStudentDialog from '@/components/students/AddEditStudentDialog';
 import DeleteStudentAlertDialog from '@/components/students/DeleteStudentAlertDialog';
+import StudentCSVUploader from '@/components/students/StudentCSVUploader'; // Importar o novo componente
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useAppSettings } from '@/hooks/useAppSettings'; // Importar o hook de configurações
+import { useAppSettings } from '@/hooks/useAppSettings';
 
 // Moved fetchStudents outside the component
 const fetchStudents = async (): Promise<Student[]> => {
@@ -24,6 +25,7 @@ const Students = () => {
   const queryClient = useQueryClient();
   const [isFormOpen, setFormOpen] = useState(false);
   const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
+  const [isImportOpen, setImportOpen] = useState(false); // Estado para o diálogo de importação
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
   // Estados para os filtros
@@ -36,14 +38,14 @@ const Students = () => {
   const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
 
   const addEditMutation = useMutation({
-    mutationFn: async (formData: any) => { // Use 'any' for formData here, actual schema is in dialog
+    mutationFn: async (formData: any) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado.");
       
       const dataToSubmit = { ...formData };
       if (dataToSubmit.plan_type === 'Avulso') {
-        dataToSubmit.plan_frequency = null; // Set to null for Supabase
-        dataToSubmit.payment_method = null; // Set to null for Supabase
+        dataToSubmit.plan_frequency = null;
+        dataToSubmit.payment_method = null;
         dataToSubmit.monthly_fee = 0;
       }
       if (dataToSubmit.date_of_birth === "") {
@@ -98,37 +100,31 @@ const Students = () => {
     setDeleteAlertOpen(true);
   }, []);
 
-  const onSubmitStudent = useCallback((data: any) => { // Use 'any' here, actual schema is in dialog
+  const onSubmitStudent = useCallback((data: any) => {
     addEditMutation.mutate(data);
   }, [addEditMutation]);
 
-  // Lógica de filtragem combinada
   const filteredStudents = useMemo(() => {
     if (!students) return [];
-
     return students.filter(student => {
-      // Filtro por termo de busca (nome, email, telefone)
       const matchesSearchTerm = searchTerm.trim() === '' ||
         student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (student.email && student.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (student.phone && student.phone.toLowerCase().includes(searchTerm.toLowerCase()));
-
-      // Filtro por status
       const matchesStatus = filterStatus === 'all' || student.status === filterStatus;
-
-      // Filtro por tipo de plano
       const matchesPlanType = filterPlanType === 'all' || student.plan_type === filterPlanType;
-
-      // Filtro por tipo de matrícula
       const matchesEnrollmentType = filterEnrollmentType === 'all' || student.enrollment_type === filterEnrollmentType;
-
       return matchesSearchTerm && matchesStatus && matchesPlanType && matchesEnrollmentType;
     });
   }, [students, searchTerm, filterStatus, filterPlanType, filterEnrollmentType]);
 
   return (
     <div className="space-y-8">
-      <StudentsHeader studentCount={filteredStudents?.length} onAddNewStudent={handleAddNew} />
+      <StudentsHeader
+        studentCount={filteredStudents?.length}
+        onAddNewStudent={handleAddNew}
+        onImportCSV={() => setImportOpen(true)} // Abrir o diálogo de importação
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Input
@@ -137,7 +133,6 @@ const Students = () => {
           onChange={(e) => setSearchTerm(e.target.value)}
           className="col-span-full lg:col-span-1"
         />
-
         <Select value={filterStatus} onValueChange={(value: StudentStatus | 'all') => setFilterStatus(value)}>
           <SelectTrigger><SelectValue placeholder="Filtrar por Status" /></SelectTrigger>
           <SelectContent>
@@ -148,7 +143,6 @@ const Students = () => {
             <SelectItem value="Bloqueado">Bloqueado</SelectItem>
           </SelectContent>
         </Select>
-
         <Select value={filterPlanType} onValueChange={(value: PlanType | 'all') => setFilterPlanType(value)} disabled={isLoadingSettings}>
           <SelectTrigger><SelectValue placeholder="Filtrar por Plano" /></SelectTrigger>
           <SelectContent>
@@ -158,7 +152,6 @@ const Students = () => {
             ))}
           </SelectContent>
         </Select>
-
         <Select value={filterEnrollmentType} onValueChange={(value: EnrollmentType | 'all') => setFilterEnrollmentType(value)} disabled={isLoadingSettings}>
           <SelectTrigger><SelectValue placeholder="Filtrar por Matrícula" /></SelectTrigger>
           <SelectContent>
@@ -191,6 +184,11 @@ const Students = () => {
         selectedStudentName={selectedStudent?.name}
         onConfirmDelete={() => selectedStudent && deleteMutation.mutate(selectedStudent.id)}
         isDeleting={deleteMutation.isPending}
+      />
+
+      <StudentCSVUploader
+        isOpen={isImportOpen}
+        onOpenChange={setImportOpen}
       />
     </div>
   );
