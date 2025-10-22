@@ -61,9 +61,9 @@ const fetchStudentProfile = async (studentId: string): Promise<StudentProfileDat
       .order('created_at', { ascending: false }),
     supabase
       .from('class_attendees')
-      .select('id, status, classes(title, start_time)')
+      .select('id, status, classes!inner(title, start_time)')
       .eq('student_id', studentId)
-      .order('created_at', { ascending: false }),
+      .order('start_time', { foreignTable: 'classes', ascending: false }),
   ]);
 
   if (studentError) throw new Error(`Erro ao carregar dados do aluno: ${studentError.message}`);
