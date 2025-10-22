@@ -20,6 +20,8 @@ export type Student = {
   enrollment_type: EnrollmentType; // Novo campo
   date_of_birth?: string | null; // Novo campo
   validity_date?: string | null; // Novo campo de validade
+  preferred_days?: string[] | null; // Novo campo
+  preferred_time?: string | null; // Novo campo
 };
 
 // Novo tipo para uso em dropdowns e seletores de aluno
