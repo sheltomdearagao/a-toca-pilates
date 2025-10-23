@@ -69,8 +69,8 @@ type StudentFormData = z.infer<ReturnType<typeof createStudentSchema>>;
 
 const createStudentSchema = (appSettings: any) => {
   const dynamicPlanTypeSchema = z.enum(appSettings?.plan_types as [string, ...string[]] || ["Avulso"]);
-  const dynamicPlanFrequencySchema = z.enum(appSettings?.plan_frequencies as [string, ...string[]] || ["2x"]).optional();
-  const dynamicPaymentMethodSchema = z.enum(appSettings?.payment_methods as [string, ...string[]] || ["Cartão"]).optional();
+  const dynamicPlanFrequencySchema = z.enum(appSettings?.plan_frequencies as [string, ...string[]] || ["2x"]).optional().nullable(); // Permitir nulo
+  const dynamicPaymentMethodSchema = z.enum(appSettings?.payment_methods as [string, ...string[]] || ["Cartão"]).optional().nullable(); // Permitir nulo
   const dynamicEnrollmentTypeSchema = z.enum(appSettings?.enrollment_types as [string, ...string[]] || ["Particular"]);
 
   return z.object({
@@ -123,6 +123,8 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
       name: "", email: "", phone: "", status: "Experimental", notes: "",
       plan_type: "Avulso", enrollment_type: "Particular", date_of_birth: "", validity_date: "",
       preferred_days: [], preferred_time: null,
+      plan_frequency: null, // Garantir que seja nulo por padrão
+      payment_method: null, // Garantir que seja nulo por padrão
     },
   });
 
@@ -146,6 +148,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
   useEffect(() => {
     if (isOpen) {
       if (selectedStudent) {
+        // Ao editar, garantir que os campos opcionais sejam nulos se estiverem vazios
         reset({
           ...selectedStudent,
           email: selectedStudent.email || '',
@@ -155,12 +158,18 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
           validity_date: selectedStudent.validity_date ? format(new Date(selectedStudent.validity_date), 'yyyy-MM-dd') : "",
           preferred_days: selectedStudent.preferred_days || [],
           preferred_time: selectedStudent.preferred_time || null,
+          // Garantir que plan_frequency e payment_method sejam nulos se o plano for Avulso ou se o valor for undefined/null
+          plan_frequency: selectedStudent.plan_type === 'Avulso' ? null : selectedStudent.plan_frequency || null,
+          payment_method: selectedStudent.plan_type === 'Avulso' ? null : selectedStudent.payment_method || null,
         });
       } else {
+        // Novo aluno
         reset({
           name: "", email: "", phone: "", status: "Experimental", notes: "",
           plan_type: "Avulso", enrollment_type: "Particular", date_of_birth: "", validity_date: "",
           preferred_days: [], preferred_time: null,
+          plan_frequency: null,
+          payment_method: null,
         });
       }
     }
@@ -179,7 +188,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
             <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label>Email</Label><Controller name="email" control={control} render={({ field, fieldState }) => (<><Input {...field} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div><div className="space-y-2"><Label>Telefone</Label><Controller name="phone" control={control} render={({ field, fieldState }) => (<><Input {...field} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div></div>
             <div className="space-y-2"><Label>Status</Label><Controller name="status" control={control} render={({ field, fieldState }) => (<><Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Ativo">Ativo</SelectItem><SelectItem value="Inativo">Inativo</SelectItem><SelectItem value="Experimental">Experimental</SelectItem><SelectItem value="Bloqueado">Bloqueado</SelectItem></SelectContent></Select>{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
             <div className="space-y-2"><Label>Plano</Label><Controller name="plan_type" control={control} render={({ field, fieldState }) => (<><Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{appSettings?.plan_types.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select>{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
-            {planType !== 'Avulso' && (<div className="grid grid-cols-2 gap-4 p-4 border bg-secondary/20 rounded-lg"><div className="space-y-2"><Label>Frequência</Label><Controller name="plan_frequency" control={control} render={({ field, fieldState }) => (<><Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{appSettings?.plan_frequencies.map(freq => (<SelectItem key={freq} value={freq}>{freq} na semana</SelectItem>))}</SelectContent></Select>{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div><div className="space-y-2"><Label>Pagamento</Label><Controller name="payment_method" control={control} render={({ field, fieldState }) => (<><Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{appSettings?.payment_methods.map(method => (<SelectItem key={method} value={method}>{method}</SelectItem>))}</SelectContent></Select>{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div><div className="col-span-2 text-center pt-2"><p className="text-sm text-muted-foreground">Valor da Mensalidade:</p><p className="text-xl font-bold text-primary">R$ {watch('monthly_fee')?.toFixed(2) || '0.00'}</p>{errors.monthly_fee && <p className="text-sm text-destructive mt-1">{errors.monthly_fee.message}</p>}</div></div>)}
+            {planType !== 'Avulso' && (<div className="grid grid-cols-2 gap-4 p-4 border bg-secondary/20 rounded-lg"><div className="space-y-2"><Label>Frequência</Label><Controller name="plan_frequency" control={control} render={({ field, fieldState }) => (<><Select onValueChange={field.onChange} value={field.value || ''}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{appSettings?.plan_frequencies.map(freq => (<SelectItem key={freq} value={freq}>{freq} na semana</SelectItem>))}</SelectContent></Select>{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div><div className="space-y-2"><Label>Pagamento</Label><Controller name="payment_method" control={control} render={({ field, fieldState }) => (<><Select onValueChange={field.onChange} value={field.value || ''}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{appSettings?.payment_methods.map(method => (<SelectItem key={method} value={method}>{method}</SelectItem>))}</SelectContent></Select>{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div><div className="col-span-2 text-center pt-2"><p className="text-sm text-muted-foreground">Valor da Mensalidade:</p><p className="text-xl font-bold text-primary">R$ {watch('monthly_fee')?.toFixed(2) || '0.00'}</p>{errors.monthly_fee && <p className="text-sm text-destructive mt-1">{errors.monthly_fee.message}</p>}</div></div>)}
             
             {/* Seção de Agendamento Automático */}
             {planType !== 'Avulso' && planFrequency && (
