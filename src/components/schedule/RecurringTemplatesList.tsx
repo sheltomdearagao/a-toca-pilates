@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Trash2, CalendarDays } from 'lucide-react';
+import { MoreHorizontal, Trash2, CalendarDays, Edit } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { showError, showSuccess } from '@/utils/toast';
 import DeleteRecurringTemplateAlertDialog from './DeleteRecurringTemplateAlertDialog';
 import FinancialTableSkeleton from '@/components/financial/FinancialTableSkeleton'; // Reutilizando o skeleton de tabela
+import EditRecurringClassTemplateDialog from './EditRecurringClassTemplateDialog'; // Importar o novo componente
 
 const DAYS_OF_WEEK_MAP: { [key: string]: string } = {
   monday: 'Seg',
@@ -52,7 +53,6 @@ const fetchRecurringClassTemplates = async (): Promise<RecurringClassTemplate[]>
   if (error) throw new Error(error.message);
 
   // Normaliza a propriedade 'students' para corresponder ao tipo RecurringClassTemplate
-  // Supabase pode retornar 'students' como um array de um elemento ou um array vazio para joins.
   const normalizedData: RecurringClassTemplate[] = (data || []).map(item => {
     const studentName = (item.students as { name: string }[] | null)?.[0]?.name;
     return {
@@ -65,13 +65,15 @@ const fetchRecurringClassTemplates = async (): Promise<RecurringClassTemplate[]>
 };
 
 interface RecurringTemplatesListProps {
-  onEditTemplate: (template: RecurringClassTemplate) => void; // Futura funcionalidade de edição
+  // onEditTemplate removido, pois a lógica de edição será interna
 }
 
-const RecurringTemplatesList = ({ onEditTemplate }: RecurringTemplatesListProps) => {
+const RecurringTemplatesList = () => {
   const queryClient = useQueryClient();
   const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
+  const [isEditDialogOpen, setEditDialogOpen] = useState(false);
   const [templateToDelete, setTemplateToDelete] = useState<RecurringClassTemplate | null>(null);
+  const [templateToEdit, setTemplateToEdit] = useState<RecurringClassTemplate | null>(null);
 
   const { data: templates, isLoading } = useQuery<RecurringClassTemplate[]>({
     queryKey: ['recurringClassTemplates'],
@@ -81,12 +83,22 @@ const RecurringTemplatesList = ({ onEditTemplate }: RecurringTemplatesListProps)
 
   const deleteMutation = useMutation({
     mutationFn: async (templateId: string) => {
+      // Antes de deletar o template, precisamos deletar as aulas futuras geradas por ele.
+      const { error: deleteClassesError } = await supabase
+        .from('classes')
+        .delete()
+        .eq('recurring_class_template_id', templateId)
+        .gte('start_time', new Date().toISOString()); // Apenas aulas futuras
+
+      if (deleteClassesError) throw deleteClassesError;
+
       const { error } = await supabase.from('recurring_class_templates').delete().eq('id', templateId);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recurringClassTemplates'] });
-      showSuccess('Modelo de recorrência excluído com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ['classes'] }); // Invalida a agenda
+      showSuccess('Modelo de recorrência e aulas futuras excluídas com sucesso!');
       setDeleteAlertOpen(false);
       setTemplateToDelete(null);
     },
@@ -98,6 +110,11 @@ const RecurringTemplatesList = ({ onEditTemplate }: RecurringTemplatesListProps)
   const handleDeleteClick = (template: RecurringClassTemplate) => {
     setTemplateToDelete(template);
     setDeleteAlertOpen(true);
+  };
+
+  const handleEditClick = (template: RecurringClassTemplate) => {
+    setTemplateToEdit(template);
+    setEditDialogOpen(true);
   };
 
   const handleConfirmDelete = () => {
@@ -136,7 +153,7 @@ const RecurringTemplatesList = ({ onEditTemplate }: RecurringTemplatesListProps)
                   <TableCell>{template.students?.name || '-'}</TableCell>
                   <TableCell>
                     {template.recurrence_pattern.map((pattern) => (
-                      <div key={pattern.day} className="text-xs text-muted-foreground"> {/* Usando pattern.day como key */}
+                      <div key={pattern.day} className="text-xs text-muted-foreground">
                         {DAYS_OF_WEEK_MAP[pattern.day]} às {pattern.time}
                       </div>
                     ))}
@@ -155,9 +172,9 @@ const RecurringTemplatesList = ({ onEditTemplate }: RecurringTemplatesListProps)
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        {/* <DropdownMenuItem onClick={() => onEditTemplate(template)}>
-                          Editar
-                        </DropdownMenuItem> */}
+                        <DropdownMenuItem onClick={() => handleEditClick(template)}>
+                          <Edit className="w-4 h-4 mr-2" /> Editar
+                        </DropdownMenuItem>
                         <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteClick(template)}>
                           <Trash2 className="w-4 h-4 mr-2" /> Excluir
                         </DropdownMenuItem>
@@ -180,6 +197,11 @@ const RecurringTemplatesList = ({ onEditTemplate }: RecurringTemplatesListProps)
         templateTitle={templateToDelete?.title}
         onConfirmDelete={handleConfirmDelete}
         isDeleting={deleteMutation.isPending}
+      />
+      <EditRecurringClassTemplateDialog
+        isOpen={isEditDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        template={templateToEdit}
       />
     </Card>
   );

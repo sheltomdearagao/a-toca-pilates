@@ -26,7 +26,7 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
   const { data, error } = await supabase
     .from('classes')
     .select(`
-      id, title, start_time, duration_minutes, student_id,
+      id, title, start_time, duration_minutes, student_id, recurring_class_template_id,
       students(name),
       class_attendees(count)
     `)
@@ -54,12 +54,13 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
   const classEvent = classesInSlot[0]; // Lógica de UMA aula por slot
   const attendeeCount = classEvent?.class_attendees[0]?.count ?? 0;
   const eventTitle = classEvent?.student_id && classEvent?.students ? `${classEvent.students.name}` : classEvent?.title || 'Aula';
+  const isRecurring = !!classEvent?.recurring_class_template_id; // Novo indicador de recorrência
 
   return (
     <div className={cn("p-1 border-r min-h-[50px] transition-colors cursor-pointer", isToday(day) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30", !hasClass && "hover:bg-primary/10")} onClick={() => onCellClick(day, hour)}>
       {hasClass ? (
         <div onClick={(e) => { e.stopPropagation(); onClassClick(classEvent); }} className={cn("p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-sm h-full flex flex-col justify-center", attendeeCount >= classCapacity ? 'bg-destructive text-white' : attendeeCount >= classCapacity - 3 ? 'bg-accent text-accent-foreground' : 'bg-primary text-white')}>
-          <div className="font-semibold truncate">{eventTitle}</div>
+          <div className="font-semibold truncate">{eventTitle} {isRecurring && <span className="ml-1 text-[8px] opacity-70">🔁</span>}</div>
           <div className="text-[10px] opacity-90">{attendeeCount}/{classCapacity} alunos</div>
         </div>
       ) : (
@@ -151,11 +152,7 @@ const Schedule = () => {
     }
   }, [classesBySlot]);
 
-  const handleEditRecurringTemplate = useCallback((template: RecurringClassTemplate) => {
-    // Implementar lógica de edição aqui, se necessário
-    showError("Funcionalidade de edição de modelo recorrente ainda não implementada.");
-    console.log("Editar modelo recorrente:", template);
-  }, []);
+  // handleEditRecurringTemplate removido, pois a lógica está no RecurringTemplatesList
 
   return (
     <div className="h-full flex flex-col">
@@ -221,7 +218,7 @@ const Schedule = () => {
 
       <ColoredSeparator color="accent" className="my-6" />
 
-      <RecurringTemplatesList onEditTemplate={handleEditRecurringTemplate} />
+      <RecurringTemplatesList />
 
       <AddClassDialog isOpen={isAddFormOpen} onOpenChange={(open) => { setIsAddFormOpen(open); if (!open) setQuickAddSlot(null); }} quickAddSlot={quickAddSlot} />
       <AddRecurringClassTemplateDialog isOpen={isRecurringFormOpen} onOpenChange={setIsRecurringFormOpen} />

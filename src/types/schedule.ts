@@ -9,6 +9,7 @@ export type ClassEvent = {
   notes: string | null;
   created_at: string;
   student_id: string | null; // Novo campo para vincular a um aluno
+  recurring_class_template_id: string | null; // Adicionado para vincular a um modelo recorrente
   class_attendees: { count: number }[];
   students?: { name: string }; // Para o join na query
 };
