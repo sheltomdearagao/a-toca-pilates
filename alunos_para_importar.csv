@@ -1,0 +1,47 @@
+Nome,Email,Telefone,Status,Plano,Frequencia,Pagamento,Valor,Seg,Ter,Qua,Qui,Sex,Sab,Horario,TipoMatricula,DataNascimento,DataValidade,Notas
+Alice,,,Ativo,Mensal,2x na semana,Espécie,230.00,TRUE,TRUE,FALSE,FALSE,FALSE,FALSE,09:00,Particular,,,2x (SEG, TER)
+Ana Baqueiro,,,Ativo,Mensal,2x na semana,Espécie,230.00,TRUE,FALSE,FALSE,TRUE,FALSE,FALSE,09:00,Particular,,,2x (SEG, QUINTA)
+Angela Maria,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Ariana,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Beatriz Sampaio,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Bete,,,Ativo,Mensal,2x na semana,Espécie,230.00,FALSE,TRUE,FALSE,TRUE,FALSE,FALSE,09:00,Particular,,,2x (TERÇA, QUINTA)
+Boni,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Bruna Oliveira,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Claudia,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Cris,,,Ativo,Mensal,2x na semana,Espécie,230.00,TRUE,TRUE,FALSE,FALSE,FALSE,FALSE,09:00,Particular,,,2x (SEG, TER)
+Cristiane Soares,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Debora,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Edna (outra Edna),,,Ativo,Mensal,2x na semana,Espécie,230.00,FALSE,TRUE,FALSE,TRUE,FALSE,FALSE,09:00,Particular,,,2x (TERÇA, QUINTA)
+Edna Dinha,,,Ativo,Mensal,1x na semana,Espécie,150.00,FALSE,FALSE,TRUE,FALSE,FALSE,FALSE,09:00,Particular,,,1x (QUARTA)
+Edna Sales,,,Ativo,Mensal,2x na semana,Espécie,230.00,TRUE,FALSE,FALSE,TRUE,FALSE,FALSE,09:00,Particular,,,2x (SEG, QUINTA)
+Eliana,,,Ativo,Mensal,2x na semana,Espécie,230.00,FALSE,TRUE,FALSE,TRUE,FALSE,FALSE,09:00,Particular,,,2x (TERÇA, QUINTA)
+Evila,,,Ativo,Mensal,2x na semana,Espécie,230.00,TRUE,FALSE,TRUE,FALSE,FALSE,FALSE,09:00,Particular,,,2x (SEG, QUARTA)
+Graça,,,Ativo,Mensal,1x na semana,Espécie,150.00,TRUE,FALSE,FALSE,FALSE,FALSE,FALSE,09:00,Particular,,,1x (SEGUNDA)
+Helena,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+J,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Kleber,,,Ativo,Mensal,2x na semana,Espécie,230.00,FALSE,FALSE,TRUE,TRUE,FALSE,FALSE,09:00,Particular,,,2x (QUARTA, QUINTA)
+Lais,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Lilia,,,Ativo,Mensal,2x na semana,Espécie,230.00,FALSE,TRUE,FALSE,TRUE,FALSE,FALSE,09:00,Particular,,,2x (TERÇA, QUINTA)
+Luciana Sousa,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Manfrini,,,Ativo,Mensal,2x na semana,Espécie,230.00,FALSE,TRUE,TRUE,FALSE,FALSE,FALSE,09:00,Particular,,,2x (TERÇA, QUARTA)
+Maria Cristina de Moura,,,Ativo,Mensal,2x na semana,Espécie,230.00,TRUE,TRUE,FALSE,FALSE,FALSE,FALSE,09:00,Particular,,,2x (SEG, TERÇA)
+Mariana Rios,,,Ativo,Mensal,2x na semana,Espécie,230.00,TRUE,TRUE,FALSE,FALSE,FALSE,FALSE,09:00,Particular,,,2x (SEG, TERÇA)
+Marta,,,Ativo,Mensal,2x na semana,Espécie,230.00,TRUE,FALSE,FALSE,FALSE,TRUE,FALSE,09:00,Particular,,,2x (SEG, SEXTA)
+Milena,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Mirce,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Monique,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Nissi,,,Ativo,Mensal,1x na semana,Espécie,150.00,FALSE,FALSE,FALSE,TRUE,FALSE,FALSE,09:00,Particular,,,1x (QUINTA)
+Nivia,,,Ativo,Mensal,2x na semana,Espécie,230.00,TRUE,FALSE,FALSE,TRUE,FALSE,FALSE,09:00,Particular,,,2x (SEG, QUINTA)
+Noeliny,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Rute Vieira,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Sara,,,Ativo,Mensal,1x na semana,Espécie,150.00,TRUE,FALSE,FALSE,FALSE,FALSE,FALSE,09:00,Particular,,,1x (SEGUNDA)
+Silvana Medeiros,,,Ativo,Mensal,1x na semana,Espécie,150.00,FALSE,FALSE,FALSE,TRUE,FALSE,FALSE,09:00,Particular,,,1x (QUINTA)
+Sylvana,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Tania,,,Ativo,Mensal,1x na semana,Espécie,150.00,FALSE,FALSE,FALSE,TRUE,FALSE,FALSE,09:00,Particular,,,1x (QUINTA)
+Thalita,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Valnei Galeo,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Vanessa,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Veronica Leandro,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Verônica,,,Ativo,Avulso,,Espécie,0.00,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,,Particular,,,Não fixa
+Weber,,,Ativo,Mensal,2x na semana,Espécie,230.00,TRUE,TRUE,FALSE,FALSE,FALSE,FALSE,09:00,Particular,,,2x (SEG, TERÇA)
+Virginia,,,Ativo,Mensal,2x na semana,Espécie,230.00,FALSE,FALSE,TRUE,TRUE,FALSE,FALSE,09:00,Particular,,,2x (QUARTA, QUINTA)
