@@ -85,17 +85,19 @@ const fetchStudentProfile = async (studentId: string): Promise<StudentProfileDat
 };
 
 const StudentProfile = () => {
+  // --- HOOKS DE ESTADO E CONTEXTO (DEVEM VIR PRIMEIRO) ---
   const { studentId } = useParams<{ studentId: string }>();
   const queryClient = useQueryClient();
   const [isProRataOpen, setProRataOpen] = useState(false);
   const [isAddClassOpen, setAddClassOpen] = useState(false);
   const [isEditFormOpen, setEditFormOpen] = useState(false);
-  const [isDeleteTransactionAlertOpen, setDeleteTransactionAlertOpen] = useState(false); // Novo estado
-  const [transactionToDelete, setTransactionToDelete] = useState<FinancialTransaction | null>(null); // Novo estado
+  const [isDeleteTransactionAlertOpen, setDeleteTransactionAlertOpen] = useState(false);
+  const [transactionToDelete, setTransactionToDelete] = useState<FinancialTransaction | null>(null);
   
   const { profile } = useSession();
   const isAdmin = profile?.role === 'admin';
 
+  // --- HOOKS DE DADOS (DEVEM VIR DEPOIS DOS HOOKS DE ESTADO) ---
   const { data, isLoading, error } = useQuery({
     queryKey: ['studentProfile', studentId],
     queryFn: () => fetchStudentProfile(studentId!),
@@ -103,6 +105,7 @@ const StudentProfile = () => {
     staleTime: 1000 * 60 * 2,
   });
 
+  // --- FUNÇÕES DE MUTAÇÃO (DEVEM VIR DEPOIS DOS HOOKS DE DADOS) ---
   const invalidateFinancialQueries = () => {
     queryClient.invalidateQueries({ queryKey: ['studentProfile', studentId] });
     queryClient.invalidateQueries({ queryKey: ['transactions'] });
@@ -178,8 +181,13 @@ const StudentProfile = () => {
     }
   };
 
+  // --- LÓGICA DE RENDERIZAÇÃO CONDICIONAL (DEPOIS DE TODOS OS HOOKS) ---
   if (error) {
     return <div className="text-center text-destructive">Erro ao carregar o perfil do aluno: {error.message}</div>;
+  }
+  
+  if (!studentId) {
+    return <div className="text-center text-destructive">ID do aluno não fornecido.</div>;
   }
 
   const student = data?.student;
