@@ -13,12 +13,39 @@ import StudentCSVUploader from '@/components/students/StudentCSVUploader'; // Im
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAppSettings } from '@/hooks/useAppSettings';
+import { Search } from 'lucide-react';
+import { Card } from '@/components/ui/card';
 
 // Moved fetchStudents outside the component
 const fetchStudents = async (): Promise<Student[]> => {
   const { data, error } = await supabase.from("students").select("*").order("name");
   if (error) throw new Error(error.message);
   return data || [];
+};
+
+// Novo fetch para status de pagamento (inadimplência)
+const fetchStudentPaymentStatus = async (): Promise<Record<string, 'Em Dia' | 'Atrasado'>> => {
+  const now = new Date().toISOString();
+  
+  // Busca todas as transações de receita pendentes ou atrasadas com data de vencimento no passado
+  const { data, error } = await supabase
+    .from('financial_transactions')
+    .select('student_id, due_date')
+    .eq('type', 'revenue')
+    .or(`status.eq.Atrasado,and(status.eq.Pendente,due_date.lt.${now})`);
+
+  if (error) throw new Error(error.message);
+
+  const overdueStudents: Record<string, 'Em Dia' | 'Atrasado'> = {};
+  
+  // Marca todos os alunos que têm pelo menos uma transação atrasada/pendente como 'Atrasado'
+  data.forEach(t => {
+    if (t.student_id) {
+      overdueStudents[t.student_id] = 'Atrasado';
+    }
+  });
+
+  return overdueStudents;
 };
 
 const Students = () => {
@@ -33,9 +60,17 @@ const Students = () => {
   const [filterStatus, setFilterStatus] = useState<StudentStatus | 'all'>('all');
   const [filterPlanType, setFilterPlanType] = useState<PlanType | 'all'>('all');
   const [filterEnrollmentType, setFilterEnrollmentType] = useState<EnrollmentType | 'all'>('all');
+  const [filterPaymentStatus, setFilterPaymentStatus] = useState<'all' | 'Em Dia' | 'Atrasado'>('all'); // Novo filtro
 
   const { data: students, isLoading } = useQuery({ queryKey: ["students"], queryFn: fetchStudents });
   const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
+  
+  // Nova query para status de pagamento
+  const { data: paymentStatusMap, isLoading: isLoadingPaymentStatus } = useQuery({
+    queryKey: ["studentPaymentStatus"],
+    queryFn: fetchStudentPaymentStatus,
+    staleTime: 1000 * 60 * 5, // Cache por 5 minutos
+  });
 
   const addEditMutation = useMutation({
     mutationFn: async (formData: any) => {
@@ -63,6 +98,7 @@ const Students = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardStats"] });
+      queryClient.invalidateQueries({ queryKey: ["studentPaymentStatus"] }); // Invalida o novo status
       showSuccess(`Aluno ${selectedStudent ? "atualizado" : "adicionado"} com sucesso!`);
       setFormOpen(false);
       setSelectedStudent(null);
@@ -78,6 +114,7 @@ const Students = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardStats"] });
+      queryClient.invalidateQueries({ queryKey: ["studentPaymentStatus"] }); // Invalida o novo status
       showSuccess("Aluno removido com sucesso!");
       setDeleteAlertOpen(false);
       setSelectedStudent(null);
@@ -106,17 +143,32 @@ const Students = () => {
 
   const filteredStudents = useMemo(() => {
     if (!students) return [];
+    
+    const term = searchTerm.toLowerCase().trim();
+    
     return students.filter(student => {
-      const matchesSearchTerm = searchTerm.trim() === '' ||
-        student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (student.email && student.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (student.phone && student.phone.toLowerCase().includes(searchTerm.toLowerCase()));
+      // 1. Filtro de Busca por Termo
+      const matchesSearchTerm = term === '' ||
+        student.name.toLowerCase().includes(term) ||
+        (student.email && student.email.toLowerCase().includes(term)) ||
+        (student.phone && student.phone.toLowerCase().includes(term));
+        
+      // 2. Filtro de Status do Aluno
       const matchesStatus = filterStatus === 'all' || student.status === filterStatus;
+      
+      // 3. Filtro de Tipo de Plano
       const matchesPlanType = filterPlanType === 'all' || student.plan_type === filterPlanType;
+      
+      // 4. Filtro de Tipo de Matrícula
       const matchesEnrollmentType = filterEnrollmentType === 'all' || student.enrollment_type === filterEnrollmentType;
-      return matchesSearchTerm && matchesStatus && matchesPlanType && matchesEnrollmentType;
+      
+      // 5. Novo Filtro de Status de Pagamento
+      const studentPaymentStatus = paymentStatusMap?.[student.id] || 'Em Dia';
+      const matchesPaymentStatus = filterPaymentStatus === 'all' || studentPaymentStatus === filterPaymentStatus;
+      
+      return matchesSearchTerm && matchesStatus && matchesPlanType && matchesEnrollmentType && matchesPaymentStatus;
     });
-  }, [students, searchTerm, filterStatus, filterPlanType, filterEnrollmentType]);
+  }, [students, searchTerm, filterStatus, filterPlanType, filterEnrollmentType, filterPaymentStatus, paymentStatusMap]);
 
   return (
     <div className="space-y-8">
@@ -126,46 +178,67 @@ const Students = () => {
         onImportCSV={() => setImportOpen(true)} // Abrir o diálogo de importação
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Input
-          placeholder="Buscar por nome, email ou telefone..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="col-span-full lg:col-span-1"
-        />
-        <Select value={filterStatus} onValueChange={(value: StudentStatus | 'all') => setFilterStatus(value)}>
-          <SelectTrigger><SelectValue placeholder="Filtrar por Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os Status</SelectItem>
-            <SelectItem value="Ativo">Ativo</SelectItem>
-            <SelectItem value="Inativo">Inativo</SelectItem>
-            <SelectItem value="Experimental">Experimental</SelectItem>
-            <SelectItem value="Bloqueado">Bloqueado</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={filterPlanType} onValueChange={(value: PlanType | 'all') => setFilterPlanType(value)} disabled={isLoadingSettings}>
-          <SelectTrigger><SelectValue placeholder="Filtrar por Plano" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os Planos</SelectItem>
-            {appSettings?.plan_types.map(type => (
-              <SelectItem key={type} value={type}>{type}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={filterEnrollmentType} onValueChange={(value: EnrollmentType | 'all') => setFilterEnrollmentType(value)} disabled={isLoadingSettings}>
-          <SelectTrigger><SelectValue placeholder="Filtrar por Matrícula" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os Tipos de Matrícula</SelectItem>
-            {appSettings?.enrollment_types.map(type => (
-              <SelectItem key={type} value={type}>{type}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <Card className="p-4 shadow-impressionist shadow-subtle-glow">
+        <div className="flex items-center mb-4">
+          <Search className="w-5 h-5 mr-2 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nome, email ou telefone..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="flex-1"
+          />
+        </div>
+        
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* Filtro de Status do Aluno */}
+          <Select value={filterStatus} onValueChange={(value: StudentStatus | 'all') => setFilterStatus(value)}>
+            <SelectTrigger><SelectValue placeholder="Status do Aluno" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Status</SelectItem>
+              <SelectItem value="Ativo">Ativo</SelectItem>
+              <SelectItem value="Inativo">Inativo</SelectItem>
+              <SelectItem value="Experimental">Experimental</SelectItem>
+              <SelectItem value="Bloqueado">Bloqueado</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          {/* Filtro de Tipo de Plano */}
+          <Select value={filterPlanType} onValueChange={(value: PlanType | 'all') => setFilterPlanType(value)} disabled={isLoadingSettings}>
+            <SelectTrigger><SelectValue placeholder="Tipo de Plano" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Planos</SelectItem>
+              {appSettings?.plan_types.map(type => (
+                <SelectItem key={type} value={type}>{type}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          {/* Filtro de Tipo de Matrícula */}
+          <Select value={filterEnrollmentType} onValueChange={(value: EnrollmentType | 'all') => setFilterEnrollmentType(value)} disabled={isLoadingSettings}>
+            <SelectTrigger><SelectValue placeholder="Tipo de Matrícula" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Tipos de Matrícula</SelectItem>
+              {appSettings?.enrollment_types.map(type => (
+                <SelectItem key={type} value={type}>{type}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          {/* NOVO: Filtro de Status de Pagamento */}
+          <Select value={filterPaymentStatus} onValueChange={(value: 'all' | 'Em Dia' | 'Atrasado') => setFilterPaymentStatus(value)} disabled={isLoadingPaymentStatus}>
+            <SelectTrigger><SelectValue placeholder="Status de Pagamento" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Pagamentos</SelectItem>
+              <SelectItem value="Em Dia">Em Dia</SelectItem>
+              <SelectItem value="Atrasado">Atrasado</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </Card>
 
       <StudentsTable
         students={filteredStudents}
-        isLoading={isLoading || isLoadingSettings}
+        isLoading={isLoading || isLoadingSettings || isLoadingPaymentStatus}
         onEdit={handleEdit}
         onDelete={handleDelete}
       />

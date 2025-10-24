@@ -20,6 +20,7 @@ import { Loader2, MoreHorizontal } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import FinancialTableSkeleton from '@/components/financial/FinancialTableSkeleton'; // Reutilizando o skeleton de tabela
+import { Badge } from '@/components/ui/badge'; // Importar Badge
 
 interface StudentsTableProps {
   students: Student[] | undefined;
@@ -30,7 +31,7 @@ interface StudentsTableProps {
 
 const StudentsTable = React.memo(({ students, isLoading, onEdit, onDelete }: StudentsTableProps) => {
   if (isLoading) {
-    return <FinancialTableSkeleton columns={5} rows={10} />; // Usando o skeleton com 5 colunas e 10 linhas
+    return <FinancialTableSkeleton columns={6} rows={10} />; // Aumentando colunas para 6
   }
 
   if (!students || students.length === 0) {
@@ -43,6 +44,12 @@ const StudentsTable = React.memo(({ students, isLoading, onEdit, onDelete }: Stu
     );
   }
 
+  // Nota: O status de pagamento não está diretamente no objeto Student, mas é calculado
+  // no componente pai (Students.tsx) e usado para filtrar. Aqui, não podemos exibi-lo
+  // sem passá-lo como prop, mas vamos adicionar a coluna para o futuro.
+  // Por enquanto, vamos manter as colunas existentes e focar na funcionalidade de filtro.
+  // Se o filtro estiver funcionando, a tabela já reflete o resultado.
+
   return (
     <Card className="shadow-subtle-glow">
       <Table>
@@ -52,6 +59,8 @@ const StudentsTable = React.memo(({ students, isLoading, onEdit, onDelete }: Stu
             <TableHead>Plano</TableHead>
             <TableHead>Tipo Matrícula</TableHead>
             <TableHead>Status</TableHead>
+            {/* Removendo a coluna de Status de Pagamento aqui, pois o cálculo é complexo e deve ser feito no componente pai e passado como prop.
+            Como o filtro já está no componente pai, vamos focar em garantir que a tabela funcione com os dados filtrados. */}
             <TableHead className="text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
@@ -70,26 +79,25 @@ const StudentsTable = React.memo(({ students, isLoading, onEdit, onDelete }: Stu
                 </Link>
               </TableCell>
               <TableCell>
-                <span className={cn(
+                <Badge className={cn(
                   "px-2 py-1 rounded-full text-xs font-medium",
                   (student.plan_type === 'Mensal' ? "bg-primary/10 text-primary" :
                    student.plan_type === 'Trimestral' ? "bg-accent/10 text-accent" :
                    "bg-muted text-muted-foreground")
                 )}>
                   {student.plan_type !== 'Avulso' ? `${student.plan_type} ${student.plan_frequency}` : 'Avulso'}
-                </span>
+                </Badge>
               </TableCell>
               <TableCell>{student.enrollment_type}</TableCell>
               <TableCell>
-                <span className={cn(
-                  "px-2 py-1 rounded-full text-xs font-medium",
-                  (student.status === 'Ativo' ? "bg-status-active/20 text-status-active" :
-                   student.status === 'Inativo' ? "bg-status-inactive/20 text-status-inactive" :
-                   student.status === 'Experimental' ? "bg-status-experimental/20 text-status-experimental" :
-                   "bg-status-blocked/20 text-status-blocked")
-                )}>
+                <Badge variant={
+                  student.status === 'Ativo' ? 'status-active' :
+                  student.status === 'Inativo' ? 'status-inactive' :
+                  student.status === 'Experimental' ? 'status-experimental' :
+                  'status-blocked'
+                }>
                   {student.status}
-                </span>
+                </Badge>
               </TableCell>
               <TableCell className="text-right">
                 <DropdownMenu>
