@@ -36,11 +36,8 @@ const classSchema = z.object({
   student_id: z.string().optional().nullable(),
   title: z.string().min(3, 'O título é obrigatório.').optional(),
   date: z.string().min(1, 'A data é obrigatória.'),
-  time: z.string().min(1, 'O horário é obrigatório.'),
-  duration_minutes: z.preprocess(
-    (a) => parseInt(z.string().parse(a), 10),
-    z.number().min(15, "A duração mínima é de 15 minutos.")
-  ),
+  time: z.string().regex(/^\d{2}:00$/, 'O horário deve ser em hora cheia (ex: 08:00).'),
+  // duration_minutes removido do schema, será fixo em 60
   notes: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (!data.student_id && (!data.title || data.title.trim() === '')) {
@@ -57,16 +54,14 @@ type ClassFormData = z.infer<typeof classSchema>;
 interface AddClassDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  quickAddSlot?: { date: Date; hour: number; minute: number } | null;
+  quickAddSlot?: { date: Date; hour: number } | null; // Removido 'minute'
 }
 
-// Horários disponíveis (7h às 20h)
+// Horários disponíveis (7h às 20h) - Apenas horas cheias
 const availableHours = Array.from({ length: 14 }, (_, i) => {
   const hour = i + 7;
-  return `${hour.toString().padStart(2, '0')}`;
+  return `${hour.toString().padStart(2, '0')}:00`;
 });
-
-const availableMinutes = ['00', '30'];
 
 const fetchAllStudents = async (): Promise<StudentOption[]> => {
   const { data, error } = await supabase
@@ -80,6 +75,8 @@ const fetchAllStudents = async (): Promise<StudentOption[]> => {
 
 const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot }: AddClassDialogProps) => {
   const queryClient = useQueryClient();
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false); // Estado para controlar o popover
+  
   const { control, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<ClassFormData>({
     resolver: zodResolver(classSchema),
     defaultValues: {
@@ -87,7 +84,6 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot }: AddClassDialogPr
       title: '',
       date: format(new Date(), 'yyyy-MM-dd'),
       time: '08:00',
-      duration_minutes: 60,
       notes: '',
     },
   });
@@ -103,13 +99,12 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot }: AddClassDialogPr
   useEffect(() => {
     if (isOpen) {
       if (quickAddSlot) {
-        const timeString = `${quickAddSlot.hour.toString().padStart(2, '0')}:${quickAddSlot.minute.toString().padStart(2, '0')}`;
+        const timeString = `${quickAddSlot.hour.toString().padStart(2, '0')}:00`;
         reset({
           student_id: null,
           title: '',
           date: format(quickAddSlot.date, 'yyyy-MM-dd'),
           time: timeString,
-          duration_minutes: 60,
           notes: '',
         });
       } else {
@@ -118,7 +113,6 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot }: AddClassDialogPr
           title: '',
           date: format(new Date(), 'yyyy-MM-dd'),
           time: '08:00',
-          duration_minutes: 60,
           notes: '',
         });
       }
@@ -144,7 +138,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot }: AddClassDialogPr
       const { error } = await supabase.rpc('create_class_with_attendee', {
         p_title: classTitle,
         p_start_time: startUtc,
-        p_duration_minutes: formData.duration_minutes, // Usando a duração do formulário
+        p_duration_minutes: 60, // Duração fixa em 60 minutos
         p_notes: formData.notes || '',
         p_student_id: formData.student_id || null,
       });
@@ -170,7 +164,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot }: AddClassDialogPr
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Agendar Nova Aula</DialogTitle>
+          <DialogTitle>Agendar Nova Aula (60 min)</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="grid gap-4 py-4">
@@ -180,7 +174,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot }: AddClassDialogPr
                 name="student_id"
                 control={control}
                 render={({ field }) => (
-                  <Popover>
+                  <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
@@ -209,6 +203,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot }: AddClassDialogPr
                               onSelect={() => {
                                 field.onChange(student.id);
                                 setValue('title', `Aula com ${student.name}`);
+                                setIsPopoverOpen(false); // Fechar após seleção
                               }}
                             >
                               <Check
@@ -243,64 +238,26 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot }: AddClassDialogPr
               {errors.date && <p className="text-sm text-destructive mt-1">{errors.date.message}</p>}
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="time">Horário</Label>
-                <Controller
-                  name="time"
-                  control={control}
-                  render={({ field }) => {
-                    const [currentHour, currentMinute] = field.value.split(':');
-                    const handleTimeChange = (newHour: string, newMinute: string) => {
-                      field.onChange(`${newHour}:${newMinute}`);
-                    };
-                    return (
-                      <div className="flex gap-2">
-                        <Select onValueChange={(h) => handleTimeChange(h, currentMinute)} value={currentHour}>
-                          <SelectTrigger><SelectValue placeholder="Hora" /></SelectTrigger>
-                          <SelectContent>
-                            {availableHours.map(hour => (
-                              <SelectItem key={hour} value={hour}>{hour}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Select onValueChange={(m) => handleTimeChange(currentHour, m)} value={currentMinute}>
-                          <SelectTrigger><SelectValue placeholder="Minuto" /></SelectTrigger>
-                          <SelectContent>
-                            {availableMinutes.map(minute => (
-                              <SelectItem key={minute} value={minute}>{minute}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    );
-                  }}
-                />
-                {errors.time && <p className="text-sm text-destructive mt-1">{errors.time.message}</p>}
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="duration_minutes">Duração (min)</Label>
-                <Controller
-                  name="duration_minutes"
-                  control={control}
-                  render={({ field }) => (
-                    <Select onValueChange={(v) => field.onChange(parseInt(v))} value={String(field.value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Duração..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="30">30 minutos</SelectItem>
-                        <SelectItem value="45">45 minutos</SelectItem>
-                        <SelectItem value="60">60 minutos</SelectItem>
-                        <SelectItem value="90">90 minutos</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-                {errors.duration_minutes && <p className="text-sm text-destructive mt-1">{errors.duration_minutes.message}</p>}
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="time">Horário (Hora Cheia)</Label>
+              <Controller
+                name="time"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger><SelectValue placeholder="Selecione a hora..." /></SelectTrigger>
+                    <SelectContent>
+                      {availableHours.map(time => (
+                        <SelectItem key={time} value={time}>{time}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.time && <p className="text-sm text-destructive mt-1">{errors.time.message}</p>}
             </div>
+            
+            {/* Duração removida */}
             
             <div className="space-y-2">
               <Label htmlFor="notes">Notas (Opcional)</Label>

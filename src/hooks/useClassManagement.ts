@@ -92,7 +92,7 @@ export const useClassManagement = ({ classId, allStudents }: UseClassManagementP
         start_time: startUtc,
         notes: formData.notes,
         student_id: formData.student_id || null,
-        duration_minutes: formData.duration_minutes, // Adicionado duração
+        duration_minutes: 60, // Duração fixa em 60 minutos
       };
       const { error } = await supabase.from('classes').update(dataToSubmit).eq('id', classId);
       if (error) throw error;

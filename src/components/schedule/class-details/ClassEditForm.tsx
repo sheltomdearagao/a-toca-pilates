@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -26,11 +26,8 @@ const classSchema = z.object({
   student_id: z.string().optional().nullable(),
   title: z.string().min(3, 'O título é obrigatório.').optional(),
   date: z.string().min(1, 'A data é obrigatória.'),
-  time: z.string().min(1, 'O horário é obrigatório.'),
-  duration_minutes: z.preprocess(
-    (a) => parseInt(z.string().parse(a), 10),
-    z.number().min(15, "A duração mínima é de 15 minutos.")
-  ),
+  time: z.string().regex(/^\d{2}:00$/, 'O horário deve ser em hora cheia (ex: 08:00).'),
+  // duration_minutes removido do schema, será fixo em 60
   notes: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (!data.student_id && (!data.title || data.title.trim() === '')) {
@@ -44,13 +41,11 @@ const classSchema = z.object({
 
 export type ClassFormData = z.infer<typeof classSchema>;
 
-// Horários disponíveis (6h às 21h)
+// Horários disponíveis (6h às 21h) - Apenas horas cheias
 const availableHours = Array.from({ length: 16 }, (_, i) => {
   const hour = i + 6;
-  return `${hour.toString().padStart(2, '0')}`;
+  return `${hour.toString().padStart(2, '0')}:00`;
 });
-
-const availableMinutes = ['00', '30'];
 
 interface ClassEditFormProps {
   classEvent: Partial<ClassEvent> | null;
@@ -69,6 +64,8 @@ const ClassEditForm = ({
   onCancelEdit,
   isSubmitting,
 }: ClassEditFormProps) => {
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false); // Estado para controlar o popover
+  
   const { control, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<ClassFormData>({
     resolver: zodResolver(classSchema),
     defaultValues: {
@@ -76,7 +73,6 @@ const ClassEditForm = ({
       title: '',
       date: format(new Date(), 'yyyy-MM-dd'),
       time: '08:00',
-      duration_minutes: 60, // Adicionado default
       notes: '',
     },
   });
@@ -89,10 +85,10 @@ const ClassEditForm = ({
       reset({
         title: classEvent.title || '',
         date: format(startTime, 'yyyy-MM-dd'),
-        time: format(startTime, 'HH:mm'),
+        time: format(startTime, 'HH:00'), // Forçando para hora cheia
         notes: classEvent.notes || '',
         student_id: classEvent.student_id || null,
-        duration_minutes: classEvent.duration_minutes || 60, // Carregando duração
+        // duration_minutes removido
       });
     }
   }, [classEvent, reset]);
@@ -106,7 +102,7 @@ const ClassEditForm = ({
             name="student_id"
             control={control}
             render={({ field }) => (
-              <Popover>
+              <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
@@ -135,6 +131,7 @@ const ClassEditForm = ({
                           onSelect={() => {
                             field.onChange(student.id);
                             setValue('title', `Aula com ${student.name}`);
+                            setIsPopoverOpen(false); // Fechar após seleção
                           }}
                         >
                           <Check
@@ -169,64 +166,26 @@ const ClassEditForm = ({
           {errors.date && <p className="text-sm text-destructive mt-1">{errors.date.message}</p>}
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="time">Horário</Label>
-            <Controller
-              name="time"
-              control={control}
-              render={({ field }) => {
-                const [currentHour, currentMinute] = field.value.split(':');
-                const handleTimeChange = (newHour: string, newMinute: string) => {
-                  field.onChange(`${newHour}:${newMinute}`);
-                };
-                return (
-                  <div className="flex gap-2">
-                    <Select onValueChange={(h) => handleTimeChange(h, currentMinute)} value={currentHour}>
-                      <SelectTrigger><SelectValue placeholder="Hora" /></SelectTrigger>
-                      <SelectContent>
-                        {availableHours.map(hour => (
-                          <SelectItem key={hour} value={hour}>{hour}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select onValueChange={(m) => handleTimeChange(currentHour, m)} value={currentMinute}>
-                      <SelectTrigger><SelectValue placeholder="Minuto" /></SelectTrigger>
-                      <SelectContent>
-                        {availableMinutes.map(minute => (
-                          <SelectItem key={minute} value={minute}>{minute}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                );
-              }}
-            />
-            {errors.time && <p className="text-sm text-destructive mt-1">{errors.time.message}</p>}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="duration_minutes">Duração (min)</Label>
-            <Controller
-              name="duration_minutes"
-              control={control}
-              render={({ field }) => (
-                <Select onValueChange={(v) => field.onChange(parseInt(v))} value={String(field.value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Duração..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="30">30 minutos</SelectItem>
-                    <SelectItem value="45">45 minutos</SelectItem>
-                    <SelectItem value="60">60 minutos</SelectItem>
-                    <SelectItem value="90">90 minutos</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            {errors.duration_minutes && <p className="text-sm text-destructive mt-1">{errors.duration_minutes.message}</p>}
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="time">Horário (Hora Cheia)</Label>
+          <Controller
+            name="time"
+            control={control}
+            render={({ field }) => (
+              <Select onValueChange={field.onChange} value={field.value}>
+                <SelectTrigger><SelectValue placeholder="Selecione a hora..." /></SelectTrigger>
+                <SelectContent>
+                  {availableHours.map(time => (
+                    <SelectItem key={time} value={time}>{time}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          {errors.time && <p className="text-sm text-destructive mt-1">{errors.time.message}</p>}
         </div>
+
+        {/* Duração removida */}
 
         <div className="space-y-2">
           <Label htmlFor="notes">Notas (Opcional)</Label>

@@ -5,7 +5,7 @@ import { FinancialTransaction } from "@/types/financial";
 import { Student } from "@/types/student";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlusCircle } from "lucide-react";
+import { PlusCircle, Settings } from "lucide-react"; // Importando Settings
 import { format, startOfMonth, endOfMonth, parseISO, subMonths, getYear, getMonth, setYear, setMonth } from "date-fns";
 import { ptBR } from 'date-fns/locale/pt-BR';
 import FinancialOverviewCards from "@/components/financial/FinancialOverviewCards";
@@ -15,6 +15,7 @@ import OverdueTransactionsTable from "@/components/financial/OverdueTransactions
 import AddEditTransactionDialog, { TransactionFormData } from "@/components/financial/AddEditTransactionDialog";
 import DeleteTransactionAlertDialog from "@/components/financial/DeleteTransactionAlertDialog";
 import FinancialTableSkeleton from "@/components/financial/FinancialTableSkeleton";
+import CategoryManagerDialog from "@/components/financial/CategoryManagerDialog"; // Importando o novo diálogo
 import { showError, showSuccess } from "@/utils/toast";
 import ColoredSeparator from "@/components/ColoredSeparator";
 import { Card } from "@/components/ui/card";
@@ -151,6 +152,7 @@ const Financial = () => {
 
   const [isFormOpen, setFormOpen] = useState(false);
   const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
+  const [isCategoryManagerOpen, setCategoryManagerOpen] = useState(false); // Novo estado
   const [selectedTransaction, setSelectedTransaction] = useState<FinancialTransaction | null>(null);
 
   const { data: students, isLoading: isLoadingStudents } = useQuery({ queryKey: ["students"], queryFn: fetchStudents });
@@ -268,7 +270,12 @@ const Financial = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Módulo Financeiro</h1>
-        <Button onClick={handleAddNew}><PlusCircle className="w-4 h-4 mr-2" />Adicionar Lançamento</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setCategoryManagerOpen(true)}>
+            <Settings className="w-4 h-4 mr-2" /> Gerenciar Categorias
+          </Button>
+          <Button onClick={handleAddNew}><PlusCircle className="w-4 h-4 mr-2" />Adicionar Lançamento</Button>
+        </div>
       </div>
 
       <ColoredSeparator color="primary" className="my-6" />
@@ -348,6 +355,11 @@ const Financial = () => {
         selectedTransaction={selectedTransaction}
         onConfirmDelete={() => selectedTransaction && deleteMutation.mutate(selectedTransaction.id)}
         isDeleting={deleteMutation.isPending}
+      />
+      
+      <CategoryManagerDialog
+        isOpen={isCategoryManagerOpen}
+        onOpenChange={setCategoryManagerOpen}
       />
     </div>
   );

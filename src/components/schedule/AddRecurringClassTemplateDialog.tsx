@@ -46,10 +46,8 @@ const DAYS_OF_WEEK = [
 
 const availableHours = Array.from({ length: 14 }, (_, i) => {
   const hour = i + 7; // 7h às 20h
-  return `${hour.toString().padStart(2, '0')}`;
+  return `${hour.toString().padStart(2, '0')}:00`;
 });
-
-const availableMinutes = ['00', '30'];
 
 const recurringClassSchema = z.object({
   student_id: z.string().optional().nullable(),
@@ -57,11 +55,8 @@ const recurringClassSchema = z.object({
   recurrence_start_date: z.string().min(1, "A data de início é obrigatória."),
   recurrence_end_date: z.string().optional().nullable(),
   selected_days: z.array(z.string()).min(1, "Selecione pelo menos um dia da semana."),
-  times_per_day: z.record(z.string(), z.string().min(1, "Selecione um horário para o dia.")),
-  duration_minutes: z.preprocess(
-    (a) => parseInt(z.string().parse(a), 10),
-    z.number().min(15, "A duração mínima é de 15 minutos.")
-  ),
+  times_per_day: z.record(z.string(), z.string().regex(/^\d{2}:00$/, 'O horário deve ser em hora cheia (ex: 08:00).')),
+  // duration_minutes removido do schema, será fixo em 60
   notes: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (!data.student_id && (!data.title || data.title.trim() === '')) {
@@ -101,6 +96,8 @@ const fetchAllStudents = async (): Promise<StudentOption[]> => {
 
 const AddRecurringClassTemplateDialog = ({ isOpen, onOpenChange }: AddRecurringClassTemplateDialogProps) => {
   const queryClient = useQueryClient();
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false); // Estado para controlar o popover
+  
   const { control, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<RecurringClassFormData>({
     resolver: zodResolver(recurringClassSchema),
     defaultValues: {
@@ -110,7 +107,6 @@ const AddRecurringClassTemplateDialog = ({ isOpen, onOpenChange }: AddRecurringC
       recurrence_end_date: '',
       selected_days: [],
       times_per_day: {},
-      duration_minutes: 60,
       notes: '',
     },
   });
@@ -149,7 +145,7 @@ const AddRecurringClassTemplateDialog = ({ isOpen, onOpenChange }: AddRecurringC
         user_id: user.id,
         student_id: formData.student_id || null,
         title: classTitle,
-        duration_minutes: formData.duration_minutes,
+        duration_minutes: 60, // Duração fixa em 60 minutos
         notes: formData.notes || null,
         recurrence_pattern: recurrence_pattern,
         recurrence_start_date: formData.recurrence_start_date,
@@ -187,7 +183,7 @@ const AddRecurringClassTemplateDialog = ({ isOpen, onOpenChange }: AddRecurringC
             user_id: user.id,
             title: classTitle,
             start_time: startUtc,
-            duration_minutes: formData.duration_minutes,
+            duration_minutes: 60, // Duração fixa em 60 minutos
             notes: formData.notes || null,
             student_id: formData.student_id || null,
           });
@@ -219,7 +215,7 @@ const AddRecurringClassTemplateDialog = ({ isOpen, onOpenChange }: AddRecurringC
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Agendar Aula Recorrente</DialogTitle>
+          <DialogTitle>Agendar Aula Recorrente (60 min)</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="grid gap-4 py-4">
@@ -229,7 +225,7 @@ const AddRecurringClassTemplateDialog = ({ isOpen, onOpenChange }: AddRecurringC
                 name="student_id"
                 control={control}
                 render={({ field }) => (
-                  <Popover>
+                  <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
@@ -258,6 +254,7 @@ const AddRecurringClassTemplateDialog = ({ isOpen, onOpenChange }: AddRecurringC
                               onSelect={() => {
                                 field.onChange(student.id);
                                 setValue('title', `Aula com ${student.name}`);
+                                setIsPopoverOpen(false); // Fechar após seleção
                               }}
                             >
                               <Check
@@ -300,7 +297,7 @@ const AddRecurringClassTemplateDialog = ({ isOpen, onOpenChange }: AddRecurringC
             </div>
 
             <div className="space-y-2">
-              <Label>Dias da Semana e Horários</Label>
+              <Label>Dias da Semana e Horários (Hora Cheia)</Label>
               <div className="grid grid-cols-2 gap-2">
                 {DAYS_OF_WEEK.map(day => (
                   <div key={day.value} className="flex items-center space-x-2">
@@ -324,7 +321,7 @@ const AddRecurringClassTemplateDialog = ({ isOpen, onOpenChange }: AddRecurringC
                             } else {
                               // Set a default time if day is checked and no time exists
                               if (!timesPerDay[day.value]) {
-                                setValue(`times_per_day.${day.value}`, `${availableHours[0]}:${availableMinutes[0]}`);
+                                setValue(`times_per_day.${day.value}`, availableHours[0]);
                               }
                             }
                           }}
@@ -337,26 +334,16 @@ const AddRecurringClassTemplateDialog = ({ isOpen, onOpenChange }: AddRecurringC
                         name={`times_per_day.${day.value}`}
                         control={control}
                         render={({ field, fieldState }) => {
-                          const [currentHour, currentMinute] = field.value.split(':');
-                          const handleTimeChange = (newHour: string, newMinute: string) => {
-                            field.onChange(`${newHour}:${newMinute}`);
-                          };
                           return (
                             <div className="flex flex-col">
-                              <div className="flex gap-1">
-                                <Select onValueChange={(h) => handleTimeChange(h, currentMinute)} value={currentHour}>
-                                  <SelectTrigger className="w-[50px]"><SelectValue placeholder="H" /></SelectTrigger>
-                                  <SelectContent>
-                                    {availableHours.map(hour => (<SelectItem key={hour} value={hour}>{hour}</SelectItem>))}
-                                  </SelectContent>
-                                </Select>
-                                <Select onValueChange={(m) => handleTimeChange(currentHour, m)} value={currentMinute}>
-                                  <SelectTrigger className="w-[50px]"><SelectValue placeholder="M" /></SelectTrigger>
-                                  <SelectContent>
-                                    {availableMinutes.map(minute => (<SelectItem key={minute} value={minute}>{minute}</SelectItem>))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <SelectTrigger className="w-[100px]">
+                                  <SelectValue placeholder="Hora" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {availableHours.map(hour => (<SelectItem key={hour} value={hour}>{hour}</SelectItem>))}
+                                </SelectContent>
+                              </Select>
                               {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
                             </div>
                           );
@@ -369,27 +356,7 @@ const AddRecurringClassTemplateDialog = ({ isOpen, onOpenChange }: AddRecurringC
               {errors.selected_days && <p className="text-sm text-destructive mt-1">{errors.selected_days.message}</p>}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="duration_minutes">Duração (minutos)</Label>
-              <Controller
-                name="duration_minutes"
-                control={control}
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={String(field.value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione a duração..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="30">30 minutos</SelectItem>
-                      <SelectItem value="45">45 minutos</SelectItem>
-                      <SelectItem value="60">60 minutos</SelectItem>
-                      <SelectItem value="90">90 minutos</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {errors.duration_minutes && <p className="text-sm text-destructive mt-1">{errors.duration_minutes.message}</p>}
-            </div>
+            {/* Duração removida */}
 
             <div className="space-y-2">
               <Label htmlFor="notes">Notas (Opcional)</Label>
