@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Student } from '@/types/student';
 import { FinancialTransaction } from '@/types/financial';
-import { Loader2, ArrowLeft, User, Mail, Phone, StickyNote, DollarSign, Calendar, Calculator, MoreHorizontal, CheckCircle, Cake, PlusCircle, CalendarCheck, Edit } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Mail, Phone, StickyNote, DollarSign, Calendar, Calculator, MoreHorizontal, CheckCircle, Cake, PlusCircle, CalendarCheck, Edit, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -20,6 +20,7 @@ import { ptBR } from 'date-fns/locale/pt-BR';
 import ProRataCalculator from '../components/students/ProRataCalculator';
 import AddClassDialog from '@/components/schedule/AddClassDialog';
 import AddEditStudentDialog from '@/components/students/AddEditStudentDialog';
+import DeleteTransactionAlertDialog from '@/components/financial/DeleteTransactionAlertDialog'; // Importar o diálogo de exclusão
 import { showError, showSuccess } from '@/utils/toast';
 import ColoredSeparator from "@/components/ColoredSeparator";
 import { useSession } from '@/contexts/SessionProvider';
@@ -71,6 +72,9 @@ const StudentProfile = () => {
   const [isProRataOpen, setProRataOpen] = useState(false);
   const [isAddClassOpen, setAddClassOpen] = useState(false);
   const [isEditFormOpen, setEditFormOpen] = useState(false);
+  const [isDeleteTransactionAlertOpen, setDeleteTransactionAlertOpen] = useState(false); // Novo estado
+  const [transactionToDelete, setTransactionToDelete] = useState<FinancialTransaction | null>(null); // Novo estado
+  
   const { profile } = useSession();
   const isAdmin = profile?.role === 'admin';
 
@@ -80,6 +84,13 @@ const StudentProfile = () => {
     enabled: !!studentId,
     staleTime: 1000 * 60 * 2,
   });
+
+  const invalidateFinancialQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ['studentProfile', studentId] });
+    queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    queryClient.invalidateQueries({ queryKey: ['financialStats'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+  };
 
   const updateStudentMutation = useMutation({
     mutationFn: async (formData: any) => {
@@ -117,14 +128,37 @@ const StudentProfile = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['studentProfile', studentId] });
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['financialStats'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+      invalidateFinancialQueries();
       showSuccess('Transação marcada como paga com sucesso!');
     },
     onError: (error) => { showError(error.message); },
   });
+
+  const deleteTransactionMutation = useMutation({
+    mutationFn: async (transactionId: string) => {
+      if (!isAdmin) throw new Error("Você não tem permissão para excluir transações.");
+      const { error } = await supabase.from("financial_transactions").delete().eq("id", transactionId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidateFinancialQueries();
+      showSuccess("Lançamento removido com sucesso!");
+      setDeleteTransactionAlertOpen(false);
+      setTransactionToDelete(null);
+    },
+    onError: (error) => { showError(error.message); },
+  });
+
+  const handleDeleteTransactionClick = (transaction: FinancialTransaction) => {
+    setTransactionToDelete(transaction);
+    setDeleteTransactionAlertOpen(true);
+  };
+
+  const handleConfirmDeleteTransaction = () => {
+    if (transactionToDelete) {
+      deleteTransactionMutation.mutate(transactionToDelete.id);
+    }
+  };
 
   if (error) {
     return <div className="text-center text-destructive">Erro ao carregar o perfil do aluno: {error.message}</div>;
@@ -288,7 +322,7 @@ const StudentProfile = () => {
                       <TableCell>{t.due_date ? format(parseISO(t.due_date), 'dd/MM/yyyy') : '-'}</TableCell>
                       <TableCell className="text-right font-semibold">{formatCurrency(t.amount)}</TableCell>
                       <TableCell className="text-right">
-                        {t.status !== 'Pago' && t.type === 'revenue' && isAdmin && (
+                        {isAdmin && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" className="h-8 w-8 p-0">
@@ -297,8 +331,13 @@ const StudentProfile = () => {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => markAsPaidMutation.mutate(t.id)}>
-                                <CheckCircle className="w-4 h-4 mr-2" /> Marcar como Pago
+                              {t.status !== 'Pago' && t.type === 'revenue' && (
+                                <DropdownMenuItem onClick={() => markAsPaidMutation.mutate(t.id)}>
+                                  <CheckCircle className="w-4 h-4 mr-2" /> Marcar como Pago
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteTransactionClick(t)}>
+                                <Trash2 className="w-4 h-4 mr-2" /> Excluir
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -371,6 +410,13 @@ const StudentProfile = () => {
           isSubmitting={updateStudentMutation.isPending}
         />
       )}
+      <DeleteTransactionAlertDialog
+        isOpen={isDeleteTransactionAlertOpen}
+        onOpenChange={setDeleteTransactionAlertOpen}
+        selectedTransaction={transactionToDelete}
+        onConfirmDelete={handleConfirmDeleteTransaction}
+        isDeleting={deleteTransactionMutation.isPending}
+      />
     </div>
   );
 };
