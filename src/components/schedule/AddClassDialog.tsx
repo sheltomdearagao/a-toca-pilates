@@ -37,6 +37,10 @@ const classSchema = z.object({
   title: z.string().min(3, 'O título é obrigatório.').optional(),
   date: z.string().min(1, 'A data é obrigatória.'),
   time: z.string().min(1, 'O horário é obrigatório.'),
+  duration_minutes: z.preprocess(
+    (a) => parseInt(z.string().parse(a), 10),
+    z.number().min(15, "A duração mínima é de 15 minutos.")
+  ),
   notes: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (!data.student_id && (!data.title || data.title.trim() === '')) {
@@ -53,17 +57,16 @@ type ClassFormData = z.infer<typeof classSchema>;
 interface AddClassDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  quickAddSlot?: { date: Date; hour: number } | null;
+  quickAddSlot?: { date: Date; hour: number; minute: number } | null;
 }
 
 // Horários disponíveis (7h às 20h)
 const availableHours = Array.from({ length: 14 }, (_, i) => {
   const hour = i + 7;
-  return {
-    value: `${hour.toString().padStart(2, '0')}:00`,
-    label: `${hour.toString().padStart(2, '0')}:00`,
-  };
+  return `${hour.toString().padStart(2, '0')}`;
 });
+
+const availableMinutes = ['00', '30'];
 
 const fetchAllStudents = async (): Promise<StudentOption[]> => {
   const { data, error } = await supabase
@@ -84,6 +87,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot }: AddClassDialogPr
       title: '',
       date: format(new Date(), 'yyyy-MM-dd'),
       time: '08:00',
+      duration_minutes: 60,
       notes: '',
     },
   });
@@ -99,11 +103,13 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot }: AddClassDialogPr
   useEffect(() => {
     if (isOpen) {
       if (quickAddSlot) {
+        const timeString = `${quickAddSlot.hour.toString().padStart(2, '0')}:${quickAddSlot.minute.toString().padStart(2, '0')}`;
         reset({
           student_id: null,
           title: '',
           date: format(quickAddSlot.date, 'yyyy-MM-dd'),
-          time: `${quickAddSlot.hour.toString().padStart(2, '0')}:00`,
+          time: timeString,
+          duration_minutes: 60,
           notes: '',
         });
       } else {
@@ -112,6 +118,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot }: AddClassDialogPr
           title: '',
           date: format(new Date(), 'yyyy-MM-dd'),
           time: '08:00',
+          duration_minutes: 60,
           notes: '',
         });
       }
@@ -137,7 +144,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot }: AddClassDialogPr
       const { error } = await supabase.rpc('create_class_with_attendee', {
         p_title: classTitle,
         p_start_time: startUtc,
-        p_duration_minutes: 60,
+        p_duration_minutes: formData.duration_minutes, // Usando a duração do formulário
         p_notes: formData.notes || '',
         p_student_id: formData.student_id || null,
       });
@@ -235,28 +242,66 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot }: AddClassDialogPr
               <Controller name="date" control={control} render={({ field }) => <Input id="date" type="date" {...field} />} />
               {errors.date && <p className="text-sm text-destructive mt-1">{errors.date.message}</p>}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="time">Horário</Label>
-              <Controller
-                name="time"
-                control={control}
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o horário..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableHours.map(hour => (
-                        <SelectItem key={hour.value} value={hour.value}>
-                          {hour.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {errors.time && <p className="text-sm text-destructive mt-1">{errors.time.message}</p>}
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="time">Horário</Label>
+                <Controller
+                  name="time"
+                  control={control}
+                  render={({ field }) => {
+                    const [currentHour, currentMinute] = field.value.split(':');
+                    const handleTimeChange = (newHour: string, newMinute: string) => {
+                      field.onChange(`${newHour}:${newMinute}`);
+                    };
+                    return (
+                      <div className="flex gap-2">
+                        <Select onValueChange={(h) => handleTimeChange(h, currentMinute)} value={currentHour}>
+                          <SelectTrigger><SelectValue placeholder="Hora" /></SelectTrigger>
+                          <SelectContent>
+                            {availableHours.map(hour => (
+                              <SelectItem key={hour} value={hour}>{hour}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select onValueChange={(m) => handleTimeChange(currentHour, m)} value={currentMinute}>
+                          <SelectTrigger><SelectValue placeholder="Minuto" /></SelectTrigger>
+                          <SelectContent>
+                            {availableMinutes.map(minute => (
+                              <SelectItem key={minute} value={minute}>{minute}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    );
+                  }}
+                />
+                {errors.time && <p className="text-sm text-destructive mt-1">{errors.time.message}</p>}
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="duration_minutes">Duração (min)</Label>
+                <Controller
+                  name="duration_minutes"
+                  control={control}
+                  render={({ field }) => (
+                    <Select onValueChange={(v) => field.onChange(parseInt(v))} value={String(field.value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Duração..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="30">30 minutos</SelectItem>
+                        <SelectItem value="45">45 minutos</SelectItem>
+                        <SelectItem value="60">60 minutos</SelectItem>
+                        <SelectItem value="90">90 minutos</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {errors.duration_minutes && <p className="text-sm text-destructive mt-1">{errors.duration_minutes.message}</p>}
+              </div>
             </div>
+            
             <div className="space-y-2">
               <Label htmlFor="notes">Notas (Opcional)</Label>
               <Controller name="notes" control={control} render={({ field }) => <Textarea id="notes" {...field} />} />

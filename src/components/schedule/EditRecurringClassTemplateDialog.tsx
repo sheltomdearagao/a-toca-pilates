@@ -45,8 +45,10 @@ const DAYS_OF_WEEK = [
 
 const availableHours = Array.from({ length: 14 }, (_, i) => {
   const hour = i + 7; // 7h às 20h
-  return `${hour.toString().padStart(2, '0')}:00`;
+  return `${hour.toString().padStart(2, '0')}`;
 });
+
+const availableMinutes = ['00', '30'];
 
 const recurringClassSchema = z.object({
   student_id: z.string().optional().nullable(),
@@ -309,7 +311,7 @@ const EditRecurringClassTemplateDialog = ({ isOpen, onOpenChange, template }: Ed
                               setValue('times_per_day', newTimesPerDay);
                             } else {
                               if (!timesPerDay[day.value]) {
-                                setValue(`times_per_day.${day.value}`, availableHours[0]);
+                                setValue(`times_per_day.${day.value}`, `${availableHours[0]}:${availableMinutes[0]}`);
                               }
                             }
                           }}
@@ -321,21 +323,31 @@ const EditRecurringClassTemplateDialog = ({ isOpen, onOpenChange, template }: Ed
                       <Controller
                         name={`times_per_day.${day.value}`}
                         control={control}
-                        render={({ field, fieldState }) => (
-                          <div className="flex flex-col">
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <SelectTrigger className="w-[100px]">
-                                <SelectValue placeholder="Hora" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {availableHours.map(hour => (
-                                  <SelectItem key={hour} value={hour}>{hour}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
-                          </div>
-                        )}
+                        render={({ field, fieldState }) => {
+                          const [currentHour, currentMinute] = field.value.split(':');
+                          const handleTimeChange = (newHour: string, newMinute: string) => {
+                            field.onChange(`${newHour}:${newMinute}`);
+                          };
+                          return (
+                            <div className="flex flex-col">
+                              <div className="flex gap-1">
+                                <Select onValueChange={(h) => handleTimeChange(h, currentMinute)} value={currentHour}>
+                                  <SelectTrigger className="w-[50px]"><SelectValue placeholder="H" /></SelectTrigger>
+                                  <SelectContent>
+                                    {availableHours.map(hour => (<SelectItem key={hour} value={hour}>{hour}</SelectItem>))}
+                                  </SelectContent>
+                                </Select>
+                                <Select onValueChange={(m) => handleTimeChange(currentHour, m)} value={currentMinute}>
+                                  <SelectTrigger className="w-[50px]"><SelectValue placeholder="M" /></SelectTrigger>
+                                  <SelectContent>
+                                    {availableMinutes.map(minute => (<SelectItem key={minute} value={minute}>{minute}</SelectItem>))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                            </div>
+                          );
+                        }}
                       />
                     )}
                   </div>

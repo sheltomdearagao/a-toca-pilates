@@ -11,15 +11,17 @@ import { ClassEvent, RecurringClassTemplate } from '@/types/schedule';
 import { StudentOption } from '@/types/student';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import ColoredSeparator from "@/components/ColoredSeparator";
-import { parseISO, format, addDays, startOfDay, endOfDay, startOfWeek, isToday, isWeekend, addWeeks, subWeeks } from 'date-fns';
+import { parseISO, format, addDays, startOfDay, endOfDay, startOfWeek, isToday, isWeekend, addWeeks, subWeeks, setMinutes, setHours } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { showError } from '@/utils/toast'; // Importação adicionada
 
-// Horários reduzidos: 7h às 20h (14 slots)
-const HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+// Horários reduzidos: 7h às 20h (14 horas, 28 slots de 30 minutos)
+const START_HOUR = 7;
+const END_HOUR = 20;
+const HOURS = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
 const MAX_CLASSES_PER_LOAD = 15; // Limite agressivo para garantir carregamento rápido
 
 const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> => {
@@ -49,22 +51,47 @@ const fetchAllStudents = async (): Promise<StudentOption[]> => {
 };
 
 // Componente memoizado para célula da grade
-const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick, classCapacity }: { day: Date; hour: number; classesInSlot: ClassEvent[]; onCellClick: (day: Date, hour: number) => void; onClassClick: (classEvent: ClassEvent) => void; classCapacity: number; }) => {
+const ScheduleCell = memo(({ day, hour, minute, classesInSlot, onCellClick, onClassClick, classCapacity }: { day: Date; hour: number; minute: number; classesInSlot: ClassEvent[]; onCellClick: (day: Date, hour: number, minute: number) => void; onClassClick: (classEvent: ClassEvent) => void; classCapacity: number; }) => {
   const hasClass = classesInSlot.length > 0;
   const classEvent = classesInSlot[0]; // Lógica de UMA aula por slot
   const attendeeCount = classEvent?.class_attendees[0]?.count ?? 0;
   const eventTitle = classEvent?.student_id && classEvent?.students ? `${classEvent.students.name}` : classEvent?.title || 'Aula';
   const isRecurring = !!classEvent?.recurring_class_template_id; // Novo indicador de recorrência
+  const duration = classEvent?.duration_minutes || 60;
+  
+  // Altura baseada na duração (50px por 30 minutos)
+  const height = hasClass ? `${(duration / 30) * 50}px` : '50px';
+  
+  // Se for uma aula, ela só deve ser renderizada no slot de início (minuto 0 ou 30)
+  if (hasClass && (minute !== 0 && minute !== 30)) return null;
+  if (hasClass && minute === 30 && duration <= 30) return null; // Aulas de 30 min só no slot de 00
 
   return (
-    <div className={cn("p-1 border-r min-h-[50px] transition-colors cursor-pointer", isToday(day) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30", !hasClass && "hover:bg-primary/10")} onClick={() => onCellClick(day, hour)}>
+    <div 
+      className={cn(
+        "p-1 border-r border-b relative transition-colors", 
+        isToday(day) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30", 
+        !hasClass && "hover:bg-primary/10",
+        hasClass ? "z-10" : "z-0"
+      )} 
+      style={{ height: height }}
+      onClick={() => onCellClick(day, hour, minute)}
+    >
       {hasClass ? (
-        <div onClick={(e) => { e.stopPropagation(); onClassClick(classEvent); }} className={cn("p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-sm h-full flex flex-col justify-center", attendeeCount >= classCapacity ? 'bg-destructive text-white' : attendeeCount >= classCapacity - 3 ? 'bg-accent text-accent-foreground' : 'bg-primary text-white')}>
+        <div 
+          onClick={(e) => { e.stopPropagation(); onClassClick(classEvent); }} 
+          className={cn(
+            "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-md h-full flex flex-col justify-center absolute inset-0", 
+            attendeeCount >= classCapacity ? 'bg-destructive text-white' : attendeeCount >= classCapacity - 3 ? 'bg-accent text-accent-foreground' : 'bg-primary text-white'
+          )}
+        >
           <div className="font-semibold truncate">{eventTitle} {isRecurring && <span className="ml-1 text-[8px] opacity-70">🔁</span>}</div>
-          <div className="text-[10px] opacity-90">{attendeeCount}/{classCapacity} alunos</div>
+          <div className="text-[10px] opacity-90">{attendeeCount}/{classCapacity} alunos ({duration} min)</div>
         </div>
       ) : (
-        <div className="h-full flex items-center justify-center text-xs text-muted-foreground opacity-50"><div className="text-center"><div className="text-sm">+</div></div></div>
+        <div className="h-full flex items-center justify-center text-xs text-muted-foreground opacity-50">
+          <div className="text-center"><div className="text-sm">+</div></div>
+        </div>
       )}
     </div>
   );
@@ -78,7 +105,7 @@ const Schedule = () => {
   const [selectedEvent, setSelectedEvent] = useState<Partial<ClassEvent> | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'twoWeeks'>('week');
-  const [quickAddSlot, setQuickAddSlot] = useState<{ date: Date; hour: number } | null>(null);
+  const [quickAddSlot, setQuickAddSlot] = useState<{ date: Date; hour: number; minute: number } | null>(null);
 
   const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
   const CLASS_CAPACITY = appSettings?.class_capacity ?? 10;
@@ -108,11 +135,15 @@ const Schedule = () => {
   const classesBySlot = useMemo(() => {
     if (!classes) return new Map<string, ClassEvent[]>();
     const map = new Map<string, ClassEvent[]>();
+    
     for (const classEvent of classes) {
       const classStart = parseISO(classEvent.start_time);
       const hour = classStart.getHours();
+      const minute = classStart.getMinutes();
       const dayKey = format(classStart, 'yyyy-MM-dd');
-      const slotKey = `${dayKey}-${hour.toString().padStart(2, '0')}`;
+      
+      // Aulas são mapeadas apenas para o slot de início
+      const slotKey = `${dayKey}-${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
       if (!map.has(slotKey)) map.set(slotKey, [classEvent]);
     }
     return map;
@@ -144,15 +175,29 @@ const Schedule = () => {
     setIsDetailsOpen(true);
   }, []);
 
-  const handleCellClick = useCallback((day: Date, hour: number) => {
-    const slotKey = `${format(day, 'yyyy-MM-dd')}-${hour.toString().padStart(2, '0')}`;
+  const handleCellClick = useCallback((day: Date, hour: number, minute: number) => {
+    // Cria um objeto Date para o slot clicado
+    const clickedDate = setMinutes(setHours(day, hour), minute);
+    
+    // Verifica se há alguma aula que começa neste slot
+    const slotKey = `${format(clickedDate, 'yyyy-MM-dd-HH:mm')}`;
     if (!classesBySlot.get(slotKey)) {
-      setQuickAddSlot({ date: day, hour });
+      setQuickAddSlot({ date: day, hour, minute });
       setIsAddFormOpen(true);
     }
   }, [classesBySlot]);
 
-  // handleEditRecurringTemplate removido, pois a lógica está no RecurringTemplatesList
+  // Gerar slots de 30 minutos
+  const timeSlots = useMemo(() => {
+    const slots = [];
+    for (let h = START_HOUR; h <= END_HOUR; h++) {
+      slots.push({ hour: h, minute: 0 });
+      if (h < END_HOUR) { // Não adiciona 30 minutos após a hora final (20:00)
+        slots.push({ hour: h, minute: 30 });
+      }
+    }
+    return slots;
+  }, []);
 
   return (
     <div className="h-full flex flex-col">
@@ -195,20 +240,54 @@ const Schedule = () => {
             ))}
           </div>
           {isLoading ? (
-            HOURS.map(hour => (
-              <div key={hour} className="grid border-b" style={{ gridTemplateColumns: `80px repeat(${daysToDisplay.length}, 1fr)` }}>
+            timeSlots.map((slot, index) => (
+              <div key={index} className="grid border-b" style={{ gridTemplateColumns: `80px repeat(${daysToDisplay.length}, 1fr)` }}>
                 <div className="p-2 border-r"><Skeleton className="h-5 w-12" /></div>
                 {daysToDisplay.map(day => (<div key={day.toISOString()} className="p-1 border-r min-h-[50px]"><Skeleton className="h-full w-full rounded-md" /></div>))}
               </div>
             ))
           ) : (
-            HOURS.map(hour => (
-              <div key={hour} className="grid border-b" style={{ gridTemplateColumns: `80px repeat(${daysToDisplay.length}, 1fr)` }}>
-                <div className="p-2 border-r text-sm font-medium text-muted-foreground">{`${hour}:00`}</div>
+            timeSlots.map((slot, index) => (
+              <div key={index} className="grid border-b" style={{ gridTemplateColumns: `80px repeat(${daysToDisplay.length}, 1fr)` }}>
+                <div className={cn("p-2 border-r text-sm font-medium text-muted-foreground", slot.minute === 30 && "border-t border-dashed border-border/50")}>
+                  {slot.minute === 0 ? `${slot.hour.toString().padStart(2, '0')}:00` : ''}
+                </div>
                 {daysToDisplay.map(day => {
-                  const slotKey = `${format(day, 'yyyy-MM-dd')}-${hour.toString().padStart(2, '0')}`;
+                  const slotKey = `${format(day, 'yyyy-MM-dd')}-${slot.hour.toString().padStart(2, '0')}:${slot.minute.toString().padStart(2, '0')}`;
                   const classesInSlot = classesBySlot.get(slotKey) || [];
-                  return <ScheduleCell key={day.toISOString()} day={day} hour={hour} classesInSlot={classesInSlot} onCellClick={handleCellClick} onClassClick={handleClassClick} classCapacity={CLASS_CAPACITY} />;
+                  
+                  // Verifica se a aula anterior ocupa este slot
+                  const previousSlot = timeSlots[index - 1];
+                  if (previousSlot) {
+                    const previousSlotKey = `${format(day, 'yyyy-MM-dd')}-${previousSlot.hour.toString().padStart(2, '0')}:${previousSlot.minute.toString().padStart(2, '0')}`;
+                    const previousClass = classesBySlot.get(previousSlotKey)?.[0];
+                    
+                    if (previousClass) {
+                      const classStart = parseISO(previousClass.start_time);
+                      const classEnd = addDays(classStart, 0); // Usamos addDays(0) para garantir que a data seja a mesma
+                      setMinutes(setHours(classEnd, classStart.getHours()), classStart.getMinutes() + previousClass.duration_minutes);
+                      
+                      const currentSlotTime = setMinutes(setHours(day, slot.hour), slot.minute);
+                      
+                      // Se o slot atual estiver dentro da duração da aula anterior, não renderize a célula
+                      if (currentSlotTime > classStart && currentSlotTime < classEnd) {
+                        return <div key={day.toISOString()} className="p-1 border-r min-h-[50px] relative" style={{ height: '50px' }}></div>;
+                      }
+                    }
+                  }
+
+                  return (
+                    <ScheduleCell 
+                      key={day.toISOString()} 
+                      day={day} 
+                      hour={slot.hour} 
+                      minute={slot.minute}
+                      classesInSlot={classesInSlot} 
+                      onCellClick={handleCellClick} 
+                      onClassClick={handleClassClick} 
+                      classCapacity={CLASS_CAPACITY} 
+                    />
+                  );
                 })}
               </div>
             ))
