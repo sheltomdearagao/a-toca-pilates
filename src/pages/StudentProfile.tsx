@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Student } from '@/types/student';
 import { FinancialTransaction } from '@/types/financial';
-import { Loader2, ArrowLeft, User, Mail, Phone, StickyNote, DollarSign, Calendar, Calculator, MoreHorizontal, CheckCircle, Cake, PlusCircle, CalendarCheck, Edit, Trash2 } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Mail, Phone, StickyNote, DollarSign, Calendar, Calculator, MoreHorizontal, CheckCircle, Cake, PlusCircle, CalendarCheck, Edit, Trash2, Clock, Repeat } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import FinancialTableSkeleton from '@/components/financial/FinancialTableSkeleton';
 import { formatCurrency } from "@/utils/formatters";
+import { RecurringClassTemplate } from '@/types/schedule';
 
 type ClassAttendance = {
   id: string;
@@ -42,6 +43,17 @@ type StudentProfileData = {
   student: Student;
   transactions: FinancialTransaction[];
   attendance: ClassAttendance[];
+  recurringTemplate: RecurringClassTemplate | null; // Novo campo
+};
+
+const DAYS_OF_WEEK_MAP: { [key: string]: string } = {
+  monday: 'Seg',
+  tuesday: 'Ter',
+  wednesday: 'Qua',
+  thursday: 'Qui',
+  friday: 'Sex',
+  saturday: 'Sáb',
+  sunday: 'Dom',
 };
 
 const fetchStudentProfile = async (studentId: string): Promise<StudentProfileData> => {
@@ -49,20 +61,26 @@ const fetchStudentProfile = async (studentId: string): Promise<StudentProfileDat
     { data: student, error: studentError },
     { data: transactions, error: transactionsError },
     { data: attendance, error: attendanceError },
+    { data: recurringTemplate, error: templateError }, // Nova busca
   ] = await Promise.all([
     supabase.from('students').select('*').eq('id', studentId).single(),
-    supabase.from('financial_transactions').select('*, students(name)').eq('student_id', studentId).order('created_at', { ascending: false }),
+    supabase.from('financial_transactions').select('*, students(name, phone)').eq('student_id', studentId).order('created_at', { ascending: false }),
     supabase.from('class_attendees').select('id, status, classes!inner(title, start_time)').eq('student_id', studentId).order('start_time', { foreignTable: 'classes', ascending: false }),
+    supabase.from('recurring_class_templates').select('*').eq('student_id', studentId).single(),
   ]);
 
   if (studentError) throw new Error(`Erro ao carregar dados do aluno: ${studentError.message}`);
   if (transactionsError) throw new Error(`Erro ao carregar transações: ${transactionsError.message}`);
   if (attendanceError) throw new Error(`Erro ao carregar presença: ${attendanceError.message}`);
+  if (templateError && templateError.code !== 'PGRST116') { // PGRST116 = No rows found
+    console.error("Erro ao carregar template recorrente:", templateError);
+  }
 
   return { 
     student: student!, 
     transactions: transactions || [], 
-    attendance: (attendance as any) || [] 
+    attendance: (attendance as any) || [],
+    recurringTemplate: recurringTemplate || null,
   };
 };
 
@@ -167,6 +185,10 @@ const StudentProfile = () => {
   const student = data?.student;
   const transactions = data?.transactions || [];
   const attendance = data?.attendance || [];
+  const recurringTemplate = data?.recurringTemplate;
+
+  const preferredDaysDisplay = student?.preferred_days?.map(day => DAYS_OF_WEEK_MAP[day]).join(', ') || 'N/A';
+  const preferredTimeDisplay = student?.preferred_time || 'N/A';
 
   return (
     <div className="space-y-6">
@@ -282,7 +304,59 @@ const StudentProfile = () => {
           </CardContent>
         </Card>
 
-        <Card variant="bordered-green" className="lg:col-span-2 shadow-impressionist shadow-subtle-glow">
+        {/* NOVA SEÇÃO: AGENDAMENTO RECORRENTE */}
+        <Card variant="bordered-yellow" className="lg:col-span-2 shadow-impressionist shadow-subtle-glow">
+          <CardHeader>
+            <CardTitle className="flex items-center"><Repeat className="w-5 h-5 mr-2" /> Agendamento Recorrente</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            {isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+              </div>
+            ) : student?.plan_type === 'Avulso' ? (
+              <p className="text-muted-foreground">Este aluno possui plano Avulso e não tem agendamento recorrente.</p>
+            ) : (
+              <>
+                <div className="flex items-center">
+                  <Calendar className="w-4 h-4 mr-3 text-muted-foreground" />
+                  <span className="font-semibold">Dias Preferidos:</span> <span>{preferredDaysDisplay}</span>
+                </div>
+                <div className="flex items-center">
+                  <Clock className="w-4 h-4 mr-3 text-muted-foreground" />
+                  <span className="font-semibold">Horário Preferido:</span> <span>{preferredTimeDisplay}</span>
+                </div>
+                
+                <ColoredSeparator color="yellow" className="my-2" />
+
+                {recurringTemplate ? (
+                  <div className="space-y-2">
+                    <p className="font-semibold text-primary">Modelo Recorrente Ativo:</p>
+                    <p>Título: {recurringTemplate.title}</p>
+                    <p>Duração: {recurringTemplate.duration_minutes} minutos</p>
+                    <p>Início: {format(parseISO(recurringTemplate.recurrence_start_date), 'dd/MM/yyyy')}</p>
+                    {recurringTemplate.recurrence_pattern && (
+                      <div className="mt-2">
+                        <p className="font-medium">Padrão:</p>
+                        {recurringTemplate.recurrence_pattern.map((p, index) => (
+                          <Badge key={index} variant="secondary" className="mr-2 mt-1">
+                            {DAYS_OF_WEEK_MAP[p.day]} às {p.time}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">Nenhum modelo de aula recorrente gerado automaticamente.</p>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+        {/* FIM NOVA SEÇÃO */}
+
+        <Card variant="bordered-green" className="lg:col-span-3 shadow-impressionist shadow-subtle-glow">
           <CardHeader>
             <CardTitle className="flex items-center"><DollarSign className="w-5 h-5 mr-2" /> Histórico Financeiro</CardTitle>
           </CardHeader>
@@ -400,7 +474,7 @@ const StudentProfile = () => {
         </Card>
       </div>
       {student && <ProRataCalculator isOpen={isProRataOpen} onOpenChange={setProRataOpen} student={student} />}
-      {student && <AddClassDialog isOpen={isAddClassOpen} onOpenChange={setAddClassOpen} />}
+      {student && <AddClassDialog isOpen={isAddClassOpen} onOpenChange={setAddClassOpen} preSelectedStudentId={student.id} />}
       {student && (
         <AddEditStudentDialog
           isOpen={isEditFormOpen}
