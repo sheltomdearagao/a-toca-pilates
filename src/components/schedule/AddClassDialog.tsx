@@ -107,7 +107,7 @@ interface AddClassDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   quickAddSlot?: { date: Date; hour: number } | null;
-  preSelectedStudentId?: string; // Novo prop
+  preSelectedStudentId?: string;
 }
 
 const fetchAllStudents = async (): Promise<StudentOption[]> => {
@@ -274,7 +274,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Agendar Nova Aula (60 min)</DialogTitle>
+          <DialogTitle>Agendar Nova Aula</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="grid gap-4 py-4">
@@ -293,7 +293,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
                           "w-full justify-between",
                           !field.value && "text-muted-foreground"
                         )}
-                        disabled={isLoadingStudents || !!preSelectedStudentId} // Desabilita se pré-selecionado
+                        disabled={isLoadingStudents || !!preSelectedStudentId}
                       >
                         {field.value
                           ? students?.find((student) => student.id === field.value)?.name
@@ -342,10 +342,16 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
               </div>
             )}
             
-            <div className="space-y-2">
-              <Label htmlFor="date">Data de Início (Semana)</Label>
-              <Controller name="date" control={control} render={({ field }) => <Input id="date" type="date" {...field} />} />
-              {errors.date && <p className="text-sm text-destructive mt-1">{errors.date.message}</p>}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="date">Data de Início (Semana)</Label>
+                <Controller name="date" control={control} render={({ field }) => <Input id="date" type="date" {...field} />} />
+                {errors.date && <p className="text-sm text-destructive mt-1">{errors.date.message}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label>Duração</Label>
+                <Input value="60 minutos" disabled className="font-semibold text-primary" />
+              </div>
             </div>
             
             <div className="space-y-2 p-3 border rounded-lg">

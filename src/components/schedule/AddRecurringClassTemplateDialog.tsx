@@ -214,7 +214,7 @@ const AddRecurringClassTemplateDialog = ({ isOpen, onOpenChange }: AddRecurringC
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Agendar Aula Recorrente (60 min)</DialogTitle>
+          <DialogTitle>Agendar Aula Recorrente</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="grid gap-4 py-4">
@@ -282,17 +282,22 @@ const AddRecurringClassTemplateDialog = ({ isOpen, onOpenChange }: AddRecurringC
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2 col-span-2">
                 <Label htmlFor="recurrence_start_date">Data de Início</Label>
                 <Controller name="recurrence_start_date" control={control} render={({ field }) => <Input id="recurrence_start_date" type="date" {...field} />} />
                 {errors.recurrence_start_date && <p className="text-sm text-destructive mt-1">{errors.recurrence_start_date.message}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="recurrence_end_date">Data de Término (Opcional)</Label>
-                <Controller name="recurrence_end_date" control={control} render={({ field }) => <Input id="recurrence_end_date" type="date" {...field} value={field.value || ''} />} />
-                {errors.recurrence_end_date && <p className="text-sm text-destructive mt-1">{errors.recurrence_end_date.message}</p>}
+                <Label>Duração</Label>
+                <Input value="60 min" disabled className="font-semibold text-primary" />
               </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="recurrence_end_date">Data de Término (Opcional)</Label>
+              <Controller name="recurrence_end_date" control={control} render={({ field }) => <Input id="recurrence_end_date" type="date" {...field} value={field.value || ''} />} />
+              {errors.recurrence_end_date && <p className="text-sm text-destructive mt-1">{errors.recurrence_end_date.message}</p>}
             </div>
 
             <div className="space-y-2">
@@ -354,8 +359,6 @@ const AddRecurringClassTemplateDialog = ({ isOpen, onOpenChange }: AddRecurringC
               </div>
               {errors.selected_days && <p className="text-sm text-destructive mt-1">{errors.selected_days.message}</p>}
             </div>
-
-            {/* Duração removida */}
 
             <div className="space-y-2">
               <Label htmlFor="notes">Notas (Opcional)</Label>
