@@ -14,10 +14,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Loader2, MoreHorizontal, CheckCircle } from "lucide-react";
+import { Loader2, MoreHorizontal, CheckCircle, Phone } from "lucide-react";
 import { format, parseISO, differenceInDays } from "date-fns";
 import React from "react";
 import FinancialTableSkeleton from "./FinancialTableSkeleton"; // Importar o Skeleton
+import { showSuccess, showError } from "@/utils/toast"; // Importar toasts
 
 interface OverdueTransactionsTableProps {
   overdueTransactions: FinancialTransaction[] | undefined;
@@ -35,6 +36,15 @@ const OverdueTransactionsTable = ({
   if (isLoading) {
     return <FinancialTableSkeleton columns={6} rows={3} />;
   }
+
+  const handleCopyPhone = (phone: string | null | undefined) => {
+    if (phone) {
+      navigator.clipboard.writeText(phone);
+      showSuccess(`Telefone (${phone}) copiado para a área de transferência!`);
+    } else {
+      showError("Telefone não disponível para este aluno.");
+    }
+  };
 
   return (
     <div className="bg-card rounded-lg border shadow-impressionist shadow-subtle-glow">
@@ -68,6 +78,9 @@ const OverdueTransactionsTable = ({
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => onMarkAsPaid(t.id)}>
                       <CheckCircle className="w-4 h-4 mr-2" /> Marcar como Pago
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleCopyPhone(t.students?.phone)}>
+                      <Phone className="w-4 h-4 mr-2" /> Copiar Telefone
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

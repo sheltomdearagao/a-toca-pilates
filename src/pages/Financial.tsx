@@ -33,7 +33,7 @@ const fetchTransactions = async (year: number, month: number): Promise<Financial
   // Por enquanto, filtramos por created_at para despesas e receitas criadas no mês.
   const { data, error } = await supabase
     .from("financial_transactions")
-    .select("*, students(name)")
+    .select("*, students(name, phone)") // Adicionado 'phone'
     .gte("created_at", monthStart)
     .lte("created_at", monthEnd)
     .order("created_at", { ascending: false });
@@ -88,7 +88,7 @@ const fetchFinancialStats = async () => {
 const fetchOverdueTransactions = async (): Promise<FinancialTransaction[]> => {
     const { data, error } = await supabase
     .from("financial_transactions")
-    .select("*, students(name)")
+    .select("*, students(name, phone)") // Adicionado 'phone'
     .eq('type', 'revenue')
     .or(`status.eq.Atrasado,and(status.eq.Pendente,due_date.lt.${new Date().toISOString()})`)
     .order("due_date", { ascending: true });
