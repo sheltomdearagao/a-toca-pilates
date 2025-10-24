@@ -55,7 +55,6 @@ const recurringClassSchema = z.object({
   recurrence_end_date: z.string().optional().nullable(),
   selected_days: z.array(z.string()).min(1, "Selecione pelo menos um dia da semana."),
   times_per_day: z.record(z.string(), z.string().regex(/^\d{2}:00$/, 'O horário deve ser em hora cheia (ex: 08:00).')),
-  // duration_minutes removido do schema, será fixo em 60
   notes: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (!data.student_id && (!data.title || data.title.trim() === '')) {

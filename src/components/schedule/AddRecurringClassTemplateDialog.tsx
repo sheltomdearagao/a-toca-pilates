@@ -56,7 +56,6 @@ const recurringClassSchema = z.object({
   recurrence_end_date: z.string().optional().nullable(),
   selected_days: z.array(z.string()).min(1, "Selecione pelo menos um dia da semana."),
   times_per_day: z.record(z.string(), z.string().regex(/^\d{2}:00$/, 'O horário deve ser em hora cheia (ex: 08:00).')),
-  // duration_minutes removido do schema, será fixo em 60
   notes: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (!data.student_id && (!data.title || data.title.trim() === '')) {
@@ -71,7 +70,7 @@ const recurringClassSchema = z.object({
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: `Selecione um horário para ${DAYS_OF_WEEK.find(d => d.value === day)?.label}.`,
-        path: [`times_per_day.${day}`],
+        path: [`times_per_per.${day}`],
       });
     }
   });
@@ -291,7 +290,7 @@ const AddRecurringClassTemplateDialog = ({ isOpen, onOpenChange }: AddRecurringC
               </div>
               <div className="space-y-2">
                 <Label htmlFor="recurrence_end_date">Data de Término (Opcional)</Label>
-                <Controller name="recurrence_end_date" control={control} render={({ field }) => <Input id="recurrence_end_date" type="date" {...field} />} />
+                <Controller name="recurrence_end_date" control={control} render={({ field }) => <Input id="recurrence_end_date" type="date" {...field} value={field.value || ''} />} />
                 {errors.recurrence_end_date && <p className="text-sm text-destructive mt-1">{errors.recurrence_end_date.message}</p>}
               </div>
             </div>
