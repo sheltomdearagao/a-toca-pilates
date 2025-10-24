@@ -52,6 +52,7 @@ const DAYS_OF_WEEK = [
   { value: 'saturday', label: 'Sáb' },
 ];
 
+// Horários disponíveis (7h às 20h) - Apenas horas cheias
 const availableHours = Array.from({ length: 14 }, (_, i) => {
   const hour = i + 7; // 7h às 20h
   return `${hour.toString().padStart(2, '0')}:00`;
@@ -87,7 +88,10 @@ const createStudentSchema = (appSettings: any) => {
     date_of_birth: z.string().optional().nullable(),
     validity_date: z.string().optional().nullable(),
     preferred_days: z.array(z.string()).optional(),
-    preferred_time: z.string().optional().nullable(),
+    preferred_time: z.string().optional().nullable().refine(
+      (val) => val === null || val === undefined || val.endsWith(':00'),
+      { message: "O horário deve ser em hora cheia (ex: 08:00)." }
+    ),
   }).superRefine((data, ctx) => {
     if (data.plan_type !== 'Avulso') {
       if (!data.plan_frequency) {
@@ -193,7 +197,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
             {/* Seção de Agendamento Automático */}
             {planType !== 'Avulso' && planFrequency && (
               <div className="space-y-4 p-4 border-t mt-4">
-                <h4 className="font-semibold text-md">Agendamento Automático (Opcional)</h4>
+                <h4 className="font-semibold text-md">Agendamento Automático (Aula: 60 min)</h4>
                 <div className="space-y-2">
                   <Label>Dias da Semana</Label>
                   <Controller
@@ -223,7 +227,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
                   {errors.preferred_days && <p className="text-sm text-destructive mt-1">{errors.preferred_days.message}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label>Horário Preferido</Label>
+                  <Label>Horário Preferido (Hora Cheia)</Label>
                   <Controller
                     name="preferred_time"
                     control={control}
