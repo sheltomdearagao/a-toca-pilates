@@ -22,7 +22,7 @@ import { showError } from '@/utils/toast'; // Importação adicionada
 const START_HOUR = 7;
 const END_HOUR = 20;
 const HOURS = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
-const MAX_CLASSES_PER_LOAD = 15; // Limite agressivo para garantir carregamento rápido
+const MAX_CLASSES_PER_LOAD = 150; // Aumentando o limite para cobrir 1-2 semanas de forma mais segura
 
 const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> => {
   const { data, error } = await supabase
@@ -107,6 +107,7 @@ const Schedule = () => {
   const CLASS_CAPACITY = appSettings?.class_capacity ?? 10;
 
   // Pré-carregamento da lista de alunos para agilizar a abertura dos diálogos
+  // Mantemos esta query, mas garantimos que ela seja eficiente (já é)
   useQuery({ queryKey: ['allStudents'], queryFn: fetchAllStudents, staleTime: 1000 * 60 * 15 });
 
   const daysToDisplay = useMemo(() => {
@@ -122,10 +123,11 @@ const Schedule = () => {
     return { start, end };
   }, [daysToDisplay]);
 
+  // Otimização: Aumentar o staleTime para a query de classes, pois ela é pesada.
   const { data: classes, isLoading: isLoadingClasses } = useQuery({
     queryKey: ['classes', dateRange.start, dateRange.end],
     queryFn: () => fetchClasses(dateRange.start, dateRange.end),
-    staleTime: 1000 * 60 * 3,
+    staleTime: 1000 * 60 * 5, // Aumentado para 5 minutos
   });
 
   const classesBySlot = useMemo(() => {

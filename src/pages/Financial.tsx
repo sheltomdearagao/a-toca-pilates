@@ -155,15 +155,19 @@ const Financial = () => {
   const [isCategoryManagerOpen, setCategoryManagerOpen] = useState(false); // Novo estado
   const [selectedTransaction, setSelectedTransaction] = useState<FinancialTransaction | null>(null);
 
-  const { data: students, isLoading: isLoadingStudents } = useQuery({ queryKey: ["students"], queryFn: fetchStudents });
-  const { data: stats, isLoading: isLoadingStats } = useQuery({ queryKey: ["financialStats"], queryFn: fetchFinancialStats });
-  const { data: overdueTransactions, isLoading: isLoadingOverdue } = useQuery({ queryKey: ["overdueTransactions"], queryFn: fetchOverdueTransactions });
-  const { data: monthlyChartData, isLoading: isLoadingMonthlyChart } = useQuery({ queryKey: ["monthlyChartData"], queryFn: fetchMonthlyChartData });
+  // Aumentando staleTime para consultas pesadas
+  const STALE_TIME_FINANCIAL = 1000 * 60 * 5; // 5 minutos
+
+  const { data: students, isLoading: isLoadingStudents } = useQuery({ queryKey: ["students"], queryFn: fetchStudents, staleTime: STALE_TIME_FINANCIAL });
+  const { data: stats, isLoading: isLoadingStats } = useQuery({ queryKey: ["financialStats"], queryFn: fetchFinancialStats, staleTime: STALE_TIME_FINANCIAL });
+  const { data: overdueTransactions, isLoading: isLoadingOverdue } = useQuery({ queryKey: ["overdueTransactions"], queryFn: fetchOverdueTransactions, staleTime: STALE_TIME_FINANCIAL });
+  const { data: monthlyChartData, isLoading: isLoadingMonthlyChart } = useQuery({ queryKey: ["monthlyChartData"], queryFn: fetchMonthlyChartData, staleTime: STALE_TIME_FINANCIAL });
 
   // Query de transações filtrada
   const { data: transactions, isLoading: isLoadingTransactions } = useQuery({ 
     queryKey: ["transactions", selectedYear, selectedMonth], 
     queryFn: () => fetchTransactions(selectedYear, selectedMonth),
+    staleTime: 1000 * 60 * 2, // 2 minutos para a tabela principal
   });
 
   const mutation = useMutation({
