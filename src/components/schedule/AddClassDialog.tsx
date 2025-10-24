@@ -239,7 +239,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot }: AddClassDialogPr
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="time">Horário (Hora Cheia)</Label>
+              <Label htmlFor="time">Horário</Label>
               <Controller
                 name="time"
                 control={control}
