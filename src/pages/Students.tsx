@@ -241,6 +241,7 @@ const Students = () => {
         isLoading={isLoading || isLoadingSettings || isLoadingPaymentStatus}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        paymentStatusMap={paymentStatusMap}
       />
 
       <AddEditStudentDialog
