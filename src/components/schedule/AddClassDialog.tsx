@@ -107,6 +107,7 @@ interface AddClassDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   quickAddSlot?: { date: Date; hour: number } | null;
+  preSelectedStudentId?: string; // Novo prop
 }
 
 const fetchAllStudents = async (): Promise<StudentOption[]> => {
@@ -119,7 +120,7 @@ const fetchAllStudents = async (): Promise<StudentOption[]> => {
   return data || [];
 };
 
-const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot }: AddClassDialogProps) => {
+const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudentId }: AddClassDialogProps) => {
   const queryClient = useQueryClient();
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   
@@ -149,13 +150,23 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot }: AddClassDialogPr
 
   useEffect(() => {
     if (isOpen) {
+      let initialStudentId = preSelectedStudentId || null;
+      let initialTitle = '';
+
+      if (initialStudentId) {
+        const student = students?.find(s => s.id === initialStudentId);
+        if (student) {
+          initialTitle = `Aula com ${student.name}`;
+        }
+      }
+
       if (quickAddSlot) {
-        const dayOfWeek = format(quickAddSlot.date, 'eeee').toLowerCase(); // Define dayOfWeek aqui
+        const dayOfWeek = format(quickAddSlot.date, 'eeee').toLowerCase();
         const timeString = `${quickAddSlot.hour.toString().padStart(2, '0')}:00`;
         
         reset({
-          student_id: null,
-          title: '',
+          student_id: initialStudentId,
+          title: initialTitle,
           is_experimental: false,
           date: format(quickAddSlot.date, 'yyyy-MM-dd'),
           selected_days: [dayOfWeek],
@@ -164,8 +175,8 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot }: AddClassDialogPr
         });
       } else {
         reset({
-          student_id: null,
-          title: '',
+          student_id: initialStudentId,
+          title: initialTitle,
           is_experimental: false,
           date: format(new Date(), 'yyyy-MM-dd'),
           selected_days: [],
@@ -174,7 +185,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot }: AddClassDialogPr
         });
       }
     }
-  }, [isOpen, quickAddSlot, reset]);
+  }, [isOpen, quickAddSlot, preSelectedStudentId, students, reset]);
 
   const mutation = useMutation({
     mutationFn: async (formData: ClassFormData) => {
@@ -282,7 +293,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot }: AddClassDialogPr
                           "w-full justify-between",
                           !field.value && "text-muted-foreground"
                         )}
-                        disabled={isLoadingStudents}
+                        disabled={isLoadingStudents || !!preSelectedStudentId} // Desabilita se pré-selecionado
                       >
                         {field.value
                           ? students?.find((student) => student.id === field.value)?.name

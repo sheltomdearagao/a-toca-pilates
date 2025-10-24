@@ -16,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { Loader2, MoreHorizontal } from 'lucide-react';
+import { Loader2, MoreHorizontal, CalendarPlus } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import FinancialTableSkeleton from '@/components/financial/FinancialTableSkeleton'; // Reutilizando o skeleton de tabela
@@ -27,10 +27,11 @@ interface StudentsTableProps {
   isLoading: boolean;
   onEdit: (student: Student) => void;
   onDelete: (student: Student) => void;
+  onScheduleClass: (student: Student) => void; // Nova prop
   paymentStatusMap: Record<string, 'Em Dia' | 'Atrasado'> | undefined; // Nova prop
 }
 
-const StudentsTable = React.memo(({ students, isLoading, onEdit, onDelete, paymentStatusMap }: StudentsTableProps) => {
+const StudentsTable = React.memo(({ students, isLoading, onEdit, onDelete, onScheduleClass, paymentStatusMap }: StudentsTableProps) => {
   if (isLoading) {
     return <FinancialTableSkeleton columns={6} rows={10} />;
   }
@@ -112,6 +113,9 @@ const StudentsTable = React.memo(({ students, isLoading, onEdit, onDelete, payme
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => onScheduleClass(student)}>
+                        <CalendarPlus className="w-4 h-4 mr-2" /> Agendar Aula
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => onEdit(student)}>
                         Editar
                       </DropdownMenuItem>

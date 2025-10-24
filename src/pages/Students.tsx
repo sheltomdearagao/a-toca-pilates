@@ -10,6 +10,7 @@ import StudentsTable from '@/components/students/StudentsTable';
 import AddEditStudentDialog from '@/components/students/AddEditStudentDialog';
 import DeleteStudentAlertDialog from '@/components/students/DeleteStudentAlertDialog';
 import StudentCSVUploader from '@/components/students/StudentCSVUploader'; // Importar o novo componente
+import AddClassDialog from '@/components/schedule/AddClassDialog'; // Importar o diálogo de agendamento
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAppSettings } from '@/hooks/useAppSettings';
@@ -53,7 +54,9 @@ const Students = () => {
   const [isFormOpen, setFormOpen] = useState(false);
   const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
   const [isImportOpen, setImportOpen] = useState(false); // Estado para o diálogo de importação
+  const [isScheduleOpen, setScheduleOpen] = useState(false); // Novo estado para agendamento
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [studentToSchedule, setStudentToSchedule] = useState<Student | null>(null); // Novo estado para agendamento rápido
 
   // Estados para os filtros
   const [searchTerm, setSearchTerm] = useState('');
@@ -135,6 +138,11 @@ const Students = () => {
   const handleDelete = useCallback((student: Student) => {
     setSelectedStudent(student);
     setDeleteAlertOpen(true);
+  }, []);
+  
+  const handleScheduleClass = useCallback((student: Student) => {
+    setStudentToSchedule(student);
+    setScheduleOpen(true);
   }, []);
 
   const onSubmitStudent = useCallback((data: any) => {
@@ -241,6 +249,7 @@ const Students = () => {
         isLoading={isLoading || isLoadingSettings || isLoadingPaymentStatus}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        onScheduleClass={handleScheduleClass} // Passando a nova função
         paymentStatusMap={paymentStatusMap}
       />
 
@@ -263,6 +272,13 @@ const Students = () => {
       <StudentCSVUploader
         isOpen={isImportOpen}
         onOpenChange={setImportOpen}
+      />
+      
+      {/* Diálogo de Agendamento Rápido */}
+      <AddClassDialog 
+        isOpen={isScheduleOpen} 
+        onOpenChange={setScheduleOpen} 
+        preSelectedStudentId={studentToSchedule?.id} // Passando o ID do aluno
       />
     </div>
   );
