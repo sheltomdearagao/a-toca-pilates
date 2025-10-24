@@ -1,12 +1,12 @@
 import StatCard from "../components/StatCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { Users, DollarSign, AlertCircle, Calendar } from "lucide-react";
+import { Users, DollarSign, AlertCircle, Calendar, UserX } from "lucide-react";
 import { startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
 import BirthdayCard from "@/components/BirthdayCard";
 import ColoredSeparator from "@/components/ColoredSeparator";
 import { Card } from "@/components/ui/card";
-import { formatCurrency } from "@/utils/formatters"; // Importar do utilitário
+import { formatCurrency } from "@/utils/formatters";
 
 const fetchDashboardStats = async () => {
   const now = new Date();
@@ -15,11 +15,25 @@ const fetchDashboardStats = async () => {
   const todayStart = startOfDay(now);
   const todayEnd = endOfDay(now);
 
-  // Executa todas as consultas em paralelo usando Promise.all
+  // 1. Busca transações em atraso para calcular o valor total
+  const { data: overdueData, error: overdueError } = await supabase
+    .from('financial_transactions')
+    .select('amount, student_id')
+    .eq('type', 'revenue')
+    .or(`status.eq.Atrasado,and(status.eq.Pendente,due_date.lt.${now.toISOString()})`);
+
+  if (overdueError) throw new Error(`Inadimplência: ${overdueError.message}`);
+
+  const totalOverdue = overdueData?.reduce((sum, t) => sum + t.amount, 0) || 0;
+  
+  // 2. Calcula a contagem de alunos únicos inadimplentes
+  const uniqueOverdueStudents = new Set(overdueData?.map(t => t.student_id).filter(id => id !== null));
+  const overdueStudentCount = uniqueOverdueStudents.size;
+
+  // Executa as outras consultas em paralelo
   const [
     { count: activeStudents, error: studentsError },
     { data: revenueData, error: revenueError },
-    { data: overdueData, error: overdueError },
     { count: todayClasses, error: classesError },
   ] = await Promise.all([
     supabase
@@ -34,11 +48,6 @@ const fetchDashboardStats = async () => {
       .gte('paid_at', monthStart.toISOString())
       .lte('paid_at', monthEnd.toISOString()),
     supabase
-      .from('financial_transactions')
-      .select('amount')
-      .eq('type', 'revenue')
-      .or(`status.eq.Atrasado,and(status.eq.Pendente,due_date.lt.${now.toISOString()})`),
-    supabase
       .from('classes')
       .select('id', { count: 'exact', head: true })
       .gte('start_time', todayStart.toISOString())
@@ -47,16 +56,15 @@ const fetchDashboardStats = async () => {
 
   if (studentsError) throw new Error(`Alunos: ${studentsError.message}`);
   if (revenueError) throw new Error(`Receita: ${revenueError.message}`);
-  if (overdueError) throw new Error(`Inadimplência: ${overdueError.message}`);
   if (classesError) throw new Error(`Aulas: ${classesError.message}`);
 
   const monthlyRevenue = revenueData?.reduce((sum, t) => sum + t.amount, 0) || 0;
-  const totalOverdue = overdueData?.reduce((sum, t) => sum + t.amount, 0) || 0;
 
   return {
     activeStudents: activeStudents ?? 0,
     monthlyRevenue: formatCurrency(monthlyRevenue),
     totalOverdue: formatCurrency(totalOverdue),
+    overdueStudentCount: overdueStudentCount, // Nova métrica
     todayClasses: todayClasses ?? 0,
   };
 };
@@ -100,9 +108,9 @@ const Dashboard = () => {
           variant="bordered-green"
         />
         <StatCard
-          title="Inadimplência"
-          value={stats?.totalOverdue ?? formatCurrency(0)}
-          icon={<AlertCircle className="h-6 w-6" />}
+          title="Alunos Inadimplentes"
+          value={stats?.overdueStudentCount ?? 0}
+          icon={<UserX className="h-6 w-6" />}
           isLoading={isLoading}
           variant="bordered-red"
         />
