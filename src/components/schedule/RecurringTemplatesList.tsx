@@ -152,7 +152,8 @@ const RecurringTemplatesList = () => {
                   <TableCell className="font-medium">{template.title}</TableCell>
                   <TableCell>{template.students?.name || '-'}</TableCell>
                   <TableCell>
-                    {template.recurrence_pattern.map((pattern) => (
+                    {/* Adicionando verificação de nulidade aqui */}
+                    {template.recurrence_pattern && template.recurrence_pattern.map((pattern) => (
                       <div key={pattern.day} className="text-xs text-muted-foreground">
                         {DAYS_OF_WEEK_MAP[pattern.day]} às {pattern.time}
                       </div>
