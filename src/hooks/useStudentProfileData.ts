@@ -5,6 +5,7 @@ import { FinancialTransaction } from '@/types/financial';
 import { RecurringClassTemplate } from '@/types/schedule';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/contexts/SessionProvider';
+import { useState } from 'react'; // <-- Importação adicionada
 
 type ClassAttendance = {
   id: string;
@@ -99,7 +100,6 @@ export const useStudentProfileData = (studentId: string | undefined) => {
 
   const invalidateFinancialQueries = () => {
     queryClient.invalidateQueries({ queryKey: ['studentProfile', studentId] });
-    queryClient.invalidateQueries({ queryKey: ['studentHistory', studentId] });
     queryClient.invalidateQueries({ queryKey: ['transactions'] });
     queryClient.invalidateQueries({ queryKey: ['financialStats'] });
     queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
