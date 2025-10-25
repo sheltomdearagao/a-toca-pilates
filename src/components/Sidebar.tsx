@@ -1,12 +1,17 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Users, DollarSign, Calendar, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, DollarSign, Calendar, LogOut, Database } from "lucide-react";
 import { Button } from "./ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
 import { useSession } from "@/contexts/SessionProvider";
 import { cn } from "@/lib/utils";
+import React from "react";
 
-const Sidebar = () => {
+interface SidebarProps {
+  onOpenExporter: () => void;
+}
+
+const Sidebar = ({ onOpenExporter }: SidebarProps) => {
   const navigate = useNavigate();
   const { profile } = useSession();
 
@@ -58,7 +63,17 @@ const Sidebar = () => {
           <span className="group-hover:font-semibold">Agenda</span>
         </NavLink>
       </nav>
-      <div className="mt-4">
+      <div className="mt-4 space-y-2">
+        {profile?.role === 'admin' && (
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-sidebar-foreground hover:bg-secondary hover:text-secondary-foreground transition-colors duration-200"
+            onClick={onOpenExporter}
+          >
+            <Database className="w-5 h-5 mr-3" />
+            <span className="hover:font-semibold">Backup de Dados</span>
+          </Button>
+        )}
         <Button
           variant="ghost"
           className="w-full justify-start text-sidebar-foreground hover:bg-destructive/10 hover:text-destructive transition-colors duration-200"
