@@ -24,12 +24,23 @@ const StudentProfile = () => {
   const [transactionToDelete, setTransactionToDelete] = useState<FinancialTransaction | null>(null);
   
   // --- HOOK DE DADOS E MUTAÇÕES ---
-  const { data, isLoading, error, isAdmin, mutations } = useStudentProfileData(studentId);
+  const { 
+    data, 
+    isLoading, 
+    isFetchingHistory, 
+    error, 
+    isAdmin, 
+    mutations, 
+    loadMoreTransactions, 
+    loadMoreAttendance 
+  } = useStudentProfileData(studentId);
 
   const student = data?.student;
   const transactions = data?.transactions || [];
   const attendance = data?.attendance || [];
   const recurringTemplate = data?.recurringTemplate;
+  const hasMoreTransactions = data?.hasMoreTransactions ?? false;
+  const hasMoreAttendance = data?.hasMoreAttendance ?? false;
 
   // --- HANDLERS DE AÇÃO ---
   const handleEditSubmit = useCallback(async (formData: any) => {
@@ -86,11 +97,17 @@ const StudentProfile = () => {
           isAdmin={isAdmin}
           onMarkAsPaid={mutations.markAsPaid.mutate}
           onDeleteTransaction={handleDeleteTransactionClick}
+          hasMore={hasMoreTransactions}
+          onLoadMore={loadMoreTransactions}
+          isFetching={isFetchingHistory}
         />
 
         <StudentAttendanceHistory
           attendance={attendance}
           isLoading={isLoading}
+          hasMore={hasMoreAttendance}
+          onLoadMore={loadMoreAttendance}
+          isFetching={isFetchingHistory}
         />
       </div>
       

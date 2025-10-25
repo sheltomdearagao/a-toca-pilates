@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar } from 'lucide-react';
+import { Calendar, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -7,6 +7,7 @@ import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import FinancialTableSkeleton from '@/components/financial/FinancialTableSkeleton';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 type ClassAttendance = {
   id: string;
@@ -20,9 +21,12 @@ type ClassAttendance = {
 interface StudentAttendanceHistoryProps {
   attendance: ClassAttendance[];
   isLoading: boolean;
+  hasMore: boolean;
+  onLoadMore: () => void;
+  isFetching: boolean;
 }
 
-const StudentAttendanceHistory = ({ attendance, isLoading }: StudentAttendanceHistoryProps) => {
+const StudentAttendanceHistory = ({ attendance, isLoading, hasMore, onLoadMore, isFetching }: StudentAttendanceHistoryProps) => {
   return (
     <Card variant="bordered-yellow" className="lg:col-span-3 shadow-impressionist shadow-subtle-glow">
       <CardHeader>
@@ -67,9 +71,21 @@ const StudentAttendanceHistory = ({ attendance, isLoading }: StudentAttendanceHi
                 )}
               </TableBody>
             </Table>
-            <p className="text-xs text-muted-foreground mt-2">
-              Exibindo os 10 registros mais recentes.
-            </p>
+            <div className="mt-4 flex justify-between items-center">
+              <p className="text-xs text-muted-foreground">
+                Exibindo {attendance.length} registros.
+              </p>
+              {hasMore && (
+                <Button 
+                  variant="outline" 
+                  onClick={onLoadMore} 
+                  disabled={isFetching}
+                  size="sm"
+                >
+                  {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Ver Mais"}
+                </Button>
+              )}
+            </div>
           </>
         )}
       </CardContent>

@@ -20,33 +20,37 @@ export type StudentProfileData = {
   transactions: FinancialTransaction[];
   attendance: ClassAttendance[];
   recurringTemplate: RecurringClassTemplate | null;
+  hasMoreTransactions: boolean;
+  hasMoreAttendance: boolean;
 };
 
-const fetchStudentProfile = async (studentId: string): Promise<StudentProfileData> => {
+const PAGE_SIZE = 10;
+
+const fetchStudentProfile = async (studentId: string, transactionLimit: number, attendanceLimit: number): Promise<Omit<StudentProfileData, 'student' | 'recurringTemplate'>> => {
   const [
-    { data: student, error: studentError },
-    { data: transactions, error: transactionsError },
-    { data: attendance, error: attendanceError },
-    { data: recurringTemplate, error: templateError },
+    { data: transactions, error: transactionsError, count: transactionCount },
+    { data: attendance, error: attendanceError, count: attendanceCount },
   ] = await Promise.all([
-    supabase.from('students').select('*').eq('id', studentId).single(),
-    supabase.from('financial_transactions').select('*, students(name, phone)').eq('student_id', studentId).order('created_at', { ascending: false }).limit(10), // LIMITADO A 10
-    supabase.from('class_attendees').select('id, status, classes!inner(title, start_time)').eq('student_id', studentId).order('start_time', { foreignTable: 'classes', ascending: false }).limit(10), // LIMITADO A 10
-    supabase.from('recurring_class_templates').select('*').eq('student_id', studentId).single(),
+    supabase.from('financial_transactions')
+      .select('*, students(name, phone)', { count: 'exact' })
+      .eq('student_id', studentId)
+      .order('created_at', { ascending: false })
+      .limit(transactionLimit),
+    supabase.from('class_attendees')
+      .select('id, status, classes!inner(title, start_time)', { count: 'exact' })
+      .eq('student_id', studentId)
+      .order('start_time', { foreignTable: 'classes', ascending: false })
+      .limit(attendanceLimit),
   ]);
 
-  if (studentError) throw new Error(`Erro ao carregar dados do aluno: ${studentError.message}`);
   if (transactionsError) throw new Error(`Erro ao carregar transações: ${transactionsError.message}`);
   if (attendanceError) throw new Error(`Erro ao carregar presença: ${attendanceError.message}`);
-  if (templateError && templateError.code !== 'PGRST116') {
-    console.error("Erro ao carregar template recorrente:", templateError);
-  }
 
   return { 
-    student: student!, 
     transactions: transactions || [], 
     attendance: (attendance as any) || [],
-    recurringTemplate: recurringTemplate || null,
+    hasMoreTransactions: (transactionCount ?? 0) > transactionLimit,
+    hasMoreAttendance: (attendanceCount ?? 0) > attendanceLimit,
   };
 };
 
@@ -54,16 +58,48 @@ export const useStudentProfileData = (studentId: string | undefined) => {
   const queryClient = useQueryClient();
   const { profile } = useSession();
   const isAdmin = profile?.role === 'admin';
+  
+  const [transactionLimit, setTransactionLimit] = useState(PAGE_SIZE);
+  const [attendanceLimit, setAttendanceLimit] = useState(PAGE_SIZE);
 
-  const { data, isLoading, error } = useQuery<StudentProfileData, Error>({
-    queryKey: ['studentProfile', studentId],
-    queryFn: () => fetchStudentProfile(studentId!),
+  const { data: profileData, isLoading: isLoadingProfile, error: profileError } = useQuery({
+    queryKey: ['studentProfileData', studentId],
+    queryFn: async () => {
+      const [
+        { data: student, error: studentError },
+        { data: recurringTemplate, error: templateError },
+      ] = await Promise.all([
+        supabase.from('students').select('*').eq('id', studentId!).single(),
+        supabase.from('recurring_class_templates').select('*').eq('student_id', studentId!).single(),
+      ]);
+
+      if (studentError) throw new Error(`Erro ao carregar dados do aluno: ${studentError.message}`);
+      if (templateError && templateError.code !== 'PGRST116') {
+        console.error("Erro ao carregar template recorrente:", templateError);
+      }
+
+      return {
+        student: student!,
+        recurringTemplate: recurringTemplate || null,
+      };
+    },
     enabled: !!studentId,
     staleTime: 1000 * 60 * 2,
   });
 
+  const { data: historyData, isLoading: isLoadingHistory, error: historyError, isFetching: isFetchingHistory } = useQuery({
+    queryKey: ['studentHistory', studentId, transactionLimit, attendanceLimit],
+    queryFn: () => fetchStudentProfile(studentId!, transactionLimit, attendanceLimit),
+    enabled: !!studentId,
+    staleTime: 1000 * 60 * 2,
+  });
+
+  const isLoading = isLoadingProfile || isLoadingHistory;
+  const error = profileError || historyError;
+
   const invalidateFinancialQueries = () => {
     queryClient.invalidateQueries({ queryKey: ['studentProfile', studentId] });
+    queryClient.invalidateQueries({ queryKey: ['studentHistory', studentId] });
     queryClient.invalidateQueries({ queryKey: ['transactions'] });
     queryClient.invalidateQueries({ queryKey: ['financialStats'] });
     queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
@@ -91,7 +127,7 @@ export const useStudentProfileData = (studentId: string | undefined) => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['studentProfile', studentId] });
+      queryClient.invalidateQueries({ queryKey: ['studentProfileData', studentId] });
       showSuccess(`Aluno atualizado com sucesso!`);
     },
     onError: (error: any) => { showError(error.message); },
@@ -123,11 +159,29 @@ export const useStudentProfileData = (studentId: string | undefined) => {
     onError: (error) => { showError(error.message); },
   });
 
+  const loadMoreTransactions = () => {
+    setTransactionLimit(prev => prev + PAGE_SIZE);
+  };
+
+  const loadMoreAttendance = () => {
+    setAttendanceLimit(prev => prev + PAGE_SIZE);
+  };
+
   return {
-    data,
+    data: {
+      student: profileData?.student,
+      recurringTemplate: profileData?.recurringTemplate,
+      transactions: historyData?.transactions || [],
+      attendance: historyData?.attendance || [],
+      hasMoreTransactions: historyData?.hasMoreTransactions ?? false,
+      hasMoreAttendance: historyData?.hasMoreAttendance ?? false,
+    },
     isLoading,
+    isFetchingHistory,
     error,
     isAdmin,
+    loadMoreTransactions,
+    loadMoreAttendance,
     mutations: {
       updateStudent: updateStudentMutation,
       markAsPaid: markAsPaidMutation,

@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from '@/components/ui/badge';
-import { DollarSign, MoreHorizontal, CheckCircle, Trash2 } from 'lucide-react';
+import { DollarSign, MoreHorizontal, CheckCircle, Trash2, Loader2 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import FinancialTableSkeleton from '@/components/financial/FinancialTableSkeleton';
 import { formatCurrency } from "@/utils/formatters";
@@ -17,6 +17,9 @@ interface StudentFinancialHistoryProps {
   isAdmin: boolean;
   onMarkAsPaid: (transactionId: string) => void;
   onDeleteTransaction: (transaction: FinancialTransaction) => void;
+  hasMore: boolean;
+  onLoadMore: () => void;
+  isFetching: boolean;
 }
 
 const StudentFinancialHistory = ({
@@ -25,6 +28,9 @@ const StudentFinancialHistory = ({
   isAdmin,
   onMarkAsPaid,
   onDeleteTransaction,
+  hasMore,
+  onLoadMore,
+  isFetching,
 }: StudentFinancialHistoryProps) => {
   return (
     <Card variant="bordered-green" className="lg:col-span-3 shadow-impressionist shadow-subtle-glow">
@@ -95,9 +101,21 @@ const StudentFinancialHistory = ({
                 )}
               </TableBody>
             </Table>
-            <p className="text-xs text-muted-foreground mt-2">
-              Exibindo os 10 lançamentos mais recentes.
-            </p>
+            <div className="mt-4 flex justify-between items-center">
+              <p className="text-xs text-muted-foreground">
+                Exibindo {transactions.length} lançamentos.
+              </p>
+              {hasMore && (
+                <Button 
+                  variant="outline" 
+                  onClick={onLoadMore} 
+                  disabled={isFetching}
+                  size="sm"
+                >
+                  {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Ver Mais"}
+                </Button>
+              )}
+            </div>
           </>
         )}
       </CardContent>
