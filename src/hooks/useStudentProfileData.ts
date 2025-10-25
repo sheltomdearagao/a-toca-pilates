@@ -30,8 +30,8 @@ const fetchStudentProfile = async (studentId: string): Promise<StudentProfileDat
     { data: recurringTemplate, error: templateError },
   ] = await Promise.all([
     supabase.from('students').select('*').eq('id', studentId).single(),
-    supabase.from('financial_transactions').select('*, students(name, phone)').eq('student_id', studentId).order('created_at', { ascending: false }),
-    supabase.from('class_attendees').select('id, status, classes!inner(title, start_time)').eq('student_id', studentId).order('start_time', { foreignTable: 'classes', ascending: false }),
+    supabase.from('financial_transactions').select('*, students(name, phone)').eq('student_id', studentId).order('created_at', { ascending: false }).limit(10), // LIMITADO A 10
+    supabase.from('class_attendees').select('id, status, classes!inner(title, start_time)').eq('student_id', studentId).order('start_time', { foreignTable: 'classes', ascending: false }).limit(10), // LIMITADO A 10
     supabase.from('recurring_class_templates').select('*').eq('student_id', studentId).single(),
   ]);
 

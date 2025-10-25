@@ -32,40 +32,45 @@ const StudentAttendanceHistory = ({ attendance, isLoading }: StudentAttendanceHi
         {isLoading ? (
           <FinancialTableSkeleton columns={3} rows={3} />
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Aula</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {attendance.length > 0 ? attendance.map(a => (
-                <TableRow 
-                  key={a.id} 
-                  className={cn(
-                    "hover:bg-muted/50 transition-colors",
-                    a.status === 'Presente' && "bg-green-50/5",
-                    a.status === 'Faltou' && "bg-red-50/5",
-                    a.status === 'Agendado' && "bg-blue-50/5"
-                  )}
-                >
-                  <TableCell>{a.classes.title}</TableCell>
-                  <TableCell>{format(parseISO(a.classes.start_time), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</TableCell>
-                  <TableCell>
-                    <Badge variant={
-                      a.status === 'Presente' ? 'attendance-present' :
-                      a.status === 'Faltou' ? 'attendance-absent' :
-                      'attendance-scheduled'
-                    }>{a.status}</Badge>
-                  </TableCell>
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Aula</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Status</TableHead>
                 </TableRow>
-              )) : (
-                <TableRow><TableCell colSpan={3} className="text-center">Nenhum registro de presença.</TableCell></TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {attendance.length > 0 ? attendance.map(a => (
+                  <TableRow 
+                    key={a.id} 
+                    className={cn(
+                      "hover:bg-muted/50 transition-colors",
+                      a.status === 'Presente' && "bg-green-50/5",
+                      a.status === 'Faltou' && "bg-red-50/5",
+                      a.status === 'Agendado' && "bg-blue-50/5"
+                    )}
+                  >
+                    <TableCell>{a.classes.title}</TableCell>
+                    <TableCell>{format(parseISO(a.classes.start_time), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</TableCell>
+                    <TableCell>
+                      <Badge variant={
+                        a.status === 'Presente' ? 'attendance-present' :
+                        a.status === 'Faltou' ? 'attendance-absent' :
+                        'attendance-scheduled'
+                      }>{a.status}</Badge>
+                    </TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow><TableCell colSpan={3} className="text-center">Nenhum registro de presença.</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+            <p className="text-xs text-muted-foreground mt-2">
+              Exibindo os 10 registros mais recentes.
+            </p>
+          </>
         )}
       </CardContent>
     </Card>
