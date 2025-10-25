@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, Check, ChevronsUpDown } from 'lucide-react';
+import { Loader2, Check, ChevronsUpDown, AlertTriangle } from 'lucide-react'; // Importando AlertTriangle
 import { showError, showSuccess } from '@/utils/toast';
 import { format, parseISO } from 'date-fns';
 import { StudentOption } from '@/types/student';
@@ -32,6 +32,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
 import { RecurringClassTemplate, RecurrencePatternItem } from '@/types/schedule';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Importando Alert
 
 const DAYS_OF_WEEK = [
   { value: 'monday', label: 'Segunda-feira' },
@@ -205,6 +206,14 @@ const EditRecurringClassTemplateDialog = ({ isOpen, onOpenChange, template }: Ed
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="grid gap-4 py-4">
+            <Alert variant="default" className="bg-yellow-50/50 border-yellow-300 text-yellow-800">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              <AlertTitle>Atenção!</AlertTitle>
+              <AlertDescription>
+                Salvar alterações irá **remover e regenerar todas as aulas futuras** (a partir de hoje) associadas a este modelo.
+              </AlertDescription>
+            </Alert>
+
             <div className="space-y-2">
               <Label htmlFor="student_id">Aluno (Opcional)</Label>
               <Controller
