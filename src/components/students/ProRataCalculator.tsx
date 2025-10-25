@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2, Calculator } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
-import { differenceInDays, parseISO } from 'date-fns';
+import { differenceInDays, parseISO, getDaysInMonth } from 'date-fns'; // Importando getDaysInMonth
 
 interface ProRataCalculatorProps {
   isOpen: boolean;
@@ -33,16 +33,28 @@ const ProRataCalculator = ({ isOpen, onOpenChange, student }: ProRataCalculatorP
   const calculateProRata = () => {
     if (!startDate || !firstDueDate || !student.monthly_fee) {
       setProRataAmount(null);
+      showError("Preencha a data de início e a data do 1º vencimento.");
       return;
     }
-    const daysInPeriod = differenceInDays(parseISO(firstDueDate), parseISO(startDate));
+    
+    const startDateObj = parseISO(startDate);
+    const firstDueDateObj = parseISO(firstDueDate);
+
+    const daysInPeriod = differenceInDays(firstDueDateObj, startDateObj);
+    
     if (daysInPeriod <= 0) {
       showError("A data de vencimento deve ser posterior à data de início.");
       setProRataAmount(null);
       return;
     }
-    const dailyRate = student.monthly_fee / 30; // Assume um mês de 30 dias para simplificar
+    
+    // Calcula o número real de dias no mês da primeira cobrança
+    const daysInMonth = getDaysInMonth(firstDueDateObj); 
+    
+    // Calcula a taxa diária com base no número real de dias do mês
+    const dailyRate = student.monthly_fee / daysInMonth; 
     const calculatedAmount = dailyRate * daysInPeriod;
+    
     setProRataAmount(parseFloat(calculatedAmount.toFixed(2)));
   };
 
@@ -108,6 +120,9 @@ const ProRataCalculator = ({ isOpen, onOpenChange, student }: ProRataCalculatorP
               <p className="text-sm text-muted-foreground">Valor Proporcional Calculado:</p>
               <p className="text-2xl font-bold">
                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(proRataAmount)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Baseado em {getDaysInMonth(parseISO(firstDueDate))} dias no mês de vencimento.
               </p>
             </div>
           )}
