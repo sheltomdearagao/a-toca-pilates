@@ -27,7 +27,6 @@ const classSchema = z.object({
   title: z.string().min(3, 'O título é obrigatório.').optional(),
   date: z.string().min(1, 'A data é obrigatória.'),
   time: z.string().regex(/^\d{2}:00$/, 'O horário deve ser em hora cheia (ex: 08:00).'),
-  // duration_minutes removido do schema, será fixo em 60
   notes: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (!data.student_id && (!data.title || data.title.trim() === '')) {
@@ -88,7 +87,6 @@ const ClassEditForm = ({
         time: format(startTime, 'HH:00'), // Forçando para hora cheia
         notes: classEvent.notes || '',
         student_id: classEvent.student_id || null,
-        // duration_minutes removido
       });
     }
   }, [classEvent, reset]);
@@ -160,10 +158,16 @@ const ClassEditForm = ({
           </div>
         )}
 
-        <div className="space-y-2">
-          <Label htmlFor="date">Data</Label>
-          <Controller name="date" control={control} render={({ field }) => <Input id="date" type="date" {...field} />} />
-          {errors.date && <p className="text-sm text-destructive mt-1">{errors.date.message}</p>}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="space-y-2 col-span-2">
+            <Label htmlFor="date">Data</Label>
+            <Controller name="date" control={control} render={({ field }) => <Input id="date" type="date" {...field} />} />
+            {errors.date && <p className="text-sm text-destructive mt-1">{errors.date.message}</p>}
+          </div>
+          <div className="space-y-2">
+            <Label>Duração</Label>
+            <Input value="60 min" disabled className="font-semibold text-primary" />
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -184,8 +188,6 @@ const ClassEditForm = ({
           />
           {errors.time && <p className="text-sm text-destructive mt-1">{errors.time.message}</p>}
         </div>
-
-        {/* Duração removida */}
 
         <div className="space-y-2">
           <Label htmlFor="notes">Notas (Opcional)</Label>
