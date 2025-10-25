@@ -11,6 +11,7 @@ import AddEditStudentDialog from '@/components/students/AddEditStudentDialog';
 import DeleteStudentAlertDialog from '@/components/students/DeleteStudentAlertDialog';
 import StudentCSVUploader from '@/components/students/StudentCSVUploader'; // Importar o novo componente
 import AddClassDialog from '@/components/schedule/AddClassDialog'; // Importar o diálogo de agendamento
+import StudentStatsCards from '@/components/students/StudentStatsCards'; // NOVO COMPONENTE
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAppSettings } from '@/hooks/useAppSettings';
@@ -102,6 +103,7 @@ const Students = () => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardStats"] });
       queryClient.invalidateQueries({ queryKey: ["studentPaymentStatus"] }); // Invalida o novo status
+      queryClient.invalidateQueries({ queryKey: ["studentStats"] }); // Invalida o novo status
       showSuccess(`Aluno ${selectedStudent ? "atualizado" : "adicionado"} com sucesso!`);
       setFormOpen(false);
       setSelectedStudent(null);
@@ -118,6 +120,7 @@ const Students = () => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardStats"] });
       queryClient.invalidateQueries({ queryKey: ["studentPaymentStatus"] }); // Invalida o novo status
+      queryClient.invalidateQueries({ queryKey: ["studentStats"] }); // Invalida o novo status
       showSuccess("Aluno removido com sucesso!");
       setDeleteAlertOpen(false);
       setSelectedStudent(null);
@@ -185,6 +188,8 @@ const Students = () => {
         onAddNewStudent={handleAddNew}
         onImportCSV={() => setImportOpen(true)} // Abrir o diálogo de importação
       />
+      
+      <StudentStatsCards /> {/* NOVO: Cartões de Estatísticas */}
 
       <Card className="p-4 shadow-impressionist shadow-subtle-glow">
         <div className="flex items-center mb-4">
