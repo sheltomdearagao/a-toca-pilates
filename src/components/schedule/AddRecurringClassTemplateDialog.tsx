@@ -26,8 +26,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, Check, ChevronsUpDown } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { format, addDays, set, isWeekend, parseISO } from 'date-fns';
-import { fromZonedTime } from 'date-fns-tz';
+import { format } from 'date-fns';
 import { StudentOption } from '@/types/student';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
@@ -151,53 +150,27 @@ const AddRecurringClassTemplateDialog = ({ isOpen, onOpenChange }: AddRecurringC
         recurrence_end_date: formData.recurrence_end_date || null,
       };
 
-      const { data: template, error: templateError } = await supabase
+      // 1. Insere o novo modelo e obtém o ID de volta
+      const { data: newTemplate, error: templateError } = await supabase
         .from('recurring_class_templates')
-        .insert([templateData])
-        .select()
+        .insert(templateData)
+        .select('id')
         .single();
 
       if (templateError) throw templateError;
+      if (!newTemplate) throw new Error('Falha ao criar o modelo de recorrência.');
 
-      // Generate classes for the next 4 weeks (or until end date if sooner)
-      const today = new Date();
-      const endDate = formData.recurrence_end_date ? parseISO(formData.recurrence_end_date) : addDays(today, 28); // 4 weeks
-      const classesToInsert = [];
+      // 2. Chama a função RPC para gerar as aulas a partir do novo modelo
+      const { error: rpcError } = await supabase.rpc('generate_classes_from_template', {
+        template_id: newTemplate.id,
+      });
 
-      for (let d = new Date(formData.recurrence_start_date); d <= endDate; d = addDays(d, 1)) {
-        const dayOfWeek = format(d, 'eeee').toLowerCase(); // 'monday', 'tuesday', etc.
-        const patternItem = recurrence_pattern.find(p => p.day === dayOfWeek);
-
-        if (patternItem) {
-          const [hours, minutes] = patternItem.time.split(':');
-          const dateTime = set(d, {
-            hours: parseInt(hours),
-            minutes: parseInt(minutes),
-            seconds: 0,
-            milliseconds: 0,
-          });
-          const startUtc = fromZonedTime(dateTime, Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
-
-          classesToInsert.push({
-            user_id: user.id,
-            title: classTitle,
-            start_time: startUtc,
-            duration_minutes: 60, // Duração fixa em 60 minutos
-            notes: formData.notes || null,
-            student_id: formData.student_id || null,
-          });
-        }
-      }
-
-      if (classesToInsert.length > 0) {
-        const { error: classesError } = await supabase.from('classes').insert(classesToInsert);
-        if (classesError) throw classesError;
-      }
+      if (rpcError) throw rpcError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['classes'] });
-      queryClient.invalidateQueries({ queryKey: ['recurringClassTemplates'] }); // Invalidate new query key
-      showSuccess('Modelo de aula recorrente e aulas geradas com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ['recurringClassTemplates'] });
+      showSuccess('Modelo de aula recorrente criado e aulas geradas com sucesso!');
       onOpenChange(false);
       reset();
     },
