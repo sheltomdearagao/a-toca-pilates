@@ -2,7 +2,7 @@ import React from 'react';
 import { Student } from '@/types/student';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { StickyNote, Mail, Phone, Cake, CalendarCheck } from 'lucide-react';
+import { StickyNote, Mail, Phone, Cake, CalendarCheck, Home, User } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
 interface StudentDetailsCardProps {
@@ -33,6 +33,14 @@ const StudentDetailsCard = ({ student, isLoading }: StudentDetailsCardProps) => 
             <div className="flex items-center">
               <Phone className="w-4 h-4 mr-3 text-muted-foreground" />
               <span>{student?.phone || 'Não informado'}</span>
+            </div>
+            <div className="flex items-center">
+              <Home className="w-4 h-4 mr-3 text-muted-foreground" />
+              <span>{student?.address || 'Não informado'}</span>
+            </div>
+            <div className="flex items-center">
+              <User className="w-4 h-4 mr-3 text-muted-foreground" />
+              <span>Responsável: {student?.guardian_phone || 'Não informado'}</span>
             </div>
             {student?.date_of_birth && (
               <div className="flex items-center">

@@ -78,6 +78,8 @@ const createStudentSchema = (appSettings: any) => {
     name: z.string().min(3, "O nome deve ter pelo menos 3 caracteres."),
     email: z.string().email("Email inválido.").optional().or(z.literal("")),
     phone: z.string().optional(),
+    address: z.string().optional(),
+    guardian_phone: z.string().optional(),
     status: z.enum(["Ativo", "Inativo", "Experimental", "Bloqueado"]),
     notes: z.string().optional(),
     plan_type: dynamicPlanTypeSchema.default("Avulso"),
@@ -124,7 +126,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
   const { control, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<StudentFormData>({
     resolver: zodResolver(studentSchema),
     defaultValues: {
-      name: "", email: "", phone: "", status: "Experimental", notes: "",
+      name: "", email: "", phone: "", address: "", guardian_phone: "", status: "Experimental", notes: "",
       plan_type: "Avulso", enrollment_type: "Particular", date_of_birth: "", validity_date: "",
       preferred_days: [], preferred_time: null,
       plan_frequency: null, // Garantir que seja nulo por padrão
@@ -157,6 +159,8 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
           ...selectedStudent,
           email: selectedStudent.email || '',
           phone: selectedStudent.phone || '',
+          address: selectedStudent.address || '',
+          guardian_phone: selectedStudent.guardian_phone || '',
           notes: selectedStudent.notes || '',
           date_of_birth: selectedStudent.date_of_birth ? format(new Date(selectedStudent.date_of_birth), 'yyyy-MM-dd') : "",
           validity_date: selectedStudent.validity_date ? format(new Date(selectedStudent.validity_date), 'yyyy-MM-dd') : "",
@@ -169,7 +173,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
       } else {
         // Novo aluno
         reset({
-          name: "", email: "", phone: "", status: "Experimental", notes: "",
+          name: "", email: "", phone: "", address: "", guardian_phone: "", status: "Experimental", notes: "",
           plan_type: "Avulso", enrollment_type: "Particular", date_of_birth: "", validity_date: "",
           preferred_days: [], preferred_time: null,
           plan_frequency: null,
@@ -187,14 +191,14 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
         <DialogHeader><DialogTitle className="text-xl">{selectedStudent ? "Editar Aluno" : "Adicionar Novo Aluno"}</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="grid gap-4 py-4">
-            {/* Campos existentes... */}
             <div className="space-y-2"><Label>Nome</Label><Controller name="name" control={control} render={({ field, fieldState }) => (<><Input {...field} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
             <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label>Email</Label><Controller name="email" control={control} render={({ field, fieldState }) => (<><Input {...field} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div><div className="space-y-2"><Label>Telefone</Label><Controller name="phone" control={control} render={({ field, fieldState }) => (<><Input {...field} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div></div>
+            <div className="space-y-2"><Label>Endereço</Label><Controller name="address" control={control} render={({ field, fieldState }) => (<><Input {...field} value={field.value || ''} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
+            <div className="space-y-2"><Label>Telefone de Responsável (Opcional)</Label><Controller name="guardian_phone" control={control} render={({ field, fieldState }) => (<><Input {...field} value={field.value || ''} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
             <div className="space-y-2"><Label>Status</Label><Controller name="status" control={control} render={({ field, fieldState }) => (<><Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Ativo">Ativo</SelectItem><SelectItem value="Inativo">Inativo</SelectItem><SelectItem value="Experimental">Experimental</SelectItem><SelectItem value="Bloqueado">Bloqueado</SelectItem></SelectContent></Select>{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
             <div className="space-y-2"><Label>Plano</Label><Controller name="plan_type" control={control} render={({ field, fieldState }) => (<><Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{appSettings?.plan_types.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select>{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
             {planType !== 'Avulso' && (<div className="grid grid-cols-2 gap-4 p-4 border bg-secondary/20 rounded-lg"><div className="space-y-2"><Label>Frequência</Label><Controller name="plan_frequency" control={control} render={({ field, fieldState }) => (<><Select onValueChange={field.onChange} value={field.value || ''}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{appSettings?.plan_frequencies.map(freq => (<SelectItem key={freq} value={freq}>{freq} na semana</SelectItem>))}</SelectContent></Select>{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div><div className="space-y-2"><Label>Pagamento</Label><Controller name="payment_method" control={control} render={({ field, fieldState }) => (<><Select onValueChange={field.onChange} value={field.value || ''}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{appSettings?.payment_methods.map(method => (<SelectItem key={method} value={method}>{method}</SelectItem>))}</SelectContent></Select>{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div><div className="col-span-2 text-center pt-2"><p className="text-sm text-muted-foreground">Valor da Mensalidade:</p><p className="text-xl font-bold text-primary">R$ {watch('monthly_fee')?.toFixed(2) || '0.00'}</p>{errors.monthly_fee && <p className="text-sm text-destructive mt-1">{errors.monthly_fee.message}</p>}</div></div>)}
             
-            {/* Seção de Agendamento Automático */}
             {planType !== 'Avulso' && planFrequency && (
               <div className="space-y-4 p-4 border-t mt-4">
                 <h4 className="font-semibold text-md">Agendamento Automático (Aula: 60 min)</h4>

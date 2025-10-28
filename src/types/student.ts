@@ -22,6 +22,8 @@ export type Student = {
   validity_date?: string | null; // Novo campo de validade
   preferred_days?: string[] | null; // Novo campo
   preferred_time?: string | null; // Novo campo
+  address?: string | null; // Novo campo
+  guardian_phone?: string | null; // Novo campo
 };
 
 // Novo tipo para uso em dropdowns e seletores de aluno
