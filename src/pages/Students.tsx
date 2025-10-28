@@ -97,6 +97,7 @@ const Students = () => {
       }
       delete dataToSubmit.has_promotional_value; // Remover campo temporário do formulário
 
+      // Limpeza de strings vazias para NULL no banco de dados
       if (dataToSubmit.date_of_birth === "") {
         dataToSubmit.date_of_birth = null;
       }
