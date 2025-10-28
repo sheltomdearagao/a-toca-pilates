@@ -1,7 +1,7 @@
 export type StudentStatus = 'Ativo' | 'Inativo' | 'Experimental' | 'Bloqueado';
 export type PlanType = 'Mensal' | 'Trimestral' | 'Avulso';
 export type PlanFrequency = '2x' | '3x' | '4x' | '5x';
-export type PaymentMethod = 'Cartão' | 'Espécie';
+export type PaymentMethod = 'Crédito' | 'Débito' | 'Pix' | 'Espécie';
 export type EnrollmentType = 'Particular' | 'Wellhub' | 'TotalPass'; // Novo tipo
 
 export type Student = {

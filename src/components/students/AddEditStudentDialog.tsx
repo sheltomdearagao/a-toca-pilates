@@ -28,18 +28,19 @@ import { useAppSettings } from '@/hooks/useAppSettings';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 
+// Tabela de preços atualizada para Crédito, Débito e Pix
 const pricingTable = {
   Mensal: {
-    '2x': { 'Cartão': 245, 'Espécie': 230 },
-    '3x': { 'Cartão': 275, 'Espécie': 260 },
-    '4x': { 'Cartão': 300, 'Espécie': 285 },
-    '5x': { 'Cartão': 320, 'Espécie': 305 },
+    '2x': { 'Crédito': 245, 'Débito': 230, 'Pix': 230, 'Espécie': 230 },
+    '3x': { 'Crédito': 275, 'Débito': 260, 'Pix': 260, 'Espécie': 260 },
+    '4x': { 'Crédito': 300, 'Débito': 285, 'Pix': 285, 'Espécie': 285 },
+    '5x': { 'Crédito': 320, 'Débito': 305, 'Pix': 305, 'Espécie': 305 },
   },
   Trimestral: {
-    '2x': { 'Cartão': 225, 'Espécie': 210 },
-    '3x': { 'Cartão': 255, 'Espécie': 240 },
-    '4x': { 'Cartão': 285, 'Espécie': 270 },
-    '5x': { 'Cartão': 300, 'Espécie': 285 },
+    '2x': { 'Crédito': 225, 'Débito': 210, 'Pix': 210, 'Espécie': 210 },
+    '3x': { 'Crédito': 255, 'Débito': 240, 'Pix': 240, 'Espécie': 240 },
+    '4x': { 'Crédito': 285, 'Débito': 270, 'Pix': 270, 'Espécie': 270 },
+    '5x': { 'Crédito': 300, 'Débito': 285, 'Pix': 285, 'Espécie': 285 },
   },
 };
 
@@ -70,7 +71,7 @@ type StudentFormData = z.infer<ReturnType<typeof createStudentSchema>>;
 const createStudentSchema = (appSettings: any) => {
   const dynamicPlanTypeSchema = z.enum(appSettings?.plan_types as [string, ...string[]] || ["Avulso"]);
   const dynamicPlanFrequencySchema = z.enum(appSettings?.plan_frequencies as [string, ...string[]] || ["2x"]).optional().nullable();
-  const dynamicPaymentMethodSchema = z.enum(appSettings?.payment_methods as [string, ...string[]] || ["Cartão"]).optional().nullable();
+  const dynamicPaymentMethodSchema = z.enum(appSettings?.payment_methods as [string, ...string[]] || ["Crédito"]).optional().nullable();
   const dynamicEnrollmentTypeSchema = z.enum(appSettings?.enrollment_types as [string, ...string[]] || ["Particular"]);
 
   return z.object({
@@ -141,6 +142,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
 
   useEffect(() => {
     if (!hasPromotionalValue && planType && planType !== 'Avulso' && planFrequency && paymentMethod) {
+      // Acessando a tabela de preços atualizada
       const fee = pricingTable[planType as keyof typeof pricingTable]?.[planFrequency as keyof typeof pricingTable['Mensal']]?.[paymentMethod as keyof typeof pricingTable['Mensal']['2x']] || 0;
       setValue('monthly_fee', fee);
     } else if (planType === 'Avulso') {
