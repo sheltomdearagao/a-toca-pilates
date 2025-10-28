@@ -108,16 +108,41 @@ export const useStudentProfileData = (studentId: string | undefined) => {
   const updateStudentMutation = useMutation({
     mutationFn: async (formData: any) => {
       const dataToSubmit = { ...formData };
+      
+      // Limpeza de campos opcionais/condicionais
+      if (dataToSubmit.plan_type === 'Avulso') {
+        dataToSubmit.plan_frequency = null;
+        dataToSubmit.payment_method = null;
+        dataToSubmit.monthly_fee = 0;
+        dataToSubmit.preferred_days = null;
+        dataToSubmit.preferred_time = null;
+      }
+      
+      if (!dataToSubmit.has_promotional_value) {
+        dataToSubmit.discount_description = null;
+      }
+      delete dataToSubmit.has_promotional_value; // Remover campo temporário do formulário
+
       if (dataToSubmit.date_of_birth === "") {
         dataToSubmit.date_of_birth = null;
       }
       if (dataToSubmit.validity_date === "") {
         dataToSubmit.validity_date = null;
       }
-      if (dataToSubmit.plan_type === 'Avulso') {
-        dataToSubmit.plan_frequency = null;
-        dataToSubmit.payment_method = null;
-        dataToSubmit.monthly_fee = 0;
+      if (dataToSubmit.email === "") {
+        dataToSubmit.email = null;
+      }
+      if (dataToSubmit.phone === "") {
+        dataToSubmit.phone = null;
+      }
+      if (dataToSubmit.address === "") {
+        dataToSubmit.address = null;
+      }
+      if (dataToSubmit.guardian_phone === "") {
+        dataToSubmit.guardian_phone = null;
+      }
+      if (dataToSubmit.notes === "") {
+        dataToSubmit.notes = null;
       }
 
       const { error } = await supabase
