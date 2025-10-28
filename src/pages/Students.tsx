@@ -113,14 +113,16 @@ const Students = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (studentId: string) => {
-      const { error } = await supabase.from("students").delete().eq("id", studentId);
+      const { error } = await supabase.rpc('delete_student', {
+        student_id_to_delete: studentId
+      });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardStats"] });
-      queryClient.invalidateQueries({ queryKey: ["studentPaymentStatus"] }); // Invalida o novo status
-      queryClient.invalidateQueries({ queryKey: ["studentStats"] }); // Invalida o novo status
+      queryClient.invalidateQueries({ queryKey: ["studentPaymentStatus"] });
+      queryClient.invalidateQueries({ queryKey: ["studentStats"] });
       showSuccess("Aluno removido com sucesso!");
       setDeleteAlertOpen(false);
       setSelectedStudent(null);
