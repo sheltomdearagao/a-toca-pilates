@@ -52,9 +52,8 @@ const DAYS_OF_WEEK = [
   { value: 'saturday', label: 'Sáb' },
 ];
 
-// Horários disponíveis (7h às 20h) - Apenas horas cheias
 const availableHours = Array.from({ length: 14 }, (_, i) => {
-  const hour = i + 7; // 7h às 20h
+  const hour = i + 7;
   return `${hour.toString().padStart(2, '0')}:00`;
 });
 
@@ -70,8 +69,8 @@ type StudentFormData = z.infer<ReturnType<typeof createStudentSchema>>;
 
 const createStudentSchema = (appSettings: any) => {
   const dynamicPlanTypeSchema = z.enum(appSettings?.plan_types as [string, ...string[]] || ["Avulso"]);
-  const dynamicPlanFrequencySchema = z.enum(appSettings?.plan_frequencies as [string, ...string[]] || ["2x"]).optional().nullable(); // Permitir nulo
-  const dynamicPaymentMethodSchema = z.enum(appSettings?.payment_methods as [string, ...string[]] || ["Cartão"]).optional().nullable(); // Permitir nulo
+  const dynamicPlanFrequencySchema = z.enum(appSettings?.plan_frequencies as [string, ...string[]] || ["2x"]).optional().nullable();
+  const dynamicPaymentMethodSchema = z.enum(appSettings?.payment_methods as [string, ...string[]] || ["Cartão"]).optional().nullable();
   const dynamicEnrollmentTypeSchema = z.enum(appSettings?.enrollment_types as [string, ...string[]] || ["Particular"]);
 
   return z.object({
@@ -85,7 +84,10 @@ const createStudentSchema = (appSettings: any) => {
     plan_type: dynamicPlanTypeSchema.default("Avulso"),
     plan_frequency: dynamicPlanFrequencySchema,
     payment_method: dynamicPaymentMethodSchema,
-    monthly_fee: z.number().optional(),
+    monthly_fee: z.preprocess(
+      (val) => (typeof val === 'string' ? parseFloat(val.replace(',', '.')) : val),
+      z.number().optional()
+    ),
     enrollment_type: dynamicEnrollmentTypeSchema.default("Particular"),
     date_of_birth: z.string().optional().nullable(),
     validity_date: z.string().optional().nullable(),
@@ -94,26 +96,21 @@ const createStudentSchema = (appSettings: any) => {
       (val) => val === null || val === undefined || val.endsWith(':00'),
       { message: "O horário deve ser em hora cheia (ex: 08:00)." }
     ),
+    has_promotional_value: z.boolean().optional(),
+    discount_description: z.string().optional().nullable(),
   }).superRefine((data, ctx) => {
     if (data.plan_type !== 'Avulso') {
-      if (!data.plan_frequency) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A frequência é obrigatória.', path: ['plan_frequency'] });
-      }
-      if (!data.payment_method) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'O método de pagamento é obrigatório.', path: ['payment_method'] });
-      }
-      if (!data.monthly_fee || data.monthly_fee <= 0) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'O valor da mensalidade deve ser maior que zero.', path: ['monthly_fee'] });
-      }
+      if (!data.plan_frequency) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A frequência é obrigatória.', path: ['plan_frequency'] });
+      if (!data.payment_method) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'O método de pagamento é obrigatório.', path: ['payment_method'] });
+      if (!data.monthly_fee || data.monthly_fee <= 0) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'O valor da mensalidade deve ser maior que zero.', path: ['monthly_fee'] });
     }
-    if (data.preferred_days && data.preferred_days.length > 0 && !data.preferred_time) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'O horário é obrigatório se os dias forem selecionados.', path: ['preferred_time'] });
+    if (data.has_promotional_value && (!data.discount_description || data.discount_description.trim() === '')) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A descrição do desconto é obrigatória.', path: ['discount_description'] });
     }
+    if (data.preferred_days && data.preferred_days.length > 0 && !data.preferred_time) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'O horário é obrigatório se os dias forem selecionados.', path: ['preferred_time'] });
     if (data.plan_frequency && data.preferred_days) {
       const expectedCount = parseInt(data.plan_frequency.replace('x', ''), 10);
-      if (data.preferred_days.length > 0 && data.preferred_days.length !== expectedCount) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Selecione exatamente ${expectedCount} dias.`, path: ['preferred_days'] });
-      }
+      if (data.preferred_days.length > 0 && data.preferred_days.length !== expectedCount) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Selecione exatamente ${expectedCount} dias.`, path: ['preferred_days'] });
     }
   });
 };
@@ -128,9 +125,8 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
     defaultValues: {
       name: "", email: "", phone: "", address: "", guardian_phone: "", status: "Experimental", notes: "",
       plan_type: "Avulso", enrollment_type: "Particular", date_of_birth: "", validity_date: "",
-      preferred_days: [], preferred_time: null,
-      plan_frequency: null, // Garantir que seja nulo por padrão
-      payment_method: null, // Garantir que seja nulo por padrão
+      preferred_days: [], preferred_time: null, plan_frequency: null, payment_method: null,
+      has_promotional_value: false, discount_description: null,
     },
   });
 
@@ -138,23 +134,23 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
   const planFrequency = watch("plan_frequency");
   const paymentMethod = watch("payment_method");
   const preferredDays = watch("preferred_days") || [];
+  const hasPromotionalValue = watch("has_promotional_value");
 
   const frequencyCount = planFrequency ? parseInt(planFrequency.replace('x', ''), 10) : 0;
   const canSelectMoreDays = preferredDays.length < frequencyCount;
 
   useEffect(() => {
-    if (planType && planType !== 'Avulso' && planFrequency && paymentMethod) {
+    if (!hasPromotionalValue && planType && planType !== 'Avulso' && planFrequency && paymentMethod) {
       const fee = pricingTable[planType as keyof typeof pricingTable]?.[planFrequency as keyof typeof pricingTable['Mensal']]?.[paymentMethod as keyof typeof pricingTable['Mensal']['2x']] || 0;
       setValue('monthly_fee', fee);
-    } else {
+    } else if (planType === 'Avulso') {
       setValue('monthly_fee', 0);
     }
-  }, [planType, planFrequency, paymentMethod, setValue]);
+  }, [planType, planFrequency, paymentMethod, hasPromotionalValue, setValue]);
 
   useEffect(() => {
     if (isOpen) {
       if (selectedStudent) {
-        // Ao editar, garantir que os campos opcionais sejam nulos se estiverem vazios
         reset({
           ...selectedStudent,
           email: selectedStudent.email || '',
@@ -166,18 +162,17 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
           validity_date: selectedStudent.validity_date ? format(new Date(selectedStudent.validity_date), 'yyyy-MM-dd') : "",
           preferred_days: selectedStudent.preferred_days || [],
           preferred_time: selectedStudent.preferred_time || null,
-          // Garantir que plan_frequency e payment_method sejam nulos se o plano for Avulso ou se o valor for undefined/null
           plan_frequency: selectedStudent.plan_type === 'Avulso' ? null : selectedStudent.plan_frequency || null,
           payment_method: selectedStudent.plan_type === 'Avulso' ? null : selectedStudent.payment_method || null,
+          has_promotional_value: !!selectedStudent.discount_description,
+          discount_description: selectedStudent.discount_description || null,
         });
       } else {
-        // Novo aluno
         reset({
           name: "", email: "", phone: "", address: "", guardian_phone: "", status: "Experimental", notes: "",
           plan_type: "Avulso", enrollment_type: "Particular", date_of_birth: "", validity_date: "",
-          preferred_days: [], preferred_time: null,
-          plan_frequency: null,
-          payment_method: null,
+          preferred_days: [], preferred_time: null, plan_frequency: null, payment_method: null,
+          has_promotional_value: false, discount_description: null,
         });
       }
     }
@@ -197,7 +192,15 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
             <div className="space-y-2"><Label>Telefone de Responsável (Opcional)</Label><Controller name="guardian_phone" control={control} render={({ field, fieldState }) => (<><Input {...field} value={field.value || ''} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
             <div className="space-y-2"><Label>Status</Label><Controller name="status" control={control} render={({ field, fieldState }) => (<><Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Ativo">Ativo</SelectItem><SelectItem value="Inativo">Inativo</SelectItem><SelectItem value="Experimental">Experimental</SelectItem><SelectItem value="Bloqueado">Bloqueado</SelectItem></SelectContent></Select>{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
             <div className="space-y-2"><Label>Plano</Label><Controller name="plan_type" control={control} render={({ field, fieldState }) => (<><Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{appSettings?.plan_types.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select>{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
-            {planType !== 'Avulso' && (<div className="grid grid-cols-2 gap-4 p-4 border bg-secondary/20 rounded-lg"><div className="space-y-2"><Label>Frequência</Label><Controller name="plan_frequency" control={control} render={({ field, fieldState }) => (<><Select onValueChange={field.onChange} value={field.value || ''}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{appSettings?.plan_frequencies.map(freq => (<SelectItem key={freq} value={freq}>{freq} na semana</SelectItem>))}</SelectContent></Select>{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div><div className="space-y-2"><Label>Pagamento</Label><Controller name="payment_method" control={control} render={({ field, fieldState }) => (<><Select onValueChange={field.onChange} value={field.value || ''}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{appSettings?.payment_methods.map(method => (<SelectItem key={method} value={method}>{method}</SelectItem>))}</SelectContent></Select>{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div><div className="col-span-2 text-center pt-2"><p className="text-sm text-muted-foreground">Valor da Mensalidade:</p><p className="text-xl font-bold text-primary">R$ {watch('monthly_fee')?.toFixed(2) || '0.00'}</p>{errors.monthly_fee && <p className="text-sm text-destructive mt-1">{errors.monthly_fee.message}</p>}</div></div>)}
+            {planType !== 'Avulso' && (<div className="grid grid-cols-1 gap-4 p-4 border bg-secondary/20 rounded-lg">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2"><Label>Frequência</Label><Controller name="plan_frequency" control={control} render={({ field, fieldState }) => (<><Select onValueChange={field.onChange} value={field.value || ''}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{appSettings?.plan_frequencies.map(freq => (<SelectItem key={freq} value={freq}>{freq} na semana</SelectItem>))}</SelectContent></Select>{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
+                <div className="space-y-2"><Label>Pagamento</Label><Controller name="payment_method" control={control} render={({ field, fieldState }) => (<><Select onValueChange={field.onChange} value={field.value || ''}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{appSettings?.payment_methods.map(method => (<SelectItem key={method} value={method}>{method}</SelectItem>))}</SelectContent></Select>{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
+              </div>
+              <div className="space-y-2"><Label>Valor da Mensalidade</Label><Controller name="monthly_fee" control={control} render={({ field, fieldState }) => (<><Input type="number" step="0.01" {...field} value={field.value || ''} disabled={!hasPromotionalValue} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
+              <div className="flex items-center space-x-2"><Controller name="has_promotional_value" control={control} render={({ field }) => (<Checkbox id="has_promotional_value" checked={field.value} onCheckedChange={field.onChange} />)} /><Label htmlFor="has_promotional_value">Aplicar Valor Promocional / Manual</Label></div>
+              {hasPromotionalValue && (<div className="space-y-2"><Label>Descrição do Desconto</Label><Controller name="discount_description" control={control} render={({ field, fieldState }) => (<><Input {...field} value={field.value || ''} placeholder="Ex: Desconto de inauguração" />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>)}
+            </div>)}
             
             {planType !== 'Avulso' && planFrequency && (
               <div className="space-y-4 p-4 border-t mt-4">

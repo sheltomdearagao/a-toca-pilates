@@ -24,6 +24,7 @@ export type Student = {
   preferred_time?: string | null; // Novo campo
   address?: string | null; // Novo campo
   guardian_phone?: string | null; // Novo campo
+  discount_description?: string | null; // Novo campo
 };
 
 // Novo tipo para uso em dropdowns e seletores de aluno
