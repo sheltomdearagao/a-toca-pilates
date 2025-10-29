@@ -107,7 +107,16 @@ export const useStudentProfileData = (studentId: string | undefined) => {
 
   const updateStudentMutation = useMutation({
     mutationFn: async (formData: any) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado.");
+
       const dataToSubmit = { ...formData };
+      
+      const registerPayment = dataToSubmit.register_payment;
+      const paymentDueDate = dataToSubmit.payment_due_date;
+      
+      delete dataToSubmit.register_payment;
+      delete dataToSubmit.payment_due_date;
       
       // Limpeza de campos opcionais/condicionais
       if (dataToSubmit.plan_type === 'Avulso') {
@@ -145,14 +154,35 @@ export const useStudentProfileData = (studentId: string | undefined) => {
         dataToSubmit.notes = null;
       }
 
+      // 1. Atualiza aluno
       const { error } = await supabase
         .from("students")
         .update(dataToSubmit)
         .eq("id", studentId!);
       if (error) throw error;
+      
+      // 2. Registrar Pagamento se marcado
+      if (registerPayment && studentId && dataToSubmit.monthly_fee > 0) {
+        const transaction = {
+          user_id: user.id,
+          student_id: studentId,
+          description: `Mensalidade - ${dataToSubmit.plan_type} ${dataToSubmit.plan_frequency || ''}`,
+          category: 'Mensalidade',
+          amount: dataToSubmit.monthly_fee,
+          type: 'revenue',
+          status: 'Pago',
+          due_date: paymentDueDate, // Data de vencimento para o próximo mês
+          paid_at: new Date().toISOString(), // Data de pagamento é agora
+        };
+        
+        const { error: transactionError } = await supabase.from('financial_transactions').insert([transaction]);
+        if (transactionError) throw transactionError;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['studentProfileData', studentId] });
+      queryClient.invalidateQueries({ queryKey: ["studentPaymentStatus"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
       showSuccess(`Aluno atualizado com sucesso!`);
     },
     onError: (error: any) => { showError(error.message); },

@@ -28,7 +28,6 @@ import { useAppSettings } from '@/hooks/useAppSettings';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 
-// Tabela de preços atualizada para Crédito, Débito e Pix
 const pricingTable = {
   Mensal: {
     '2x': { 'Crédito': 245, 'Débito': 230, 'Pix': 230, 'Espécie': 230 },
@@ -99,6 +98,10 @@ const createStudentSchema = (appSettings: any) => {
     ),
     has_promotional_value: z.boolean().optional(),
     discount_description: z.string().optional().nullable(),
+    
+    // Novos campos para registro de pagamento
+    register_payment: z.boolean().optional(),
+    payment_due_date: z.string().optional().nullable(),
   }).superRefine((data, ctx) => {
     if (data.plan_type !== 'Avulso') {
       if (!data.plan_frequency) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A frequência é obrigatória.', path: ['plan_frequency'] });
@@ -112,6 +115,13 @@ const createStudentSchema = (appSettings: any) => {
     if (data.plan_frequency && data.preferred_days) {
       const expectedCount = parseInt(data.plan_frequency.replace('x', ''), 10);
       if (data.preferred_days.length > 0 && data.preferred_days.length !== expectedCount) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Selecione exatamente ${expectedCount} dias.`, path: ['preferred_days'] });
+    }
+    
+    // Validação de pagamento
+    if (data.register_payment && data.plan_type !== 'Avulso') {
+      if (!data.payment_due_date) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A data de vencimento do pagamento é obrigatória.', path: ['payment_due_date'] });
+      }
     }
   });
 };
@@ -128,6 +138,8 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
       plan_type: "Avulso", enrollment_type: "Particular", date_of_birth: "", validity_date: "",
       preferred_days: [], preferred_time: null, plan_frequency: null, payment_method: null,
       has_promotional_value: false, discount_description: null,
+      register_payment: false,
+      payment_due_date: null,
     },
   });
 
@@ -136,13 +148,13 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
   const paymentMethod = watch("payment_method");
   const preferredDays = watch("preferred_days") || [];
   const hasPromotionalValue = watch("has_promotional_value");
+  const registerPayment = watch("register_payment");
 
   const frequencyCount = planFrequency ? parseInt(planFrequency.replace('x', ''), 10) : 0;
   const canSelectMoreDays = preferredDays.length < frequencyCount;
 
   useEffect(() => {
     if (!hasPromotionalValue && planType && planType !== 'Avulso' && planFrequency && paymentMethod) {
-      // Acessando a tabela de preços atualizada
       const fee = pricingTable[planType as keyof typeof pricingTable]?.[planFrequency as keyof typeof pricingTable['Mensal']]?.[paymentMethod as keyof typeof pricingTable['Mensal']['2x']] || 0;
       setValue('monthly_fee', fee);
     } else if (planType === 'Avulso') {
@@ -168,6 +180,10 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
           payment_method: selectedStudent.plan_type === 'Avulso' ? null : selectedStudent.payment_method || null,
           has_promotional_value: !!selectedStudent.discount_description,
           discount_description: selectedStudent.discount_description || null,
+          
+          // Resetar campos de pagamento ao abrir
+          register_payment: false,
+          payment_due_date: null,
         });
       } else {
         reset({
@@ -175,6 +191,8 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
           plan_type: "Avulso", enrollment_type: "Particular", date_of_birth: "", validity_date: "",
           preferred_days: [], preferred_time: null, plan_frequency: null, payment_method: null,
           has_promotional_value: false, discount_description: null,
+          register_payment: false,
+          payment_due_date: null,
         });
       }
     }
@@ -253,6 +271,30 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
                     )}
                   />
                 </div>
+              </div>
+            )}
+            
+            {/* Seção de Registro de Pagamento */}
+            {planType !== 'Avulso' && (
+              <div className="space-y-4 p-4 border-t mt-4 bg-green-50/20 rounded-lg">
+                <h4 className="font-semibold text-md text-green-700">Registrar Pagamento (Mensalidade)</h4>
+                <div className="flex items-center space-x-2">
+                  <Controller name="register_payment" control={control} render={({ field }) => (
+                    <Checkbox id="register_payment" checked={field.value} onCheckedChange={field.onChange} />
+                  )} />
+                  <Label htmlFor="register_payment">Marcar como Pago (Mensalidade Atual)</Label>
+                </div>
+                {registerPayment && (
+                  <div className="space-y-2">
+                    <Label htmlFor="payment_due_date">Data de Vencimento (Próximo Mês)</Label>
+                    <Controller name="payment_due_date" control={control} render={({ field, fieldState }) => (
+                      <>
+                        <Input id="payment_due_date" type="date" {...field} value={field.value || ''} />
+                        {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                      </>
+                    )} />
+                  </div>
+                )}
               </div>
             )}
 

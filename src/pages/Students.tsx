@@ -83,6 +83,12 @@ const Students = () => {
       
       const dataToSubmit = { ...formData };
       
+      const registerPayment = dataToSubmit.register_payment;
+      const paymentDueDate = dataToSubmit.payment_due_date;
+      
+      delete dataToSubmit.register_payment;
+      delete dataToSubmit.payment_due_date;
+      
       // Limpeza de campos opcionais/condicionais
       if (dataToSubmit.plan_type === 'Avulso') {
         dataToSubmit.plan_frequency = null;
@@ -120,19 +126,43 @@ const Students = () => {
         dataToSubmit.notes = null;
       }
       
+      let studentId = selectedStudent?.id;
+      
       if (selectedStudent) {
+        // Atualiza aluno existente
         const { error } = await supabase.from("students").update(dataToSubmit).eq("id", selectedStudent.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("students").insert([{ ...dataToSubmit, user_id: user.id }]);
+        // Insere novo aluno
+        const { data: newStudent, error } = await supabase.from("students").insert([{ ...dataToSubmit, user_id: user.id }]).select('id').single();
         if (error) throw error;
+        studentId = newStudent.id;
+      }
+      
+      // 2. Registrar Pagamento se marcado
+      if (registerPayment && studentId && dataToSubmit.monthly_fee > 0) {
+        const transaction = {
+          user_id: user.id,
+          student_id: studentId,
+          description: `Mensalidade - ${dataToSubmit.plan_type} ${dataToSubmit.plan_frequency || ''}`,
+          category: 'Mensalidade',
+          amount: dataToSubmit.monthly_fee,
+          type: 'revenue',
+          status: 'Pago',
+          due_date: paymentDueDate, // Data de vencimento para o próximo mês
+          paid_at: new Date().toISOString(), // Data de pagamento é agora
+        };
+        
+        const { error: transactionError } = await supabase.from('financial_transactions').insert([transaction]);
+        if (transactionError) throw transactionError;
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardStats"] });
-      queryClient.invalidateQueries({ queryKey: ["studentPaymentStatus"] }); // Invalida o novo status
-      queryClient.invalidateQueries({ queryKey: ["studentStats"] }); // Invalida o novo status
+      queryClient.invalidateQueries({ queryKey: ["studentPaymentStatus"] });
+      queryClient.invalidateQueries({ queryKey: ["studentStats"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] }); // Invalida transações para refletir o novo pagamento
       showSuccess(`Aluno ${selectedStudent ? "atualizado" : "adicionado"} com sucesso!`);
       setFormOpen(false);
       setSelectedStudent(null);
