@@ -179,13 +179,13 @@ const Schedule = () => {
 
       <Card className="p-4 shadow-impressionist shadow-subtle-glow">
         <div className="flex items-center justify-between mb-4">
-          <Button variant="ghost" size="icon" onClick={() => setCurrentWeekStart(subWeeks(currentWeekStart, 1))}>
+          <Button variant="ghost" size="icon" onClick={handlePreviousWeek}>
             <ChevronLeft className="w-5 h-5" />
           </Button>
           <h2 className="text-xl font-semibold">
             {format(currentWeekStart, 'dd/MM', { locale: ptBR })} - {format(weekEnd, 'dd/MM/yyyy', { locale: ptBR })}
           </h2>
-          <Button variant="ghost" size="icon" onClick={() => setCurrentWeekStart(addWeeks(currentWeekStart, 1))}>
+          <Button variant="ghost" size="icon" onClick={handleNextWeek}>
             <ChevronRight className="w-5 h-5" />
           </Button>
         </div>
