@@ -50,7 +50,7 @@ const availableHours = Array.from({ length: 14 }, (_, i) => {
 });
 
 const classSchema = z.object({
-  student_ids: z.array(z.string()).min(1, 'Selecione pelo menos um aluno.'),
+  student_ids: z.array(z.string()).min(1, 'Selecione pelo menos um aluno.').max(10, 'Você pode selecionar até 10 alunos.'),
   title: z.string().optional(), // Título opcional, será gerado se houver alunos
   is_experimental: z.boolean().default(false),
   date: z.string().min(1, 'A data de início é obrigatória.'),
@@ -176,211 +176,178 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
           .from('classes')
           .insert({
             user_id: user.id,
-            title: classItem.title,
-            start_time: startUtc,
-            duration_minutes: 60,
-            notes: formData.notes || null,
-            student_id: studentsToEnroll.length === 1 ? studentsToEnroll[0] : null, // Se for 1 aluno, vincula diretamente
-          })
-          .select('id')
-          .single();
+            title: class
 
-        if (classError) throw classError;
-        if (!newClass) throw new Error("Falha ao criar a aula.");
+O erro `A <Select.Item /> must have a value prop that is not an empty string` indica que um `Select.Item` está recebendo uma string vazia como `value`. Isso geralmente acontece quando o valor inicial de um `Select` controlado pelo `react-hook-form` é uma string vazia em vez de `null` ou `undefined`.
 
-        // Insere os participantes (attendees)
-        const attendeesToInsert = studentsToEnroll.map(studentId => ({
-          user_id: user.id,
-          class_id: newClass.id,
-          student_id: studentId,
-          status: 'Agendado',
-        }));
+Vou corrigir isso garantindo que os valores dos `Select` sejam sempre `null` quando vazios, em vez de strings vazias.
 
-        const { error: attendeesError } = await supabase
-          .from('class_attendees')
-          .insert(attendeesToInsert);
+<dyad-write path="src/components/financial/AddEditTransactionDialog.tsx" description="Corrigindo erro de Select.Item com valor vazio garantindo que valores vazios sejam null em vez de string vazia.">
+"use client";
 
-        if (attendeesError) throw attendeesError;
-        totalClassesCreated++;
-      }
-      
-      return totalClassesCreated;
-    },
-    onSuccess: (totalClassesCreated) => {
-      queryClient.invalidateQueries({ queryKey: ['classes'] });
-      showSuccess(`${totalClassesCreated} aula(s) agendada(s) com sucesso para ${selectedStudentIds.length} aluno(s)!`);
-      onOpenChange(false);
-      reset();
-    },
-    onError: (error) => {
-      showError(error.message);
+import React, { useEffect } from 'react';
+import { TransactionFormData, transactionSchema } from './AddEditTransactionDialog.schema';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Loader2 } from 'lucide-react';
+import { useAppSettings } from '@/hooks/useAppSettings';
+
+export type { TransactionFormData } = {};
+
+export interface AddEditTransactionDialogProps {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  initialStudentId?: string;
+  defaultType?: 'revenue' | 'expense';
+  onSubmit: (data: TransactionFormData) => void;
+  isSubmitting: boolean;
+
+  // Aceitar também os props que Financial.tsx passa
+  selectedTransaction?: any;
+  students?: any[];
+  isLoadingStudents?: boolean;
+}
+
+const AddEditTransactionDialog = ({
+  isOpen,
+  onOpenChange,
+  initialStudentId,
+  defaultType = 'revenue',
+  onSubmit,
+  isSubmitting,
+  students,
+  isLoadingStudents,
+}: AddEditTransactionDialogProps) => {
+  const { data: appSettings } = useAppSettings();
+
+  const { control, handleSubmit, reset, watch } = useForm<TransactionFormData>({
+    resolver: zodResolver(transactionSchema),
+    defaultValues: {
+      type: defaultType,
+      student_id: initialStudentId ?? null,
+      description: '',
+      amount: 0,
+      category: '',
+      status: 'Pendente',
+      due_date: null,
     },
   });
 
-  const onSubmit = (data: ClassFormData) => {
-    mutation.mutate(data);
-  };
+  useEffect(() => {
+    if (isOpen) {
+      reset({
+        type: defaultType,
+        student_id: initialStudentId ?? null,
+        description: '',
+        amount: 0,
+        category: '',
+        status: 'Pendente',
+        due_date: null,
+      });
+    }
+  }, [isOpen, initialStudentId, defaultType, reset]);
+
+  const transactionType = watch('type');
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Agendar Nova Aula (Até 10 Alunos)</DialogTitle>
+          <DialogTitle>{transactionType === 'revenue' ? 'Registrar Receita' : 'Registrar Despesa'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="grid gap-4 py-4">
-            
-            {/* Seleção de Múltiplos Alunos */}
+            <Controller
+              name="type"
+              control={control}
+              render={({ field }) => (
+                <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 gap-4">
+                  <div>
+                    <RadioGroupItem value="revenue" id="rev" className="sr-only" />
+                    <Label htmlFor="rev" className="cursor-pointer">Receita</Label>
+                  </div>
+                  <div>
+                    <RadioGroupItem value="expense" id="exp" className="sr-only" />
+                    <Label htmlFor="exp" className="cursor-pointer">Despesa</Label>
+                  </div>
+                </RadioGroup>
+              )}
+            />
+
+            <Controller
+              name="student_id"
+              control={control}
+              render={({ field }) => (
+                <div className="space-y-2">
+                  <Label>Aluno</Label>
+                  <Select onValueChange={field.onChange} value={field.value || undefined} disabled={isLoadingStudents}>
+                    <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={undefined}>Nenhum</SelectItem>
+                      {students?.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            />
+
             <div className="space-y-2">
-              <Label htmlFor="student_ids">Alunos (Máx. 10)</Label>
-              <Controller
-                name="student_ids"
-                control={control}
-                render={({ field }) => (
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        className={cn(
-                          "w-full justify-between",
-                          field.value.length === 0 && "text-muted-foreground"
-                        )}
-                        disabled={isLoadingStudents}
-                      >
-                        {field.value.length > 0
-                          ? `${field.value.length} aluno(s) selecionado(s)`
-                          : "Selecione os alunos..."}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                      <Command>
-                        <CommandInput placeholder="Buscar aluno..." />
-                        <CommandEmpty>Nenhum aluno encontrado.</CommandEmpty>
-                        <CommandGroup className="max-h-40 overflow-y-auto">
-                          {students?.map((student) => {
-                            const isSelected = field.value.includes(student.id);
-                            const isDisabled = !isSelected && field.value.length >= 10;
-                            
-                            return (
-                              <CommandItem
-                                value={student.name}
-                                key={student.id}
-                                disabled={isDisabled}
-                                onSelect={() => {
-                                  const newSelection = isSelected
-                                    ? field.value.filter(id => id !== student.id)
-                                    : [...field.value, student.id];
-                                  field.onChange(newSelection);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    isSelected ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
-                                {student.name} ({student.enrollment_type})
-                              </CommandItem>
-                            );
-                          })}
-                        </CommandGroup>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                )}
-              />
-              {errors.student_ids && <p className="text-sm text-destructive mt-1">{errors.student_ids.message}</p>}
+              <Label>Descrição</Label>
+              <Controller name="description" control={control} render={({ field }) => <Input {...field} />} />
             </div>
 
-            {/* Título da Aula (Opcional, se for aula em grupo) */}
-            {selectedStudentIds.length > 1 && (
-              <div className="space-y-2">
-                <Label htmlFor="title">Título da Aula (Opcional)</Label>
-                <Controller name="title" control={control} render={({ field }) => <Input id="title" {...field} />} />
-              </div>
-            )}
-            
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="date">Data</Label>
-                <Controller name="date" control={control} render={({ field }) => <Input id="date" type="date" {...field} />} />
-                {errors.date && <p className="text-sm text-destructive mt-1">{errors.date.message}</p>}
+                <Label>Valor</Label>
+                <Controller name="amount" control={control} render={({ field }) => <Input type="number" step="0.01" {...field} />} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="time">Horário (Hora Cheia)</Label>
+                <Label>Categoria</Label>
                 <Controller
-                  name="time"
+                  name="category"
                   control={control}
                   render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger><SelectValue placeholder="Hora" /></SelectTrigger>
+                    <Select onValueChange={field.onChange} value={field.value || undefined}>
+                      <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                       <SelectContent>
-                        {availableHours.map(hour => (<SelectItem key={hour} value={hour}>{hour}</SelectItem>))}
+                        {transactionType === 'revenue'
+                          ? appSettings?.revenue_categories?.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)
+                          : appSettings?.expense_categories?.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)
+                        }
                       </SelectContent>
                     </Select>
                   )}
                 />
-                {errors.time && <p className="text-sm text-destructive mt-1">{errors.time.message}</p>}
-              </div>
-            </div>
-            
-            {/* Opções de Agendamento */}
-            <div className="space-y-3 p-3 border rounded-lg">
-              <div className="flex items-center space-x-2">
-                <Controller
-                  name="is_experimental"
-                  control={control}
-                  render={({ field }) => (
-                    <Checkbox
-                      id="is_experimental"
-                      checked={field.value}
-                      onCheckedChange={(checked) => {
-                        field.onChange(checked);
-                        if (checked) setValue('is_recurring_4_weeks', false);
-                      }}
-                      disabled={isRecurring}
-                    />
-                  )}
-                />
-                <Label htmlFor="is_experimental" className="font-semibold">Aula Experimental (Apenas 1 aluno)</Label>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Controller
-                  name="is_recurring_4_weeks"
-                  control={control}
-                  render={({ field }) => (
-                    <Checkbox
-                      id="is_recurring_4_weeks"
-                      checked={field.value}
-                      onCheckedChange={(checked) => {
-                        field.onChange(checked);
-                        if (checked) setValue('is_experimental', false);
-                      }}
-                      disabled={isExperimental}
-                    />
-                  )}
-                />
-                <Label htmlFor="is_recurring_4_weeks" className="font-semibold flex items-center">
-                  <Repeat className="w-4 h-4 mr-1 text-primary" /> Agendamento Recorrente (4 Semanas)
-                </Label>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notas (Opcional)</Label>
-              <Controller name="notes" control={control} render={({ field }) => <Textarea id="notes" {...field} />} />
-            </div>
+            {transactionType === 'revenue' && (
+              <div className="space-y-2">
+                <Label>Data de Vencimento</Label>
+                <Controller name="due_date" control={control} render={({ field }) => <Input type="date" {...field} />} />
+              </div>
+            )}
           </div>
+
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="secondary">Cancelar</Button>
             </DialogClose>
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Agendar Aula(s)
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="animate-spin mr-2" />}Salvar
             </Button>
           </DialogFooter>
         </form>
@@ -389,4 +356,4 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
   );
 };
 
-export default AddClassDialog;
+export default AddEditTransactionDialog;

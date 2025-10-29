@@ -20,7 +20,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import { useAppSettings } from '@/hooks/useAppSettings';
 
-export type { TransactionFormData };
+export type { TransactionFormData } = {};
 
 export interface AddEditTransactionDialogProps {
   isOpen: boolean;
@@ -108,10 +108,10 @@ const AddEditTransactionDialog = ({
               render={({ field }) => (
                 <div className="space-y-2">
                   <Label>Aluno</Label>
-                  <Select onValueChange={field.onChange} value={field.value || ''} disabled={isLoadingStudents}>
+                  <Select onValueChange={field.onChange} value={field.value || undefined} disabled={isLoadingStudents}>
                     <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">{initialStudentId ? '(fixo)' : 'Nenhum'}</SelectItem>
+                      <SelectItem value={undefined}>Nenhum</SelectItem>
                       {students?.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -135,12 +135,12 @@ const AddEditTransactionDialog = ({
                   name="category"
                   control={control}
                   render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || undefined}>
                       <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                       <SelectContent>
                         {transactionType === 'revenue'
-                          ? appSettings?.revenue_categories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)
-                          : appSettings?.expense_categories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)
+                          ? appSettings?.revenue_categories?.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)
+                          : appSettings?.expense_categories?.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)
                         }
                       </SelectContent>
                     </Select>
@@ -159,7 +159,7 @@ const AddEditTransactionDialog = ({
 
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="secondary" type="button">Cancelar</Button>
+              <Button type="button" variant="secondary">Cancelar</Button>
             </DialogClose>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="animate-spin mr-2" />}Salvar
