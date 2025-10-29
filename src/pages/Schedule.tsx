@@ -1,9 +1,9 @@
 import { useState, useMemo, useCallback, memo } from 'react';
-import React from 'react'; // Importar React
+import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, ChevronLeft, ChevronRight, Loader2, Repeat } from 'lucide-react'; // Adicionar Loader2 e Repeat
+import { PlusCircle, ChevronLeft, ChevronRight, Loader2, Repeat } from 'lucide-react';
 import AddClassDialog from '@/components/schedule/AddClassDialog';
 import ClassDetailsDialog from '@/components/schedule/ClassDetailsDialog';
 import AddRecurringClassTemplateDialog from '@/components/schedule/AddRecurringClassTemplateDialog';
@@ -62,32 +62,33 @@ const groupClassesBySlot = (classes: ClassEvent[]) => {
 const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick, classCapacity }: { day: Date; hour: number; classesInSlot: ClassEvent[]; onCellClick: (day: Date, hour: number) => void; onClassClick: (classEvent: ClassEvent) => void; classCapacity: number; }) => {
   const hasClass = classesInSlot.length > 0;
   const classEvent = classesInSlot[0]; // Lógica de UMA aula por slot
-  const attendeeCount = classEvent?.class_attendees[0]?.count ?? 0;
+  const attendeeCount = classEvent?.class_attendees?.[0]?.count ?? 0;
 
   // Novo: cor por tipo de matrícula
-  const enrollmentType = (classEvent as any).students?.enrollment_type;
+  const enrollmentType = classEvent?.students?.enrollment_type;
   const enrollmentCode = enrollmentType === 'Wellhub' ? 'G' : enrollmentType === 'TotalPass' ? 'T' : 'P';
   const colorClass = enrollmentType === 'Wellhub' ? 'bg-blue-600' : enrollmentType === 'TotalPass' ? 'bg-green-600' : 'bg-yellow-500';
   
   // Duração fixa de 60 minutos
-  const eventTitle = (classEvent as any).students?.name ?? classEvent.title;
-  
+  // Event title pode vir com nome do aluno (se houver)
+  const eventTitle = classEvent?.students?.name ?? classEvent?.title ?? '';
+
   return (
-    <div 
+    <div
       className={cn(
-        "p-1 border-r border-b relative transition-colors", 
-        isToday(day) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30", 
+        "p-1 border-r border-b relative transition-colors",
+        isToday(day) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30",
         !hasClass && "hover:bg-primary/10",
         hasClass ? "z-10" : "z-0"
-      )} 
+      )}
       style={{ height: '100px' }}
       onClick={() => onCellClick(day, hour)}
     >
       {hasClass ? (
-        <div 
-          onClick={(e) => { e.stopPropagation(); onClassClick(classEvent); }} 
+        <div
+          onClick={(e) => { e.stopPropagation(); onClassClick(classEvent); }}
           className={cn(
-            "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-md h-full flex flex-col justify-center absolute inset-0", 
+            "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-md h-full flex flex-col justify-center absolute inset-0",
             colorClass, "text-white"
           )}
         >
@@ -178,13 +179,13 @@ const Schedule = () => {
 
       <Card className="p-4 shadow-impressionist shadow-subtle-glow">
         <div className="flex items-center justify-between mb-4">
-          <Button variant="ghost" size="icon" onClick={handlePreviousWeek}>
+          <Button variant="ghost" size="icon" onClick={() => setCurrentWeekStart(subWeeks(currentWeekStart, 1))}>
             <ChevronLeft className="w-5 h-5" />
           </Button>
           <h2 className="text-xl font-semibold">
             {format(currentWeekStart, 'dd/MM', { locale: ptBR })} - {format(weekEnd, 'dd/MM/yyyy', { locale: ptBR })}
           </h2>
-          <Button variant="ghost" size="icon" onClick={handleNextWeek}>
+          <Button variant="ghost" size="icon" onClick={() => setCurrentWeekStart(addWeeks(currentWeekStart, 1))}>
             <ChevronRight className="w-5 h-5" />
           </Button>
         </div>
@@ -194,8 +195,8 @@ const Schedule = () => {
             {/* Cabeçalho dos dias */}
             <div className="p-2 font-semibold text-sm border-b border-r bg-muted/50">Hora</div>
             {daysOfWeek.map(day => (
-              <div 
-                key={day.toISOString()} 
+              <div
+                key={day.toISOString()}
                 className={cn(
                   "p-2 font-semibold text-sm border-b border-r text-center",
                   isToday(day) ? "bg-primary/10 text-primary" : "bg-muted/50",
@@ -239,15 +240,15 @@ const Schedule = () => {
 
       <RecurringTemplatesList />
 
-      <AddClassDialog 
-        isOpen={isAddClassOpen} 
-        onOpenChange={setIsAddClassOpen} 
+      <AddClassDialog
+        isOpen={isAddClassOpen}
+        onOpenChange={setIsAddClassOpen}
         quickAddSlot={quickAddSlot}
       />
-      
-      <ClassDetailsDialog 
-        isOpen={!!selectedClass} 
-        onOpenChange={handleCloseDetails} 
+
+      <ClassDetailsDialog
+        isOpen={!!selectedClass}
+        onOpenChange={handleCloseDetails}
         classEvent={selectedClass}
         classCapacity={classCapacity}
       />
