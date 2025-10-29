@@ -1,20 +1,18 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Loader2, Users, Clock, Calendar, Check, X, Trash2, Edit } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { Loader2, Users, Check, Trash2 } from 'lucide-react';
+import { startOfDay, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { ClassEvent, ClassAttendee, AttendanceStatus } from '@/types/schedule';
-import { cn } from '@/lib/utils';
 import { showError, showSuccess } from '@/utils/toast';
-import EditClassDialog from './EditClassDialog';
+import { cn } from '@/lib/utils';
+import EditClassDialog from './class-details/EditClassDialog';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ClassDetailsDialogProps {
   isOpen: boolean;
-  onOpenChange: (isOpen: boolean) => void;
+  onOpenChange: (open: boolean) => void;
   classEvent: ClassEvent | null;
   classCapacity: number;
 }
@@ -22,26 +20,39 @@ interface ClassDetailsDialogProps {
 const fetchClassAttendees = async (classId: string): Promise<ClassAttendee[]> => {
   const { data, error } = await supabase
     .from('class_attendees')
-    .select(`
-      id,
-      status,
-      students(name, enrollment_type)
-    `)
-    .eq('class_id', classId)
-    // Order by the joined students.name using foreignTable to avoid Supabase order parsing errors
-    .order('name', { foreignTable: 'students', ascending: true });
+    .select('id, status, students(name, enrollment_type)')
+    .eq('class_id', classId);
 
-  if (error) throw new Error(error.message);
-  return (data as any[] || []);
+  if (error) throw error;
+
+  // Normalize to the ClassAttendee shape, where attendees[].students is an array
+  const raw = (data as any[]) ?? [];
+  const normalized: ClassAttendee[] = raw.map((row) => {
+    const students = row.students ?? [];
+    const studentsArray = Array.isArray(students) ? students : [students];
+    return {
+      id: row.id,
+      status: row.status,
+      students: (studentsArray.filter(Boolean).map((s: any) => ({
+        name: s.name,
+        enrollment_type: s.enrollment_type,
+      })) as any),
+    } as ClassAttendee;
+  });
+
+  return normalized;
 };
 
-const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }: ClassDetailsDialogProps) => {
-  const queryClient = useQueryClient();
+const ClassDetailsDialog = ({
+  isOpen,
+  onOpenChange,
+  classEvent,
+  classCapacity,
+}: ClassDetailsDialogProps) => {
   const [attendees, setAttendees] = useState<ClassAttendee[]>([]);
   const [isLoadingAttendees, setIsLoadingAttendees] = useState(false);
   const [isEditOpen, setEditOpen] = useState(false);
 
-  // Usar useEffect para buscar dados quando o diálogo abre
   useEffect(() => {
     if (isOpen && classEvent?.id) {
       setIsLoadingAttendees(true);
@@ -60,71 +71,10 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
     }
   }, [isOpen, classEvent?.id]);
 
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ attendeeId, status }: { attendeeId: string; status: AttendanceStatus }) => {
-      const { error } = await supabase
-        .from('class_attendees')
-        .update({ status })
-        .eq('id', attendeeId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['classAttendees', classEvent?.id] });
-      queryClient.invalidateQueries({ queryKey: ['classes'] });
-      showSuccess('Status da presença atualizado com sucesso!');
-    },
-    onError: (error) => {
-      showError(error.message);
-    },
-  });
-
-  const removeAttendeeMutation = useMutation({
-    mutationFn: async (attendeeId: string) => {
-      const { error } = await supabase
-        .from('class_attendees')
-        .delete()
-        .eq('id', attendeeId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['classAttendees', classEvent?.id] });
-      queryClient.invalidateQueries({ queryKey: ['classes'] });
-      showSuccess('Participante removido com sucesso!');
-    },
-    onError: (error) => {
-      showError(error.message);
-    },
-  });
-
-  const handleUpdateStatus = useCallback((attendeeId: string, status: AttendanceStatus) => {
-    updateStatusMutation.mutate({ attendeeId, status });
-  }, [updateStatusMutation]);
-
-  const handleRemoveAttendee = useCallback((attendeeId: string) => {
-    removeAttendeeMutation.mutate(attendeeId);
-  }, [removeAttendeeMutation]);
-
   if (!classEvent) return null;
 
-  const startTime = parseISO(classEvent.start_time);
+  const startTime = new Date(classEvent.start_time);
   const endTime = new Date(startTime.getTime() + classEvent.duration_minutes * 60000);
-
-  const getStatusVariant = (status: AttendanceStatus) => {
-    switch (status) {
-      case 'Presente': return 'attendance-present';
-      case 'Faltou': return 'attendance-absent';
-      case 'Agendado': return 'attendance-scheduled';
-      default: return 'secondary';
-    }
-  };
-
-  const getEnrollmentCode = (enrollmentType?: string) => {
-    switch (enrollmentType) {
-      case 'Wellhub': return 'G';
-      case 'TotalPass': return 'T';
-      default: return 'P';
-    }
-  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -135,91 +85,45 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
             {format(startTime, "eeee, dd 'de' MMMM 'às' HH:mm", { locale: ptBR })} ({classEvent.duration_minutes} min)
           </DialogDescription>
         </DialogHeader>
+
         <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <h4 className="font-semibold">Título</h4>
-            <p>{classEvent.title}</p>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">Título</span>
+            <span>{classEvent.title}</span>
           </div>
-          {classEvent.notes && (
-            <div className="space-y-2">
-              <h4 className="font-semibold">Notas</h4>
-              <p className="text-sm text-muted-foreground">{classEvent.notes}</p>
-            </div>
-          )}
-          <div className="space-y-2">
-            <h4 className="font-semibold flex items-center">
-              <Users className="w-4 h-4 mr-2" />
-              Participantes ({attendees.length}/{classCapacity})
-            </h4>
+
+          <EditClassDialog isOpen={isEditOpen} onOpenChange={setEditOpen} classEvent={classEvent} />
+
+          <div>
+            <h4 className="font-semibold mb-2">Participantes</h4>
             {isLoadingAttendees ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="w-6 h-6 animate-spin" />
-              </div>
+              <div>Carregando participantes...</div>
             ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {attendees.length > 0 ? (
-                  attendees.map((attendee) => (
-                    <div
-                      key={attendee.id}
-                      className="flex items-center justify-between p-3 rounded-lg border bg-secondary/20"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <span className="font-medium">{attendee.students?.name}</span>
-                        <Badge variant="outline" className="ml-2">
-                          {getEnrollmentCode(attendee.students?.enrollment_type)}
-                        </Badge>
+              <div className="space-y-2">
+                {attendees.map((attendee) => {
+                  // Attendee may have attendees.students as an array
+                  const firstStudent = Array.isArray(attendee.students) ? attendee.students[0] : attendee.students?.[0];
+                  const name = firstStudent?.name;
+                  const enrollment = firstStudent?.enrollment_type;
+
+                  return (
+                    <div key={attendee.id} className="flex items-center justify-between p-2 border rounded bg-secondary/20">
+                      <div className="flex items-center gap-2">
+                        <span>{name || 'Aluno'}</span>
+                        <span className="text-xs text-muted-foreground">{enrollment}</span>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant={getStatusVariant(attendee.status as AttendanceStatus)}>
-                          {attendee.status}
-                        </Badge>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7"
-                          onClick={() => handleUpdateStatus(attendee.id, 'Presente')}
-                          title="Marcar como Presente"
-                        >
-                          <Check className="w-4 h-4 text-green-600" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7"
-                          onClick={() => handleUpdateStatus(attendee.id, 'Faltou')}
-                          title="Marcar como Faltou"
-                        >
-                          <X className="w-4 h-4 text-red-600" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7"
-                          onClick={() => handleRemoveAttendee(attendee.id)}
-                          title="Remover Participante"
-                        >
-                          <Trash2 className="w-4 h-4 text-muted-foreground" />
-                        </Button>
-                      </div>
+                      <span className="text-sm">Status: {attendee.status}</span>
                     </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    Nenhum participante nesta aula.
-                  </p>
-                )}
+                  );
+                })}
+                {attendees.length === 0 && <div>Nenhum participante nesta aula.</div>}
               </div>
             )}
           </div>
         </div>
+
         <DialogFooter>
-          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
-            Fechar
-          </Button>
-          <Button variant="outline" onClick={() => setEditOpen(true)}>
-            <Edit className="w-4 h-4 mr-2" /> Editar Aula
-          </Button>
-          <EditClassDialog isOpen={isEditOpen} onOpenChange={setEditOpen} classEvent={classEvent} />
+          <Button onClick={() => onOpenChange(false)}>Fechar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -1,130 +1,293 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { FinancialTransaction, TransactionType } from '@/types/financial';
+import { FinancialTransaction } from '@/types/financial';
 import { StudentOption } from '@/types/student';
 import { formatCurrency } from '@/utils/formatters';
 import { showError, showSuccess } from '@/utils/toast';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Settings, DollarSign, TrendingUp, TrendingDown } from 'lucide-react';
-import FinancialOverviewCards from '@/components/financial/FinancialOverviewCards';
-import MonthlyFinancialChart from '@/components/financial/MonthlyFinancialChart';
-import OverdueTransactionsTable from '@/components/financial/OverdueTransactionsTable';
-import AllTransactionsTable from '@/components/financial/AllTransactionsTable';
+import { PlusCircle, Settings, DollarSign, Search } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AddEditTransactionDialog, { TransactionFormData } from '@/components/financial/AddEditTransactionDialog';
-import DeleteTransactionAlertDialog from '@/components/financial/DeleteTransactionAlertDialog';
-import CategoryManagerDialog from '@/components/financial/CategoryManagerDialog';
+import AllTransactionsTable from '@/components/financial/AllTransactionsTable';
 import ColoredSeparator from '@/components/ColoredSeparator';
-import { startOfMonth, endOfMonth, subMonths, format, parseISO, parse as parseMonth } from 'date-fns';
+import { startOfMonth, endOfMonth, subMonths, format as formatDate, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { useAppSettings } from '@/hooks/useAppSettings';
-import { Search } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { useSession } from '@/contexts/SessionProvider';
 
-interface FinancialStats {
-  monthlyRevenue: number;
-  monthlyExpense: number;
-  totalOverdue: number;
-}
-
-interface ChartData {
+type ChartData = {
   month: string;
   Receita: number;
   Despesa: number;
-}
+};
 
-- const fetchFinancialData = async (): Promise<{ transactions: FinancialTransaction[], stats: FinancialStats, chartData: ChartData[], students: StudentOption[] }> => {
-+ const fetchFinancialData = async (): Promise<{ transactions: FinancialTransaction[], stats: FinancialStats, chartData: ChartData[], students: StudentOption[] }> => {
+type FinancialData = {
+  transactions: FinancialTransaction[];
+  stats: { monthlyRevenue: number; monthlyExpense: number; totalOverdue: number; };
+  chartData: ChartData[];
+  students: StudentOption[];
+};
+
+const fetchFinancialData = async (): Promise<FinancialData> => {
   const now = new Date();
   const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
- 
-  const { data: transactionsData, error: transactionsError } = await supabase
+
+  const { data: transactionsData } = await supabase
     .from('financial_transactions')
-    .select(`
-      *,
-      students(name, enrollment_type)
-    `)
+    .select('*, students(name, enrollment_type)')
     .order('created_at', { ascending: false });
 
-  if (transactionsError) throw new Error(transactionsError.message);
-  const transactions = transactionsData || [];
+  const transactions = (transactionsData || []) as FinancialTransaction[];
 
-  const { data: studentsData, error: studentsError } = await supabase
+  const { data: studentsData } = await supabase
     .from('students')
     .select('id, name, enrollment_type')
     .order('name');
+  const students = (studentsData || []) as StudentOption[];
 
-  if (studentsError) throw new Error(studentsError.message);
-
-- // Lazy fetch removed. We'll rely on app settings hook for dynamic categories.
-- const settings = { revenue_categories: [], expense_categories: [], enrollment_types: [] };
-+ // Lazy fetch removed. We'll rely on app settings hook for dynamic categories.
-+ const settings = { revenue_categories: [], expense_categories: [], enrollment_types: [] } as const;
- 
-  // Calculations for stats
+  // Totals
   let monthlyRevenue = 0;
   let monthlyExpense = 0;
   let totalOverdue = 0;
 
-  const overdueTransactions = transactions.filter(t =>
+  const overdue = transactions.filter((t) =>
     t.type === 'revenue' &&
     (t.status === 'Atrasado' || (t.status === 'Pendente' && t.due_date && parseISO(t.due_date) < now))
   );
-  totalOverdue = overdueTransactions.reduce((sum, t) => sum + t.amount, 0);
+  totalOverdue = overdue.reduce((sum, t) => sum + t.amount, 0);
 
-  transactions.forEach(t => {
+  transactions.forEach((t) => {
     const paidAt = t.paid_at ? parseISO(t.paid_at) : null;
     if (paidAt && paidAt >= monthStart && paidAt <= monthEnd) {
-      if (t.type === 'revenue') {
-        monthlyRevenue += t.amount;
-      } else if (t.type === 'expense') {
-        monthlyExpense += t.amount;
+      if (t.type === 'revenue') monthlyRevenue += t.amount;
+      if (t.type === 'expense') monthlyExpense += t.amount;
+    }
+  });
+
+  // Chart data: last 6 months (oldest to newest)
+  const monthsDates = Array.from({ length: 6 }, (_, i) => subMonths(now, 5 - i));
+  const chartKeys = monthsDates.map(d => formatDate(d, 'MMM/yy', { locale: ptBR }));
+  const chartDataMap = new Map<string, { Receita: number; Despesa: number }>();
+  chartKeys.forEach((k) => chartDataMap.set(k, { Receita: 0, Despesa: 0 }));
+
+  transactions.forEach((t) => {
+    const paidAt = t.paid_at ? parseISO(t.paid_at) : null;
+    if (paidAt) {
+      const key = formatDate(paidAt, 'MMM/yy', { locale: ptBR });
+      const entry = chartDataMap.get(key);
+      if (entry) {
+        if (t.type === 'revenue') entry.Receita += t.amount;
+        if (t.type === 'expense') entry.Despesa += t.amount;
       }
     }
   });
 
-  // Chart data for last 6 months
-  const chartDataMap: Record<string, { Receita: number, Despesa: number }> = {};
-  for (let i = 0; i < 6; i++) {
-    const date = subMonths(now, i);
-    const monthKey = format(date, 'MMM/yy', { locale: ptBR });
-    chartDataMap[monthKey] = { Receita: 0, Despesa: 0 };
-  }
+  const chartData: ChartData[] = monthsDates.map((d) => {
+    const key = formatDate(d, 'MMM/yy', { locale: ptBR });
+    const entry = chartDataMap.get(key) || { Receita: 0, Despesa: 0 };
+    return { month: key, Receita: entry.Receita, Despesa: entry.Despesa };
+  });
 
-  transactions.forEach(t => {
-    const paidAt = t.paid_at ? parseISO(t.paid_at) : null;
-    if (paidAt) {
-      const monthKey = format(paidAt, 'MMM/yy', { locale: ptBR });
-      if (chartDataMap[monthKey]) {
--        if (t.type === 'revenue') chartDataMap[monthKey].Receita += t.amount;
--        if (t.type === 'expense') chartDataMap[monthKey].Despesa += t.amount;
-+        if (t.type === 'revenue') chartDataMap[monthKey].Receita += t.amount;
-+        if (t.type === 'expense') chartDataMap[monthKey].Despesa += t.amount;
-       }
-     }
-   });
+  return { transactions,  stats: { monthlyRevenue, monthlyExpense, totalOverdue }, chartData, students };
+};
 
--   const chartData: ChartData[] = Object.keys(chartDataMap)
--     .sort((a, b) => parse(a, 'MMM/yy', new Date()).getTime() - parse(b, 'MMM/yy', new Date()).getTime())
--     .map(month => ({
--       month,
--       Receita: chartDataMap[month].Receita,
--       Despesa: chartDataMap[month].Despesa,
--     }));
-+  const chartData: ChartData[] = Object.keys(chartDataMap)
-+    .sort((a, b) => parseMonth(a, 'MMM/yy', new Date()).getTime() - parseMonth(b, 'MMM/yy', new Date()).getTime())
-+    .map((month) => ({
-+      month,
-+      Receita: chartDataMap[month].Receita,
-+      Despesa: chartDataMap[month].Despesa,
-+    }));
- 
-   return { transactions, stats: { monthlyRevenue, monthlyExpense, totalOverdue }, chartData, students: (studentsData || []) };
- };
- 
- const Financial = () => {
-  ...
+const Financial = () => {
+  const { data: appSettings } = useAppSettings();
+  const queryClient = useQueryClient();
+  const { data } = useQuery<FinancialData>({
+    queryKey: ['financialData'],
+    queryFn: fetchFinancialData,
+    staleTime: 1000 * 60 * 5,
+  });
 
-<dyad-write> (continues with the rest of the updated file content, ensuring the rest of the component remains intact)
+  const { profile } = useSession();
+  const isAdmin = profile?.role === 'admin';
+  if (!isAdmin) return <Navigate to="/" replace />;
+
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [typeFilter, setTypeFilter] = useState<'all'|'revenue'|'expense'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all'|'Pago'|'Pendente'|'Atrasado'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [studentFilter, setStudentFilter] = useState<string>('all');
+
+  const filteredTransactions = useMemo(() => {
+    const list = data?.transactions ?? [];
+    return list.filter((t) => {
+      if (searchTerm) {
+        const studentName = t.students?.name ?? '';
+        const hay = `${t.description ?? ''} ${studentName}`.toLowerCase();
+        if (!hay.includes(searchTerm.toLowerCase())) return false;
+      }
+      if (typeFilter !== 'all' && t.type !== typeFilter) return false;
+      if (statusFilter !== 'all' && t.status !== statusFilter) return false;
+      if (categoryFilter !== 'all' && t.category !== categoryFilter) return false;
+      if (studentFilter !== 'all' && t.student_id !== studentFilter) return false;
+      return true;
+    });
+  }, [data, searchTerm, typeFilter, statusFilter, categoryFilter, studentFilter]);
+
+  const [isAddEditOpen, setIsAddEditOpen] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState<FinancialTransaction | null>(null);
+
+  // Create/Update
+  const upsertMutation = useMutation({
+    mutationFn: async (formData: TransactionFormData) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado.');
+      const payload: any = {
+        user_id: user.id,
+        student_id: formData.student_id,
+        description: formData.description,
+        category: formData.category,
+        amount: formData.amount,
+        type: formData.type,
+        status: formData.status,
+        due_date: formData.due_date,
+        paid_at: formData.status === 'Pago' ? new Date().toISOString() : null,
+      };
+      if (selectedTransaction) {
+        await supabase.from('financial_transactions').update(payload).eq('id', selectedTransaction.id);
+      } else {
+        await supabase.from('financial_transactions').insert([payload]);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['financialData'] });
+      showSuccess(`Lançamento ${selectedTransaction ? 'atualizado' : 'criado'} com sucesso!`);
+      setIsAddEditOpen(false);
+      setSelectedTransaction(null);
+    },
+    onError: (err: any) => showError(err.message),
+  });
+
+  const handleAdd = () => {
+    setSelectedTransaction(null);
+    setIsAddEditOpen(true);
+  };
+
+  const handleEdit = (t: FinancialTransaction) => {
+    setSelectedTransaction(t);
+    setIsAddEditOpen(true);
+  };
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('financial_transactions').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['financialData'] });
+      showSuccess('Lançamento removido com sucesso!');
+    },
+    onError: (err: any) => showError(err.message),
+  });
+
+  const onDelete = (t: FinancialTransaction) => deleteMutation.mutate(t.id);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <div className="p-3 bg-primary rounded-xl">
+            <DollarSign className="w-8 h-8 text-white" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Gestão Financeira</h1>
+            <p className="text-muted-foreground">
+              Lançamentos, status de pagamento e edição de valores.
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleAdd}>
+            <PlusCircle className="w-4 h-4 mr-2" /> Novo Lançamento
+          </Button>
+          <Button onClick={() => setIsAddEditOpen(true)}>
+            <Settings className="w-4 h-4 mr-2" /> Configurações
+          </Button>
+        </div>
+      </div>
+
+      <ColoredSeparator color="primary" />
+
+      <Card className="shadow-impressionist shadow-subtle-glow">
+        <CardHeader>
+          <CardTitle className="flex items-center"><Search className="w-5 h-5 mr-2" /> Lançamentos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* Filters */}
+          <div className="grid grid-cols-6 gap-4 mb-4 items-center">
+            <div className="col-span-2 flex items-center gap-2">
+              <Search className="w-4 h-4 text-muted-foreground" />
+              <input
+                className="input input-bordered w-full"
+                placeholder="Buscar descrição ou aluno..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <div>
+              <span className="text-sm text-muted-foreground">Tipo</span>
+              <select className="select w-full" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as any)}>
+                <option value="all">Todos</option>
+                <option value="revenue">Receita</option>
+                <option value="expense">Despesa</option>
+              </select>
+            </div>
+            <div>
+              <span className="text-sm text-muted-foreground">Status</span>
+              <select className="select w-full" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}>
+                <option value="all">Todos</option>
+                <option value="Pago">Pago</option>
+                <option value="Pendente">Pendente</option>
+                <option value="Atrasado">Atrasado</option>
+              </select>
+            </div>
+            <div>
+              <span className="text-sm text-muted-foreground">Categoria</span>
+              <select className="select w-full" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+                <option value="all">Todas</option>
+                {(appSettings?.revenue_categories ?? appSettings?.expense_categories ?? []).map((c: string) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <span className="text-sm text-muted-foreground">Aluno</span>
+              <select className="select w-full" value={studentFilter} onChange={(e) => setStudentFilter(e.target.value)}>
+                <option value="all">Todos</option>
+                {data?.students.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <AllTransactionsTable
+            transactions={filteredTransactions}
+            isLoading={false}
+            formatCurrency={formatCurrency}
+            onEdit={handleEdit}
+            onDelete={onDelete}
+            onMarkAsPaid={() => {}}
+          />
+
+          <AddEditTransactionDialog
+            isOpen={isAddEditOpen}
+            onOpenChange={setIsAddEditOpen}
+            selectedTransaction={selectedTransaction ?? undefined}
+            onSubmit={(data) => upsertMutation.mutate(data)}
+            isSubmitting={upsertMutation.isPending}
+            students={data?.students ?? []}
+            isLoadingStudents={false}
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+export default Financial;
