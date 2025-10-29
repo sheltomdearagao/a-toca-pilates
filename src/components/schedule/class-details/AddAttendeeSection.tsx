@@ -9,8 +9,9 @@ import {
 } from "@/components/ui/select";
 import { UserPlus, Loader2 } from 'lucide-react';
 import { showError } from '@/utils/toast';
+import type { ClassAttendee } from '@/types/schedule';
 import { StudentOption, Student } from '@/types/student';
-import { ClassAttendee } from '@/types/schedule';
+import { ClassAttendee as _CA } from '@/types/schedule';
 
 interface AddAttendeeSectionProps {
   availableStudentsForAdd: StudentOption[] | undefined;
@@ -21,9 +22,9 @@ interface AddAttendeeSectionProps {
   isAddingAttendee: boolean;
   isDisplaceConfirmationOpen: boolean;
   onDisplaceConfirmationChange: (isOpen: boolean) => void;
-  setStudentToDisplace: (attendee: ClassAttendee | null) => void;
+  setStudentToDisplace: (attendee: _CA | null) => void;
   setNewStudentForDisplacement: (student: StudentOption | null) => void;
-  attendees: ClassAttendee[] | undefined;
+  attendees: _CA[] | undefined;
   allStudents: StudentOption[] | undefined;
 }
 
@@ -60,7 +61,7 @@ const AddAttendeeSection = React.memo(({
     } else {
       if (studentToAdd.enrollment_type === 'Particular') {
         const displaceableStudents = attendees?.filter(
-          a => a.students.enrollment_type === 'Wellhub' || a.students.enrollment_type === 'TotalPass'
+          a => a.students?.enrollment_type === 'Wellhub' || a.students?.enrollment_type === 'TotalPass'
         );
 
         if (displaceableStudents && displaceableStudents.length > 0) {

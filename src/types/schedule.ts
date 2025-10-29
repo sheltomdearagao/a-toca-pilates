@@ -1,43 +1,48 @@
 import { Student } from './student';
+import { EnrollmentType } from './student';
 
 export type ClassEvent = {
   id: string;
   user_id: string;
   title: string;
-  start_time: string; // Alterado para string (ISO 8601)
-  duration_minutes: number; // Nova coluna
+  start_time: string; // ISO 8601
+  duration_minutes: number; // duration in minutes
   notes: string | null;
   created_at: string;
-  student_id: string | null; // Novo campo para vincular a um aluno
-  recurring_class_template_id: string | null; // Adicionado para vincular a um modelo recorrente
+  student_id: string | null;
+  recurring_class_template_id: string | null;
   class_attendees: { count: number }[];
-  students?: { name: string }; // Para o join na query
+  students?: { name: string; enrollment_type?: EnrollmentType };
 };
 
 export type AttendanceStatus = 'Agendado' | 'Presente' | 'Faltou';
 
-export type ClassAttendee = {
-  id: string;
-  status: AttendanceStatus;
-  students: Student;
-};
-
-// Novos tipos para aulas recorrentes
+// New types to support enrollment-aware UI in schedule
 export type RecurrencePatternItem = {
-  day: string; // 'monday', 'tuesday', etc.
-  time: string; // 'HH:mm'
+  day: string;
+  time: string;
 };
 
-export type RecurringClassTemplate = {
+export interface RecurringClassTemplate {
   id: string;
-  user_id: string;
-  student_id: string | null;
+  user_id?: string;
+  student_id?: string | null;
   title: string;
-  duration_minutes: number;
-  notes: string | null;
-  recurrence_pattern: RecurrencePatternItem[];
-  recurrence_start_date: string; // ISO date string
-  recurrence_end_date: string | null; // ISO date string
-  created_at: string;
-  students?: { name: string }; // Para join
-};
+  notes?: string | null;
+  duration_minutes?: number;
+  recurrence_start_date: string;
+  recurrence_end_date?: string | null;
+  created_at?: string;
+  recurrence_pattern?: RecurrencePatternItem[];
+  // Optional joined student info
+  students?: { name?: string; enrollment_type?: EnrollmentType };
+}
+
+export interface ClassAttendee {
+  id: string;
+  user_id?: string;
+  class_id?: string;
+  student_id?: string | null;
+  status?: AttendanceStatus;
+  students?: { name: string; enrollment_type?: EnrollmentType };
+}

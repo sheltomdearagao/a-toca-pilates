@@ -3,55 +3,47 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import { SessionProvider } from "./contexts/SessionProvider";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Layout from "./components/Layout"; // Layout é importado diretamente pois é um componente de estrutura
-import React, { lazy, Suspense } from "react"; // Importa lazy e Suspense
-import { Loader2 } from "lucide-react"; // Para o spinner de carregamento
+import React from "react"; // manter para TSX
+import { Loader2 } from "lucide-react"; // spinner
 
 // Lazy load dos componentes de página
 const Login = lazy(() => import("./pages/Login"));
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const Students = lazy(() => import("./pages/Students"));
-const StudentProfile = lazy(() => import("./pages/StudentProfile"));
+const Schedule = lazy(() => import("./pages/Schedule")); // fix: Schedule.tsx now has default export
 const Financial = lazy(() => import("./pages/Financial"));
-const Schedule = lazy(() => import("./pages/Schedule"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
 
 const App = () => (
+  <Suspense
+    fallback={
+      <div className="flex items-center justify-center h-screen bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    }
+  >
   <SessionProvider>
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Suspense
-            fallback={
-              <div className="flex items-center justify-center h-screen bg-background">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              </div>
-            }
-          >
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route element={<ProtectedRoute />}>
-                <Route element={<Layout />}>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/alunos" element={<Students />} />
-                  <Route path="/alunos/:studentId" element={<StudentProfile />} />
-                  <Route path="/financeiro" element={<Financial />} />
-                  <Route path="/agenda" element={<Schedule />} />
-                </Route>
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
-      </TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <ProtectedRoutes />
+      </BrowserRouter>
     </QueryClientProvider>
   </SessionProvider>
+  </Suspense>
 );
+
+function ProtectedRoutes() {
+  return (
+    <ProtectedRoute path="/" element={<Layout />} >
+      <Route path="/" element={<Schedule />} />
+    </ProtectedRoute>
+  );
+}
 
 export default App;

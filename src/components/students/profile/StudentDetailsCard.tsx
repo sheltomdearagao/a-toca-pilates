@@ -5,12 +5,23 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StickyNote, Mail, Phone, Cake, CalendarCheck, Home, User } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
+const EnrollmentCodeBadge = ({ enrollmentType }: { enrollmentType?: string }) => {
+  const label = enrollmentType === 'Wellhub' ? 'G' : enrollmentType === 'TotalPass' ? 'T' : 'P';
+  const color = enrollmentType === 'Wellhub' ? 'bg-blue-600' : enrollmentType === 'TotalPass' ? 'bg-green-600' : 'bg-yellow-500';
+  return (
+    <span className={`ml-2 inline-flex items-center justify-center w-6 h-6 rounded-full ${color} text-white text-xs`}>
+      {label}
+    </span>
+  );
+};
+
 interface StudentDetailsCardProps {
   student: Student | undefined;
   isLoading: boolean;
 }
 
 const StudentDetailsCard = ({ student, isLoading }: StudentDetailsCardProps) => {
+  const enrollmentType = student?.enrollment_type;
   return (
     <Card variant="bordered" className="lg:col-span-1 shadow-impressionist shadow-subtle-glow">
       <CardHeader>
@@ -57,6 +68,13 @@ const StudentDetailsCard = ({ student, isLoading }: StudentDetailsCardProps) => 
             {student?.notes && (
               <div className="pt-2 border-t">
                 <p className="text-muted-foreground">{student.notes}</p>
+              </div>
+            )}
+            {enrollmentType && (
+              <div className="flex items-center mt-2">
+                <span className="text-sm text-muted-foreground mr-2">Tipo de matrícula:</span>
+                <span className="px-2 py-1 rounded bg-muted">{enrollmentType}</span>
+                <EnrollmentCodeBadge enrollmentType={enrollmentType} />
               </div>
             )}
           </>

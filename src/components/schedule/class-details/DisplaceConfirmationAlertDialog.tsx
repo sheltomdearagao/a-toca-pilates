@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
-import { ClassAttendee } from '@/types/schedule';
+import type { ClassAttendee } from '@/types/schedule';
 import { StudentOption } from '@/types/student';
 
 interface DisplaceConfirmationAlertDialogProps {
@@ -37,13 +37,13 @@ const DisplaceConfirmationAlertDialog = ({
         <AlertDialogHeader>
           <AlertDialogTitle>Turma Cheia - Deslocar Aluno?</AlertDialogTitle>
           <AlertDialogDescription>
-            A turma está cheia. O aluno **{newStudentForDisplacement?.name}** (Particular) pode ocupar a vaga de **{studentToDisplace?.students.name}** ({studentToDisplace?.students.enrollment_type}). Deseja continuar?
+            A turma está cheia. O aluno <strong>{newStudentForDisplacement?.name}</strong> pode ocupar a vaga de <strong>{studentToDisplace?.students?.name}</strong>.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={() => onOpenChange(false)}>Cancelar</AlertDialogCancel>
           <AlertDialogAction onClick={onConfirmDisplacement} disabled={isSubmitting}>
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Sim, deslocar"}
+            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Sim, deslocar"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

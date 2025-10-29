@@ -11,12 +11,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
-import { ClassAttendee } from '@/types/schedule';
+import type { ClassAttendee } from '@/types/schedule';
 
 interface DeleteAttendeeAlertDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  attendeeName: string | undefined;
+  attendee: ClassAttendee | null;
   onConfirmDelete: () => void;
   isDeleting: boolean;
 }
@@ -24,7 +24,7 @@ interface DeleteAttendeeAlertDialogProps {
 const DeleteAttendeeAlertDialog = ({
   isOpen,
   onOpenChange,
-  attendeeName,
+  attendee,
   onConfirmDelete,
   isDeleting,
 }: DeleteAttendeeAlertDialogProps) => {
@@ -32,15 +32,19 @@ const DeleteAttendeeAlertDialog = ({
     <AlertDialog open={isOpen} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Remover aluno da aula?</AlertDialogTitle>
+          <AlertDialogTitle>Remover Aluno da Aula?</AlertDialogTitle>
           <AlertDialogDescription>
-            Tem certeza que deseja remover "{attendeeName}" desta aula?
+            Tem certeza que deseja remover "{attendee?.students?.name || 'este aluno'}" desta aula?
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirmDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
-            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Sim, remover"}
+          <AlertDialogAction
+            onClick={onConfirmDelete}
+            disabled={isDeleting}
+            className="bg-destructive hover:bg-destructive/90"
+          >
+            {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Sim, excluir"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
