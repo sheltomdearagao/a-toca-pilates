@@ -5,7 +5,8 @@ import { FinancialTransaction } from '@/types/financial';
 import { RecurringClassTemplate } from '@/types/schedule';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/contexts/SessionProvider';
-import { useState } from 'react'; // <-- Importação adicionada
+import { useState } from 'react';
+import { TransactionFormData } from '@/components/financial/AddEditTransactionDialog.schema'; // Importar o tipo de dados do formulário
 
 type ClassAttendance = {
   id: string;
@@ -99,7 +100,8 @@ export const useStudentProfileData = (studentId: string | undefined) => {
   const error = profileError || historyError;
 
   const invalidateFinancialQueries = () => {
-    queryClient.invalidateQueries({ queryKey: ['studentProfile', studentId] });
+    queryClient.invalidateQueries({ queryKey: ['studentProfileData', studentId] });
+    queryClient.invalidateQueries({ queryKey: ['studentHistory', studentId] });
     queryClient.invalidateQueries({ queryKey: ['transactions'] });
     queryClient.invalidateQueries({ queryKey: ['financialStats'] });
     queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
@@ -188,6 +190,33 @@ export const useStudentProfileData = (studentId: string | undefined) => {
     onError: (error: any) => { showError(error.message); },
   });
 
+  const createTransactionMutation = useMutation({
+    mutationFn: async (formData: TransactionFormData) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado.");
+
+      const transactionData = {
+        user_id: user.id,
+        student_id: formData.student_id,
+        description: formData.description,
+        category: formData.category,
+        amount: formData.amount,
+        type: formData.type,
+        status: formData.status,
+        due_date: formData.due_date,
+        paid_at: formData.status === 'Pago' ? new Date().toISOString() : null,
+      };
+
+      const { error } = await supabase.from('financial_transactions').insert([transactionData]);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidateFinancialQueries();
+      showSuccess('Lançamento financeiro registrado com sucesso!');
+    },
+    onError: (error) => { showError(error.message); },
+  });
+
   const markAsPaidMutation = useMutation({
     mutationFn: async (transactionId: string) => {
       if (!isAdmin) throw new Error("Você não tem permissão para marcar transações como pagas.");
@@ -239,6 +268,7 @@ export const useStudentProfileData = (studentId: string | undefined) => {
     loadMoreAttendance,
     mutations: {
       updateStudent: updateStudentMutation,
+      createTransaction: createTransactionMutation, // Nova mutação
       markAsPaid: markAsPaidMutation,
       deleteTransaction: deleteTransactionMutation,
     }

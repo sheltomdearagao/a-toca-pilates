@@ -12,8 +12,9 @@ import StudentDetailsCard from '@/components/students/profile/StudentDetailsCard
 import StudentRecurringScheduleCard from '@/components/students/profile/StudentRecurringScheduleCard';
 import StudentFinancialHistory from '@/components/students/profile/StudentFinancialHistory';
 import StudentAttendanceHistory from '@/components/students/profile/StudentAttendanceHistory';
-import AddEditTransactionDialog from '@/components/financial/AddEditTransactionDialog';
+import AddEditTransactionDialog, { TransactionFormData } from '@/components/financial/AddEditTransactionDialog';
 import { useStudentProfileData } from '@/hooks/useStudentProfileData';
+import { Button } from '@/components/ui/button'; // <-- Import adicionado
 
 const StudentProfile = () => {
   const { studentId } = useParams<{ studentId: string }>();
@@ -23,7 +24,7 @@ const StudentProfile = () => {
   const [isDeleteTransactionAlertOpen, setDeleteTransactionAlertOpen] = useState(false);
   const [transactionToDelete, setTransactionToDelete] = useState<FinancialTransaction | null>(null);
 
-  // Novos estados
+  // Novos estados para transação avulsa
   const [isTransactionDialogOpen, setTransactionDialogOpen] = useState(false);
   const [transactionDialogType, setTransactionDialogType] = useState<'revenue' | 'expense'>('revenue');
 
@@ -50,8 +51,28 @@ const StudentProfile = () => {
     setTransactionDialogOpen(true);
   };
 
-  const onSubmitTransaction = (formData: any) => {
-    mutations.updateStudent.mutateAsync; // apenas placeholder
+  const onSubmitTransaction = (formData: TransactionFormData) => {
+    mutations.createTransaction.mutate(formData, {
+      onSuccess: () => {
+        setTransactionDialogOpen(false);
+      }
+    });
+  };
+
+  const handleDeleteTransaction = (transaction: FinancialTransaction) => {
+    setTransactionToDelete(transaction);
+    setDeleteTransactionAlertOpen(true);
+  };
+
+  const handleConfirmDeleteTransaction = () => {
+    if (transactionToDelete) {
+      mutations.deleteTransaction.mutate(transactionToDelete.id, {
+        onSuccess: () => {
+          setDeleteTransactionAlertOpen(false);
+          setTransactionToDelete(null);
+        },
+      });
+    }
   };
 
   if (error) {
@@ -73,36 +94,92 @@ const StudentProfile = () => {
         onAddClass={() => setAddClassOpen(true)}
       />
 
-      {/* Novos botões */}
+      {/* Botões de Registro de Transação */}
       <div className="flex gap-2">
-        <button
-          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+        <Button
+          variant="outline"
+          className="bg-green-500 hover:bg-green-600 text-white"
           onClick={() => handleRegister('revenue')}
         >
-          Registrar Receita
-        </button>
-        <button
-          className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+          Registrar Receita Avulsa
+        </Button>
+        <Button
+          variant="outline"
+          className="bg-red-500 hover:bg-red-600 text-white"
           onClick={() => handleRegister('expense')}
         >
-          Registrar Despesa
-        </button>
+          Registrar Despesa Avulsa
+        </Button>
       </div>
 
       <ColoredSeparator color="primary" className="my-6" />
 
-      {/* ... resto do layout ... */}
+      <div className="grid lg:grid-cols-4 gap-6">
+        <StudentDetailsCard student={student} isLoading={isLoading} />
+        <StudentRecurringScheduleCard student={student} recurringTemplate={recurringTemplate} isLoading={isLoading} />
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-6">
+        <StudentFinancialHistory
+          transactions={transactions}
+          isLoading={isLoading}
+          isAdmin={isAdmin}
+          onMarkAsPaid={(id) => mutations.markAsPaid.mutate(id)}
+          onDeleteTransaction={handleDeleteTransaction}
+          hasMore={hasMoreTransactions}
+          onLoadMore={loadMoreTransactions}
+          isFetching={isFetchingHistory}
+        />
+        <StudentAttendanceHistory
+          attendance={attendance}
+          isLoading={isLoading}
+          hasMore={hasMoreAttendance}
+          onLoadMore={loadMoreAttendance}
+          isFetching={isFetchingHistory}
+        />
+      </div>
+
+      {/* Diálogos */}
+      <AddEditStudentDialog
+        isOpen={isEditFormOpen}
+        onOpenChange={setEditFormOpen}
+        selectedStudent={student}
+        onSubmit={(data) => mutations.updateStudent.mutate(data, { onSuccess: () => setEditFormOpen(false) })}
+        isSubmitting={mutations.updateStudent.isPending}
+      />
+
+      {student && (
+        <ProRataCalculator
+          isOpen={isProRataOpen}
+          onOpenChange={setProRataOpen}
+          student={student}
+        />
+      )}
+
+      <AddClassDialog
+        isOpen={isAddClassOpen}
+        onOpenChange={setAddClassOpen}
+        preSelectedStudentId={studentId}
+      />
 
       <AddEditTransactionDialog
         isOpen={isTransactionDialogOpen}
         onOpenChange={setTransactionDialogOpen}
-        initialStudentId={student?.id}
+        initialStudentId={studentId}
         defaultType={transactionDialogType}
-        onSubmit={(data) => {
-          // inserir via mutation
-          setTransactionDialogOpen(false);
-        }}
-        isSubmitting={false}
+        onSubmit={onSubmitTransaction}
+        isSubmitting={mutations.createTransaction.isPending}
+        // Passando lista de alunos vazia, pois o aluno já está fixo
+        students={[]}
+        isLoadingStudents={false}
+      />
+
+      <DeleteTransactionAlertDialog
+        isOpen={isDeleteTransactionAlertOpen}
+        onOpenChange={setDeleteTransactionAlertOpen}
+        selectedTransaction={transactionToDelete}
+        onConfirmDelete={handleConfirmDeleteTransaction}
+        isDeleting={mutations.deleteTransaction.isPending}
       />
     </div>
   );
