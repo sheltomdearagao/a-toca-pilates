@@ -27,7 +27,8 @@ const fetchClassAttendees = async (classId: string): Promise<ClassAttendee[]> =>
       students(name, enrollment_type)
     `)
     .eq('class_id', classId)
-    .order('students.name');
+    // Order by the joined students.name using foreignTable to avoid Supabase order parsing errors
+    .order('name', { foreignTable: 'students', ascending: true });
 
   if (error) throw new Error(error.message);
   return (data as any[] || []);
