@@ -65,8 +65,6 @@ interface AddEditStudentDialogProps {
   isSubmitting: boolean;
 }
 
-type StudentFormData = z.infer<ReturnType<typeof createStudentSchema>>;
-
 const createStudentSchema = (appSettings: any) => {
   const dynamicPlanTypeSchema = z.enum(appSettings?.plan_types as [string, ...string[]] || ["Avulso"]);
   const dynamicPlanFrequencySchema = z.enum(appSettings?.plan_frequencies as [string, ...string[]] || ["2x"]).optional().nullable();
@@ -93,13 +91,11 @@ const createStudentSchema = (appSettings: any) => {
     validity_date: z.string().optional().nullable(),
     preferred_days: z.array(z.string()).optional(),
     preferred_time: z.string().optional().nullable().refine(
-      (val) => val === null || val === undefined || val.endsWith(':00'),
+      (val) => val === null || val === undefined || (typeof val === 'string' && val.endsWith(':00')),
       { message: "O horário deve ser em hora cheia (ex: 08:00)." }
     ),
     has_promotional_value: z.boolean().optional(),
     discount_description: z.string().optional().nullable(),
-    
-    // Novos campos para registro de pagamento
     register_payment: z.boolean().optional(),
     payment_due_date: z.string().optional().nullable(),
   }).superRefine((data, ctx) => {
@@ -116,8 +112,6 @@ const createStudentSchema = (appSettings: any) => {
       const expectedCount = parseInt(data.plan_frequency.replace('x', ''), 10);
       if (data.preferred_days.length > 0 && data.preferred_days.length !== expectedCount) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Selecione exatamente ${expectedCount} dias.`, path: ['preferred_days'] });
     }
-    
-    // Validação de pagamento
     if (data.register_payment && data.plan_type !== 'Avulso') {
       if (!data.payment_due_date) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A data de vencimento do pagamento é obrigatória.', path: ['payment_due_date'] });
@@ -126,10 +120,11 @@ const createStudentSchema = (appSettings: any) => {
   });
 };
 
+type StudentFormData = z.infer<ReturnType<typeof createStudentSchema>>;
+
 const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit, isSubmitting }: AddEditStudentDialogProps) => {
   const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
   const studentSchema = createStudentSchema(appSettings);
-  type StudentFormData = z.infer<typeof studentSchema>;
 
   const { control, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<StudentFormData>({
     resolver: zodResolver(studentSchema),
@@ -140,6 +135,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
       has_promotional_value: false, discount_description: null,
       register_payment: false,
       payment_due_date: null,
+      monthly_fee: undefined,
     },
   });
 
@@ -151,7 +147,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
   const registerPayment = watch("register_payment");
 
   const frequencyCount = planFrequency ? parseInt(planFrequency.replace('x', ''), 10) : 0;
-  const canSelectMoreDays = preferredDays.length < frequencyCount;
+  const canSelectMoreDays = preferredDays.length < frequencyCount || frequencyCount === 0;
 
   useEffect(() => {
     if (!hasPromotionalValue && planType && planType !== 'Avulso' && planFrequency && paymentMethod) {
@@ -180,10 +176,9 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
           payment_method: selectedStudent.plan_type === 'Avulso' ? null : selectedStudent.payment_method || null,
           has_promotional_value: !!selectedStudent.discount_description,
           discount_description: selectedStudent.discount_description || null,
-          
-          // Resetar campos de pagamento ao abrir
           register_payment: false,
           payment_due_date: null,
+          monthly_fee: selectedStudent.monthly_fee ?? undefined,
         });
       } else {
         reset({
@@ -193,6 +188,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
           has_promotional_value: false, discount_description: null,
           register_payment: false,
           payment_due_date: null,
+          monthly_fee: undefined,
         });
       }
     }
@@ -206,22 +202,154 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
         <DialogHeader><DialogTitle className="text-xl">{selectedStudent ? "Editar Aluno" : "Adicionar Novo Aluno"}</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="grid gap-4 py-4">
-            <div className="space-y-2"><Label>Nome</Label><Controller name="name" control={control} render={({ field, fieldState }) => (<><Input {...field} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
-            <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label>Email</Label><Controller name="email" control={control} render={({ field, fieldState }) => (<><Input {...field} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div><div className="space-y-2"><Label>Telefone</Label><Controller name="phone" control={control} render={({ field, fieldState }) => (<><Input {...field} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div></div>
-            <div className="space-y-2"><Label>Endereço</Label><Controller name="address" control={control} render={({ field, fieldState }) => (<><Input {...field} value={field.value || ''} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
-            <div className="space-y-2"><Label>Telefone de Responsável (Opcional)</Label><Controller name="guardian_phone" control={control} render={({ field, fieldState }) => (<><Input {...field} value={field.value || ''} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
-            <div className="space-y-2"><Label>Status</Label><Controller name="status" control={control} render={({ field, fieldState }) => (<><Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Ativo">Ativo</SelectItem><SelectItem value="Inativo">Inativo</SelectItem><SelectItem value="Experimental">Experimental</SelectItem><SelectItem value="Bloqueado">Bloqueado</SelectItem></SelectContent></Select>{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
-            <div className="space-y-2"><Label>Plano</Label><Controller name="plan_type" control={control} render={({ field, fieldState }) => (<><Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{appSettings?.plan_types.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select>{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
-            {planType !== 'Avulso' && (<div className="grid grid-cols-1 gap-4 p-4 border bg-secondary/20 rounded-lg">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><Label>Frequência</Label><Controller name="plan_frequency" control={control} render={({ field, fieldState }) => (<><Select onValueChange={field.onChange} value={field.value || undefined}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{appSettings?.plan_frequencies.map(freq => (<SelectItem key={freq} value={freq}>{freq} na semana</SelectItem>))}</SelectContent></Select>{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
-                <div className="space-y-2"><Label>Pagamento</Label><Controller name="payment_method" control={control} render={({ field, fieldState }) => (<><Select onValueChange={field.onChange} value={field.value || undefined}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{appSettings?.payment_methods.map(method => (<SelectItem key={method} value={method}>{method}</SelectItem>))}</SelectContent></Select>{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
+            <div className="space-y-2">
+              <Label>Nome</Label>
+              <Controller name="name" control={control} render={({ field, fieldState }) => (
+                <>
+                  <Input {...field} />
+                  {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                </>
+              )} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Controller name="email" control={control} render={({ field, fieldState }) => (
+                  <>
+                    <Input {...field} />
+                    {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                  </>
+                )} />
               </div>
-              <div className="space-y-2"><Label>Valor da Mensalidade</Label><Controller name="monthly_fee" control={control} render={({ field, fieldState }) => (<><Input type="number" step="0.01" {...field} value={field.value || ''} disabled={!hasPromotionalValue} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
-              <div className="flex items-center space-x-2"><Controller name="has_promotional_value" control={control} render={({ field }) => (<Checkbox id="has_promotional_value" checked={field.value} onCheckedChange={field.onChange} />)} /><Label htmlFor="has_promotional_value">Aplicar Valor Promocional / Manual</Label></div></div>
-              {hasPromotionalValue && (<div className="space-y-2"><Label>Descrição do Desconto</Label><Controller name="discount_description" control={control} render={({ field, fieldState }) => (<><Input {...field} value={field.value || ''} placeholder="Ex: Desconto de inauguração" />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>)}
-            </div>)}
-            
+              <div className="space-y-2">
+                <Label>Telefone</Label>
+                <Controller name="phone" control={control} render={({ field, fieldState }) => (
+                  <>
+                    <Input {...field} />
+                    {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                  </>
+                )} />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Endereço</Label>
+              <Controller name="address" control={control} render={({ field, fieldState }) => (
+                <>
+                  <Input {...field} value={field.value || ''} />
+                  {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                </>
+              )} />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Telefone de Responsável (Opcional)</Label>
+              <Controller name="guardian_phone" control={control} render={({ field, fieldState }) => (
+                <>
+                  <Input {...field} value={field.value || ''} />
+                  {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                </>
+              )} />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Controller name="status" control={control} render={({ field, fieldState }) => (
+                <>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Ativo">Ativo</SelectItem>
+                      <SelectItem value="Inativo">Inativo</SelectItem>
+                      <SelectItem value="Experimental">Experimental</SelectItem>
+                      <SelectItem value="Bloqueado">Bloqueado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                </>
+              )} />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Plano</Label>
+              <Controller name="plan_type" control={control} render={({ field, fieldState }) => (
+                <>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {appSettings?.plan_types.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}
+                    </SelectContent>
+                  </Select>
+                  {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                </>
+              )} />
+            </div>
+
+            {planType !== 'Avulso' && (
+              <div className="grid grid-cols-1 gap-4 p-4 border bg-secondary/20 rounded-lg">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Frequência</Label>
+                    <Controller name="plan_frequency" control={control} render={({ field, fieldState }) => (
+                      <>
+                        <Select onValueChange={field.onChange} value={field.value || undefined}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {appSettings?.plan_frequencies.map(freq => (<SelectItem key={freq} value={freq}>{freq} na semana</SelectItem>))}
+                          </SelectContent>
+                        </Select>
+                        {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                      </>
+                    )} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Pagamento</Label>
+                    <Controller name="payment_method" control={control} render={({ field, fieldState }) => (
+                      <>
+                        <Select onValueChange={field.onChange} value={field.value || undefined}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {appSettings?.payment_methods.map(method => (<SelectItem key={method} value={method}>{method}</SelectItem>))}
+                          </SelectContent>
+                        </Select>
+                        {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                      </>
+                    )} />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Valor da Mensalidade</Label>
+                  <Controller name="monthly_fee" control={control} render={({ field, fieldState }) => (
+                    <>
+                      <Input type="number" step="0.01" {...field} value={field.value ?? ''} disabled={!hasPromotionalValue} />
+                      {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                    </>
+                  )} />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Controller name="has_promotional_value" control={control} render={({ field }) => (
+                    <Checkbox id="has_promotional_value" checked={field.value} onCheckedChange={field.onChange} />
+                  )} />
+                  <Label htmlFor="has_promotional_value">Aplicar Valor Promocional / Manual</Label>
+                </div>
+
+                {hasPromotionalValue && (
+                  <div className="space-y-2">
+                    <Label>Descrição do Desconto</Label>
+                    <Controller name="discount_description" control={control} render={({ field, fieldState }) => (
+                      <>
+                        <Input {...field} value={field.value || ''} placeholder="Ex: Desconto de inauguração" />
+                        {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                      </>
+                    )} />
+                  </div>
+                )}
+              </div>
+            )}
+
             {planType !== 'Avulso' && planFrequency && (
               <div className="space-y-4 p-4 border-t mt-4">
                 <h4 className="font-semibold text-md">Agendamento Automático (Aula: 60 min)</h4>
@@ -251,8 +379,9 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
                       </div>
                     )}
                   />
-                  {errors.preferred_days && <p className="text-sm text-destructive mt-1">{errors.preferred_days.message}</p>}
+                  {errors.preferred_days && <p className="text-sm text-destructive mt-1">{(errors as any).preferred_days?.message}</p>}
                 </div>
+
                 <div className="space-y-2">
                   <Label>Horário Preferido (Hora Cheia)</Label>
                   <Controller
@@ -273,8 +402,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
                 </div>
               </div>
             )}
-            
-            {/* Seção de Registro de Pagamento */}
+
             {planType !== 'Avulso' && (
               <div className="space-y-4 p-4 border-t mt-4 bg-green-50/20 rounded-lg">
                 <h4 className="font-semibold text-md text-green-700">Registrar Pagamento (Mensalidade)</h4>
@@ -298,10 +426,53 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
               </div>
             )}
 
-            <div className="space-y-2"><Label>Tipo de Matrícula</Label><Controller name="enrollment_type" control={control} render={({ field, fieldState }) => (<><Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{appSettings?.enrollment_types.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select>{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
-            <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label htmlFor="date_of_birth">Data de Nascimento</Label><Controller name="date_of_birth" control={control} render={({ field, fieldState }) => (<><Input id="date_of_birth" type="date" {...field} value={field.value || ''} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div><div className="space-y-2"><Label htmlFor="validity_date">Data de Validade</Label><Controller name="validity_date" control={control} render={({ field, fieldState }) => (<><Input id="validity_date" type="date" {...field} value={field.value || ''} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div></div>
-            <div className="space-y-2"><Label>Notas</Label><Controller name="notes" control={control} render={({ field, fieldState }) => (<><Textarea {...field} />{fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}</>)} /></div>
+            <div className="space-y-2">
+              <Label>Tipo de Matrícula</Label>
+              <Controller name="enrollment_type" control={control} render={({ field, fieldState }) => (
+                <>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {appSettings?.enrollment_types.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}
+                    </SelectContent>
+                  </Select>
+                  {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                </>
+              )} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="date_of_birth">Data de Nascimento</Label>
+                <Controller name="date_of_birth" control={control} render={({ field, fieldState }) => (
+                  <>
+                    <Input id="date_of_birth" type="date" {...field} value={field.value || ''} />
+                    {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                  </>
+                )} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="validity_date">Data de Validade</Label>
+                <Controller name="validity_date" control={control} render={({ field, fieldState }) => (
+                  <>
+                    <Input id="validity_date" type="date" {...field} value={field.value || ''} />
+                    {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                  </>
+                )} />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Notas</Label>
+              <Controller name="notes" control={control} render={({ field, fieldState }) => (
+                <>
+                  <Textarea {...field} />
+                  {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                </>
+              )} />
+            </div>
           </div>
+
           <DialogFooter>
             <DialogClose asChild><Button type="button" variant="secondary">Cancelar</Button></DialogClose>
             <Button type="submit" disabled={isSubmitting}>{isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Salvar</Button>

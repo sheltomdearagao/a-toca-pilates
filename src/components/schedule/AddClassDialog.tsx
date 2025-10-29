@@ -22,11 +22,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Check, ChevronsUpDown, Repeat } from 'lucide-react';
+import { Loader2, Check, ChevronsUpDown } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { format, set, parseISO, addWeeks, startOfDay, endOfDay } from 'date-fns';
+import { format, set, parseISO, addWeeks } from 'date-fns';
 import { fromZonedTime } from 'date-fns-tz';
-import { StudentOption } from '@/types/student';
+import type { StudentOption } from '@/types/student';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
@@ -56,11 +56,11 @@ type ClassFormData = z.infer<typeof classSchema>;
 interface AddClassDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  quickAddSlot?: { date: Date; hour: number };
-  preSelectedStudentId?: string;
+  quickAddSlot?: { date: Date; hour: number } | null;
+  preSelectedStudentId?: string | null;
 }
 
-const fetchAllStudents = async () => {
+const fetchAllStudents = async (): Promise<StudentOption[]> => {
   const { data, error } = await supabase.from('students').select('id, name, enrollment_type').order('name');
   if (error) throw error;
   return data || [];
@@ -68,7 +68,11 @@ const fetchAllStudents = async () => {
 
 const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudentId }: AddClassDialogProps) => {
   const qc = useQueryClient();
-  const { data: students = [], isLoading: isLoadingStudents } = useQuery(['allStudents'], fetchAllStudents);
+  const { data: students = [], isLoading: isLoadingStudents } = useQuery<StudentOption[]>({
+    queryKey: ['allStudents'],
+    queryFn: fetchAllStudents,
+    staleTime: 1000 * 60 * 5,
+  });
 
   const { control, handleSubmit, reset, watch, setValue } = useForm<ClassFormData>({
     resolver: zodResolver(classSchema),
@@ -84,9 +88,8 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
   });
 
   const selectedIds = watch('student_ids');
-  const isExp = watch('is_experimental');
-  const isRec = watch('is_recurring_4_weeks');
-  const [isPopOpen, setIsPopOpen] = useState(false);
+  const isPopOpenDefault = false;
+  const [isPopOpen, setIsPopOpen] = useState<boolean>(isPopOpenDefault);
 
   useEffect(() => {
     if (isOpen) {
@@ -109,7 +112,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
 
       const baseDate = parseISO(formData.date);
       const [hh] = formData.time.split(':');
-      const createClasses = [];
+      const createClasses: { date: Date; title: string }[] = [];
       for (let i = 0; i < (formData.is_recurring_4_weeks ? 4 : 1); i++) {
         const d = formData.is_recurring_4_weeks ? addWeeks(baseDate, i) : baseDate;
         const dt = set(d, { hours: +hh, minutes: 0 });
@@ -146,19 +149,23 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
       return count;
     },
     onSuccess: (c) => {
-      qc.invalidateQueries(['classes']);
+      qc.invalidateQueries({ queryKey: ['classes'] });
       showSuccess(`Agendadas ${c} aula(s).`);
       onOpenChange(false);
     },
-    onError: (err) => showError(err.message),
+    onError: (err: any) => showError(err.message),
   });
 
   const onSubmit = (d: ClassFormData) => mutation.mutate(d);
 
-  const chips = useMemo(() => selectedIds.map(id => {
-    const s = students.find(x => x.id === id);
-    return s ? `${s.name} (${s.enrollment_type[0]})` : id;
-  }), [students, selectedIds]);
+  const chips = useMemo(
+    () =>
+      selectedIds.map(id => {
+        const s = students.find(x => x.id === id);
+        return s ? `${s.name} (${s.enrollment_type[0]})` : id;
+      }),
+    [students, selectedIds]
+  );
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -172,13 +179,12 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
                 {chips.map((c, i) => (
                   <span key={i} className="px-2 py-1 bg-muted/50 rounded-full text-xs flex items-center">
                     {c}
-                    <button type="button" className="ml-1" onClick={() => {
-                      setValue('student_ids', selectedIds.filter(x => x !== selectedIds[i]));
-                    }}>×</button>
+                    <button type="button" className="ml-1" onClick={() => setValue('student_ids', selectedIds.filter(x => x !== selectedIds[i]))}>×</button>
                   </span>
                 ))}
               </div>
             </div>
+
             <Controller
               name="student_ids"
               control={control}
@@ -199,8 +205,8 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
                           const sel = field.value.includes(s.id);
                           const dis = !sel && field.value.length >= 10;
                           return (
-                            <CommandItem 
-                              key={s.id} 
+                            <CommandItem
+                              key={s.id}
                               disabled={dis}
                               onSelect={() => {
                                 field.onChange(sel
@@ -220,7 +226,8 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
                 </Popover>
               )}
             />
-            {mutation.isError && <p className="text-red-600 text-sm">{(mutation.error as any).message}</p>}
+
+            {mutation.isError && <p className="text-red-600 text-sm">{(mutation.error as any)?.message}</p>}
 
             <div className="grid grid-cols-2 gap-4">
               <Controller name="date" control={control} render={({ field }) => (
@@ -259,8 +266,8 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
           </div>
           <DialogFooter>
             <DialogClose asChild><Button variant="secondary">Cancelar</Button></DialogClose>
-            <Button type="submit" disabled={mutation.isLoading}>
-              {mutation.isLoading && <Loader2 className="mr-2 w-4 h-4 animate-spin" />} Agendar
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending && <Loader2 className="mr-2 w-4 h-4 animate-spin" />} Agendar
             </Button>
           </DialogFooter>
         </form>

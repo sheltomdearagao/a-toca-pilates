@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect } from 'react';
-import { TransactionFormData, transactionSchema } from './AddEditTransactionDialog.schema';
+import type { TransactionFormData } from './AddEditTransactionDialog.schema';
+import { transactionSchema } from './AddEditTransactionDialog.schema';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -20,8 +21,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import { useAppSettings } from '@/hooks/useAppSettings';
 
-export type { TransactionFormData } = {};
-
 export interface AddEditTransactionDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -30,7 +29,6 @@ export interface AddEditTransactionDialogProps {
   onSubmit: (data: TransactionFormData) => void;
   isSubmitting: boolean;
 
-  // Aceitar também os props que Financial.tsx passa
   selectedTransaction?: any;
   students?: any[];
   isLoadingStudents?: boolean;
@@ -89,16 +87,28 @@ const AddEditTransactionDialog = ({
               name="type"
               control={control}
               render={({ field }) => (
-                <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 gap-4">
-                  <div>
-                    <RadioGroupItem value="revenue" id="rev" className="sr-only" />
-                    <Label htmlFor="rev" className="cursor-pointer">Receita</Label>
-                  </div>
-                  <div>
-                    <RadioGroupItem value="expense" id="exp" className="sr-only" />
-                    <Label htmlFor="exp" className="cursor-pointer">Despesa</Label>
-                  </div>
-                </RadioGroup>
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="type"
+                      value="revenue"
+                      checked={field.value === 'revenue'}
+                      onChange={() => field.onChange('revenue')}
+                    />
+                    <span>Receita</span>
+                  </label>
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="type"
+                      value="expense"
+                      checked={field.value === 'expense'}
+                      onChange={() => field.onChange('expense')}
+                    />
+                    <span>Despesa</span>
+                  </label>
+                </div>
               )}
             />
 
@@ -108,10 +118,10 @@ const AddEditTransactionDialog = ({
               render={({ field }) => (
                 <div className="space-y-2">
                   <Label>Aluno</Label>
-                  <Select onValueChange={field.onChange} value={field.value || undefined} disabled={isLoadingStudents}>
+                  <Select onValueChange={(v) => field.onChange(v === '' ? null : v)} value={field.value ?? undefined} disabled={isLoadingStudents}>
                     <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={undefined}>Nenhum</SelectItem>
+                      <SelectItem value="">Nenhum</SelectItem>
                       {students?.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -135,7 +145,7 @@ const AddEditTransactionDialog = ({
                   name="category"
                   control={control}
                   render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value || undefined}>
+                    <Select onValueChange={(v) => field.onChange(v)} value={field.value || undefined}>
                       <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                       <SelectContent>
                         {transactionType === 'revenue'
@@ -172,3 +182,6 @@ const AddEditTransactionDialog = ({
 };
 
 export default AddEditTransactionDialog;
+
+// Re-export the TransactionFormData type for other modules that import it from this file
+export type { TransactionFormData } from './AddEditTransactionDialog.schema';
