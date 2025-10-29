@@ -22,10 +22,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Check, ChevronsUpDown, Repeat } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { format, set, parseISO, addDays, addWeeks, startOfDay } from 'date-fns';
+import { format, set, parseISO, addWeeks, startOfDay, endOfDay } from 'date-fns';
 import { fromZonedTime } from 'date-fns-tz';
 import { StudentOption } from '@/types/student';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -33,38 +32,22 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 
-const DAYS_OF_WEEK = [
-  { value: 'monday', label: 'Segunda-feira' },
-  { value: 'tuesday', label: 'Terça-feira' },
-  { value: 'wednesday', label: 'Quarta-feira' },
-  { value: 'thursday', label: 'Quinta-feira' },
-  { value: 'friday', label: 'Sexta-feira' },
-  { value: 'saturday', label: 'Sábado' },
-  { value: 'sunday', label: 'Domingo' },
-];
-
-// Horários disponíveis (7h às 20h) - Apenas horas cheias
 const availableHours = Array.from({ length: 14 }, (_, i) => {
   const hour = i + 7;
   return `${hour.toString().padStart(2, '0')}:00`;
 });
 
 const classSchema = z.object({
-  student_ids: z.array(z.string()).min(1, 'Selecione pelo menos um aluno.').max(10, 'Você pode selecionar até 10 alunos.'),
-  title: z.string().optional(), // Título opcional, será gerado se houver alunos
+  student_ids: z.array(z.string()).min(1).max(10),
+  title: z.string().optional(),
   is_experimental: z.boolean().default(false),
-  date: z.string().min(1, 'A data de início é obrigatória.'),
-  time: z.string().regex(/^\d{2}:00$/, 'O horário deve ser em hora cheia (ex: 08:00).'),
-  is_recurring_4_weeks: z.boolean().default(false), // Nova opção de recorrência
+  date: z.string().min(1),
+  time: z.string().regex(/^\d{2}:00$/),
+  is_recurring_4_weeks: z.boolean().default(false),
   notes: z.string().optional(),
 }).superRefine((data, ctx) => {
-  // Validação de Aula Experimental
   if (data.is_experimental && data.student_ids.length > 1) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Aulas experimentais só podem ser agendadas para um único aluno.',
-      path: ['student_ids'],
-    });
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Experimentais só para 1 aluno.', path: ['student_ids'] });
   }
 });
 
@@ -72,25 +55,22 @@ type ClassFormData = z.infer<typeof classSchema>;
 
 interface AddClassDialogProps {
   isOpen: boolean;
-  onOpenChange: (isOpen: boolean) => void;
-  quickAddSlot?: { date: Date; hour: number } | null;
+  onOpenChange: (open: boolean) => void;
+  quickAddSlot?: { date: Date; hour: number };
   preSelectedStudentId?: string;
 }
 
-const fetchAllStudents = async (): Promise<StudentOption[]> => {
-  const { data, error } = await supabase
-    .from('students')
-    .select('id, name, enrollment_type')
-    .order('name');
-  
-  if (error) throw new Error(error.message);
+const fetchAllStudents = async () => {
+  const { data, error } = await supabase.from('students').select('id, name, enrollment_type').order('name');
+  if (error) throw error;
   return data || [];
 };
 
 const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudentId }: AddClassDialogProps) => {
-  const queryClient = useQueryClient();
-  
-  const { control, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<ClassFormData>({
+  const qc = useQueryClient();
+  const { data: students = [], isLoading: isLoadingStudents } = useQuery(['allStudents'], fetchAllStudents);
+
+  const { control, handleSubmit, reset, watch, setValue } = useForm<ClassFormData>({
     resolver: zodResolver(classSchema),
     defaultValues: {
       student_ids: preSelectedStudentId ? [preSelectedStudentId] : [],
@@ -103,27 +83,19 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
     },
   });
 
-  const selectedStudentIds = watch('student_ids');
-  const isRecurring = watch('is_recurring_4_weeks');
-  const isExperimental = watch('is_experimental');
-
-  const { data: students, isLoading: isLoadingStudents } = useQuery<StudentOption[]>({
-    queryKey: ['allStudents'],
-    queryFn: fetchAllStudents,
-    staleTime: 1000 * 60 * 5,
-  });
+  const selectedIds = watch('student_ids');
+  const isExp = watch('is_experimental');
+  const isRec = watch('is_recurring_4_weeks');
+  const [isPopOpen, setIsPopOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      const initialDate = quickAddSlot ? format(quickAddSlot.date, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
-      const initialTime = quickAddSlot ? `${quickAddSlot.hour.toString().padStart(2, '0')}:00` : availableHours[0];
-      
       reset({
         student_ids: preSelectedStudentId ? [preSelectedStudentId] : [],
         title: '',
         is_experimental: false,
-        date: initialDate,
-        time: initialTime,
+        date: quickAddSlot ? format(quickAddSlot.date, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
+        time: quickAddSlot ? `${quickAddSlot.hour.toString().padStart(2, '0')}:00` : availableHours[0],
         is_recurring_4_weeks: false,
         notes: '',
       });
@@ -133,221 +105,162 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
   const mutation = useMutation({
     mutationFn: async (formData: ClassFormData) => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado.");
+      if (!user) throw new Error("Não autenticado.");
 
-      const studentsToEnroll = formData.student_ids;
       const baseDate = parseISO(formData.date);
-      const [hours, minutes] = formData.time.split(':');
-      
-      const classTitle = formData.title || (studentsToEnroll.length === 1 
-        ? `Aula com ${students?.find(s => s.id === studentsToEnroll[0])?.name}` 
-        : `Aula em Grupo (${studentsToEnroll.length} alunos)`);
-
-      const classesToCreate: { date: Date; title: string }[] = [];
-      
-      // 1. Determinar as datas das aulas
-      if (formData.is_recurring_4_weeks) {
-        // Recorrência: 4 semanas (incluindo a semana atual)
-        for (let i = 0; i < 4; i++) {
-          const recurringDate = addWeeks(baseDate, i);
-          classesToCreate.push({ date: recurringDate, title: classTitle });
-        }
-      } else {
-        // Apenas uma aula
-        classesToCreate.push({ date: baseDate, title: classTitle });
+      const [hh] = formData.time.split(':');
+      const createClasses = [];
+      for (let i = 0; i < (formData.is_recurring_4_weeks ? 4 : 1); i++) {
+        const d = formData.is_recurring_4_weeks ? addWeeks(baseDate, i) : baseDate;
+        const dt = set(d, { hours: +hh, minutes: 0 });
+        createClasses.push({ date: dt, title: formData.title || `Aula (${formData.student_ids.length})` });
       }
 
-      let totalClassesCreated = 0;
-
-      // 2. Criar cada aula e matricular todos os alunos
-      for (const classItem of classesToCreate) {
-        const dateTime = set(classItem.date, {
-          hours: parseInt(hours),
-          minutes: parseInt(minutes),
-          seconds: 0,
-          milliseconds: 0,
-        });
-        
-        // Converte para UTC (Supabase armazena em TIMESTAMPTZ)
-        const startUtc = fromZonedTime(dateTime, Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
-        
-        // Insere a aula principal
-        const { data: newClass, error: classError } = await supabase
+      let count = 0;
+      for (const cls of createClasses) {
+        const startUtc = fromZonedTime(cls.date, Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
+        const { data: newClass, error: e1 } = await supabase
           .from('classes')
           .insert({
             user_id: user.id,
-            title: class
+            title: cls.title,
+            start_time: startUtc,
+            duration_minutes: 60,
+            notes: formData.notes || null,
+            student_id: formData.student_ids.length === 1 ? formData.student_ids[0] : null,
+          })
+          .select('id')
+          .single();
+        if (e1) throw e1;
 
-O erro `A <Select.Item /> must have a value prop that is not an empty string` indica que um `Select.Item` está recebendo uma string vazia como `value`. Isso geralmente acontece quando o valor inicial de um `Select` controlado pelo `react-hook-form` é uma string vazia em vez de `null` ou `undefined`.
-
-Vou corrigir isso garantindo que os valores dos `Select` sejam sempre `null` quando vazios, em vez de strings vazias.
-
-<dyad-write path="src/components/financial/AddEditTransactionDialog.tsx" description="Corrigindo erro de Select.Item com valor vazio garantindo que valores vazios sejam null em vez de string vazia.">
-"use client";
-
-import React, { useEffect } from 'react';
-import { TransactionFormData, transactionSchema } from './AddEditTransactionDialog.schema';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogClose,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2 } from 'lucide-react';
-import { useAppSettings } from '@/hooks/useAppSettings';
-
-export type { TransactionFormData } = {};
-
-export interface AddEditTransactionDialogProps {
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-  initialStudentId?: string;
-  defaultType?: 'revenue' | 'expense';
-  onSubmit: (data: TransactionFormData) => void;
-  isSubmitting: boolean;
-
-  // Aceitar também os props que Financial.tsx passa
-  selectedTransaction?: any;
-  students?: any[];
-  isLoadingStudents?: boolean;
-}
-
-const AddEditTransactionDialog = ({
-  isOpen,
-  onOpenChange,
-  initialStudentId,
-  defaultType = 'revenue',
-  onSubmit,
-  isSubmitting,
-  students,
-  isLoadingStudents,
-}: AddEditTransactionDialogProps) => {
-  const { data: appSettings } = useAppSettings();
-
-  const { control, handleSubmit, reset, watch } = useForm<TransactionFormData>({
-    resolver: zodResolver(transactionSchema),
-    defaultValues: {
-      type: defaultType,
-      student_id: initialStudentId ?? null,
-      description: '',
-      amount: 0,
-      category: '',
-      status: 'Pendente',
-      due_date: null,
+        const attendees = formData.student_ids.map(sid => ({
+          user_id: user.id,
+          class_id: newClass.id,
+          student_id: sid,
+          status: 'Agendado',
+        }));
+        const { error: e2 } = await supabase.from('class_attendees').insert(attendees);
+        if (e2) throw e2;
+        count++;
+      }
+      return count;
     },
+    onSuccess: (c) => {
+      qc.invalidateQueries(['classes']);
+      showSuccess(`Agendadas ${c} aula(s).`);
+      onOpenChange(false);
+    },
+    onError: (err) => showError(err.message),
   });
 
-  useEffect(() => {
-    if (isOpen) {
-      reset({
-        type: defaultType,
-        student_id: initialStudentId ?? null,
-        description: '',
-        amount: 0,
-        category: '',
-        status: 'Pendente',
-        due_date: null,
-      });
-    }
-  }, [isOpen, initialStudentId, defaultType, reset]);
+  const onSubmit = (d: ClassFormData) => mutation.mutate(d);
 
-  const transactionType = watch('type');
+  const chips = useMemo(() => selectedIds.map(id => {
+    const s = students.find(x => x.id === id);
+    return s ? `${s.name} (${s.enrollment_type[0]})` : id;
+  }), [students, selectedIds]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{transactionType === 'revenue' ? 'Registrar Receita' : 'Registrar Despesa'}</DialogTitle>
-        </DialogHeader>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle>Agendar Aula</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="grid gap-4 py-4">
-            <Controller
-              name="type"
-              control={control}
-              render={({ field }) => (
-                <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 gap-4">
-                  <div>
-                    <RadioGroupItem value="revenue" id="rev" className="sr-only" />
-                    <Label htmlFor="rev" className="cursor-pointer">Receita</Label>
-                  </div>
-                  <div>
-                    <RadioGroupItem value="expense" id="exp" className="sr-only" />
-                    <Label htmlFor="exp" className="cursor-pointer">Despesa</Label>
-                  </div>
-                </RadioGroup>
-              )}
-            />
-
-            <Controller
-              name="student_id"
-              control={control}
-              render={({ field }) => (
-                <div className="space-y-2">
-                  <Label>Aluno</Label>
-                  <Select onValueChange={field.onChange} value={field.value || undefined} disabled={isLoadingStudents}>
-                    <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={undefined}>Nenhum</SelectItem>
-                      {students?.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            />
-
-            <div className="space-y-2">
-              <Label>Descrição</Label>
-              <Controller name="description" control={control} render={({ field }) => <Input {...field} />} />
+            <div>
+              <Label>Alunos (max 10)</Label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {chips.map((c, i) => (
+                  <span key={i} className="px-2 py-1 bg-muted/50 rounded-full text-xs flex items-center">
+                    {c}
+                    <button type="button" className="ml-1" onClick={() => {
+                      setValue('student_ids', selectedIds.filter(x => x !== selectedIds[i]));
+                    }}>×</button>
+                  </span>
+                ))}
+              </div>
             </div>
+            <Controller
+              name="student_ids"
+              control={control}
+              render={({ field }) => (
+                <Popover open={isPopOpen} onOpenChange={setIsPopOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full">
+                      {field.value.length ? `${field.value.length} selecionado(s)` : 'Adicionar alunos...'}
+                      <ChevronsUpDown className="ml-2 w-4 h-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                    <Command>
+                      <CommandInput placeholder="Buscar..." />
+                      <CommandEmpty>Nenhum</CommandEmpty>
+                      <CommandGroup className="max-h-40 overflow-y-auto">
+                        {students.map(s => {
+                          const sel = field.value.includes(s.id);
+                          const dis = !sel && field.value.length >= 10;
+                          return (
+                            <CommandItem 
+                              key={s.id} 
+                              disabled={dis}
+                              onSelect={() => {
+                                field.onChange(sel
+                                  ? field.value.filter(x => x !== s.id)
+                                  : [...field.value, s.id]
+                                );
+                              }}
+                            >
+                              <Check className={`mr-2 ${sel ? '' : 'opacity-0'}`} />
+                              {s.name}
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              )}
+            />
+            {mutation.isError && <p className="text-red-600 text-sm">{(mutation.error as any).message}</p>}
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Valor</Label>
-                <Controller name="amount" control={control} render={({ field }) => <Input type="number" step="0.01" {...field} />} />
-              </div>
-              <div className="space-y-2">
-                <Label>Categoria</Label>
-                <Controller
-                  name="category"
-                  control={control}
-                  render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value || undefined}>
-                      <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                      <SelectContent>
-                        {transactionType === 'revenue'
-                          ? appSettings?.revenue_categories?.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)
-                          : appSettings?.expense_categories?.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)
-                        }
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
+              <Controller name="date" control={control} render={({ field }) => (
+                <div className="space-y-2">
+                  <Label>Data</Label>
+                  <Input type="date" {...field} />
+                </div>
+              )} />
+              <Controller name="time" control={control} render={({ field }) => (
+                <div className="space-y-2">
+                  <Label>Hora</Label>
+                  <Input {...field} />
+                </div>
+              )} />
             </div>
 
-            {transactionType === 'revenue' && (
-              <div className="space-y-2">
-                <Label>Data de Vencimento</Label>
-                <Controller name="due_date" control={control} render={({ field }) => <Input type="date" {...field} />} />
-              </div>
-            )}
-          </div>
+            <div className="flex items-center space-x-2">
+              <Controller name="is_experimental" control={control} render={({ field }) => (
+                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+              )} />
+              <Label>Aula Experimental</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Controller name="is_recurring_4_weeks" control={control} render={({ field }) => (
+                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+              )} />
+              <Label>Recorrência 4 Semanas</Label>
+            </div>
 
+            <div>
+              <Label>Notas</Label>
+              <Controller name="notes" control={control} render={({ field }) => (
+                <Input {...field} />
+              )} />
+            </div>
+          </div>
           <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="secondary">Cancelar</Button>
-            </DialogClose>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="animate-spin mr-2" />}Salvar
+            <DialogClose asChild><Button variant="secondary">Cancelar</Button></DialogClose>
+            <Button type="submit" disabled={mutation.isLoading}>
+              {mutation.isLoading && <Loader2 className="mr-2 w-4 h-4 animate-spin" />} Agendar
             </Button>
           </DialogFooter>
         </form>
@@ -356,4 +269,4 @@ const AddEditTransactionDialog = ({
   );
 };
 
-export default AddEditTransactionDialog;
+export default AddClassDialog;
