@@ -4,12 +4,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Users, Clock, Calendar, Check, X, Trash2 } from 'lucide-react';
+import { Loader2, Users, Clock, Calendar, Check, X, Trash2, Edit } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { ClassEvent, ClassAttendee, AttendanceStatus } from '@/types/schedule';
 import { cn } from '@/lib/utils';
 import { showError, showSuccess } from '@/utils/toast';
+import EditClassDialog from './EditClassDialog';
 
 interface ClassDetailsDialogProps {
   isOpen: boolean;
@@ -38,6 +39,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
   const queryClient = useQueryClient();
   const [attendees, setAttendees] = useState<ClassAttendee[]>([]);
   const [isLoadingAttendees, setIsLoadingAttendees] = useState(false);
+  const [isEditOpen, setEditOpen] = useState(false);
 
   // Usar useEffect para buscar dados quando o diálogo abre
   useEffect(() => {
@@ -126,9 +128,9 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Detalheses da Aula</DialogTitle>
+          <DialogTitle>Detalhes da Aula</DialogTitle>
           <DialogDescription>
             {format(startTime, "eeee, dd 'de' MMMM 'às' HH:mm", { locale: ptBR })} ({classEvent.duration_minutes} min)
           </DialogDescription>
@@ -214,6 +216,10 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Fechar
           </Button>
+          <Button variant="outline" onClick={() => setEditOpen(true)}>
+            <Edit className="w-4 h-4 mr-2" /> Editar Aula
+          </Button>
+          <EditClassDialog isOpen={isEditOpen} onOpenChange={setEditOpen} classEvent={classEvent} />
         </DialogFooter>
       </DialogContent>
     </Dialog>
