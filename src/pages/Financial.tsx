@@ -1,5 +1,12 @@
-import OverdueTransactionsTable from "@/components/financial/OverdueTransactionsTable";
-import AddEditTransactionDialog from "@/components/financial/AddEditTransactionDialog";
-import { TransactionFormData } from "@/components/financial/AddEditTransactionDialog.schema";
-import DeleteTransactionAlertDialog from "@/components/financial/DeleteTransactionAlertDialog";
-// ... restante do arquivo inalterado
+import React from 'react';
+
+const Financial: React.FC = () => {
+  return (
+    <div className="p-4">
+      <h1 className="text-2xl font-bold">Financeiro</h1>
+      <p>Em breve você poderá gerenciar receitas e despesas aqui.</p>
+    </div>
+  );
+};
+
+export default Financial;
