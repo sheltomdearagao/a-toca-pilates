@@ -187,7 +187,7 @@ const AddRecurringClassTemplateDialog = ({ isOpen, onOpenChange }: AddRecurringC
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Agendar Aula Recorrente</DialogTitle>
+          <DialogTitle>Agendar Aula Recorrente (Avançado)</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="grid gap-4 py-4">

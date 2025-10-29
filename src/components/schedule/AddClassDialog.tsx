@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,9 +23,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Check, ChevronsUpDown } from 'lucide-react';
+import { Loader2, Check, ChevronsUpDown, Repeat } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { format, set, parseISO, addDays } from 'date-fns';
+import { format, set, parseISO, addDays, addWeeks, startOfDay } from 'date-fns';
 import { fromZonedTime } from 'date-fns-tz';
 import { StudentOption } from '@/types/student';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -50,55 +50,22 @@ const availableHours = Array.from({ length: 14 }, (_, i) => {
 });
 
 const classSchema = z.object({
-  student_id: z.string().optional().nullable(),
-  title: z.string().min(3, 'O título é obrigatório.').optional(),
+  student_ids: z.array(z.string()).min(1, 'Selecione pelo menos um aluno.'),
+  title: z.string().optional(), // Título opcional, será gerado se houver alunos
   is_experimental: z.boolean().default(false),
   date: z.string().min(1, 'A data de início é obrigatória.'),
-  
-  // Campos para agendamento de múltiplas aulas
-  selected_days: z.array(z.string()).optional(),
-  times_per_day: z.record(z.string(), z.string().regex(/^\d{2}:00$/, 'O horário deve ser em hora cheia (ex: 08:00).')).optional(),
-  
+  time: z.string().regex(/^\d{2}:00$/, 'O horário deve ser em hora cheia (ex: 08:00).'),
+  is_recurring_4_weeks: z.boolean().default(false), // Nova opção de recorrência
   notes: z.string().optional(),
 }).superRefine((data, ctx) => {
-  // 1. Validação de Título/Aluno
-  if (!data.student_id && (!data.title || data.title.trim() === '')) {
+  // Validação de Aula Experimental
+  if (data.is_experimental && data.student_ids.length > 1) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: 'O título da aula é obrigatório se nenhum aluno for selecionado.',
-      path: ['title'],
+      message: 'Aulas experimentais só podem ser agendadas para um único aluno.',
+      path: ['student_ids'],
     });
   }
-  
-  // 2. Validação de Dias/Horários
-  const selectedDays = data.selected_days || [];
-  if (selectedDays.length === 0) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Selecione pelo menos um dia e horário para agendar a aula.',
-      path: ['selected_days'],
-    });
-  }
-
-  // 3. Validação de Aula Experimental
-  if (data.is_experimental && selectedDays.length > 1) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Aulas experimentais só podem ser agendadas para um único dia.',
-      path: ['is_experimental'],
-    });
-  }
-
-  // 4. Validação de Horário por Dia
-  selectedDays.forEach(day => {
-    if (!data.times_per_day?.[day]) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Selecione um horário para ${DAYS_OF_WEEK.find(d => d.value === day)?.label}.`,
-        path: [`times_per_day.${day}`],
-      });
-    }
-  });
 });
 
 type ClassFormData = z.infer<typeof classSchema>;
@@ -122,25 +89,23 @@ const fetchAllStudents = async (): Promise<StudentOption[]> => {
 
 const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudentId }: AddClassDialogProps) => {
   const queryClient = useQueryClient();
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   
   const { control, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<ClassFormData>({
     resolver: zodResolver(classSchema),
     defaultValues: {
-      student_id: null,
+      student_ids: preSelectedStudentId ? [preSelectedStudentId] : [],
       title: '',
       is_experimental: false,
       date: format(new Date(), 'yyyy-MM-dd'),
-      selected_days: [],
-      times_per_day: {},
+      time: quickAddSlot ? `${quickAddSlot.hour.toString().padStart(2, '0')}:00` : availableHours[0],
+      is_recurring_4_weeks: false,
       notes: '',
     },
   });
 
-  const selectedStudentId = watch('student_id');
+  const selectedStudentIds = watch('student_ids');
+  const isRecurring = watch('is_recurring_4_weeks');
   const isExperimental = watch('is_experimental');
-  const selectedDays = watch('selected_days') || [];
-  const timesPerDay = watch('times_per_day') || {};
 
   const { data: students, isLoading: isLoadingStudents } = useQuery<StudentOption[]>({
     queryKey: ['allStudents'],
@@ -150,114 +115,100 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
 
   useEffect(() => {
     if (isOpen) {
-      let initialStudentId = preSelectedStudentId || null;
-      let initialTitle = '';
-
-      if (initialStudentId) {
-        const student = students?.find(s => s.id === initialStudentId);
-        if (student) {
-          initialTitle = `Aula com ${student.name}`;
-        }
-      }
-
-      if (quickAddSlot) {
-        const dayOfWeek = format(quickAddSlot.date, 'eeee').toLowerCase();
-        const timeString = `${quickAddSlot.hour.toString().padStart(2, '0')}:00`;
-        
-        reset({
-          student_id: initialStudentId,
-          title: initialTitle,
-          is_experimental: false,
-          date: format(quickAddSlot.date, 'yyyy-MM-dd'),
-          selected_days: [dayOfWeek],
-          times_per_day: { [dayOfWeek]: timeString },
-          notes: '',
-        });
-      } else {
-        reset({
-          student_id: initialStudentId,
-          title: initialTitle,
-          is_experimental: false,
-          date: format(new Date(), 'yyyy-MM-dd'),
-          selected_days: [],
-          times_per_day: {},
-          notes: '',
-        });
-      }
+      const initialDate = quickAddSlot ? format(quickAddSlot.date, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+      const initialTime = quickAddSlot ? `${quickAddSlot.hour.toString().padStart(2, '0')}:00` : availableHours[0];
+      
+      reset({
+        student_ids: preSelectedStudentId ? [preSelectedStudentId] : [],
+        title: '',
+        is_experimental: false,
+        date: initialDate,
+        time: initialTime,
+        is_recurring_4_weeks: false,
+        notes: '',
+      });
     }
-  }, [isOpen, quickAddSlot, preSelectedStudentId, students, reset]);
+  }, [isOpen, quickAddSlot, preSelectedStudentId, reset]);
 
   const mutation = useMutation({
     mutationFn: async (formData: ClassFormData) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado.");
 
-      const classesToInsert = [];
-      const startDate = parseISO(formData.date);
+      const studentsToEnroll = formData.student_ids;
+      const baseDate = parseISO(formData.date);
+      const [hours, minutes] = formData.time.split(':');
+      
+      const classTitle = formData.title || (studentsToEnroll.length === 1 
+        ? `Aula com ${students?.find(s => s.id === studentsToEnroll[0])?.name}` 
+        : `Aula em Grupo (${studentsToEnroll.length} alunos)`);
 
-      for (const dayOfWeek of formData.selected_days || []) {
-        const timeString = formData.times_per_day?.[dayOfWeek];
-        if (!timeString) continue;
-
-        // Encontra a data da próxima ocorrência do dia da semana a partir da data de início
-        let currentDay = startDate;
-        while (format(currentDay, 'eeee').toLowerCase() !== dayOfWeek) {
-          currentDay = addDays(currentDay, 1);
+      const classesToCreate: { date: Date; title: string }[] = [];
+      
+      // 1. Determinar as datas das aulas
+      if (formData.is_recurring_4_weeks) {
+        // Recorrência: 4 semanas (incluindo a semana atual)
+        for (let i = 0; i < 4; i++) {
+          const recurringDate = addWeeks(baseDate, i);
+          classesToCreate.push({ date: recurringDate, title: classTitle });
         }
-        
-        // Se a aula for experimental, agendamos apenas a primeira ocorrência
-        if (formData.is_experimental && format(currentDay, 'yyyy-MM-dd') !== formData.date) {
-            // Se a data de início não for o dia da semana selecionado, pulamos (experimental só agenda 1)
-            continue;
-        }
-        
-        const classTitle = formData.student_id
-          ? students?.find(s => s.id === formData.student_id)?.name || 'Aula'
-          : formData.title!;
+      } else {
+        // Apenas uma aula
+        classesToCreate.push({ date: baseDate, title: classTitle });
+      }
 
-        const [hours, minutes] = timeString.split(':');
-        const dateTime = set(currentDay, {
+      let totalClassesCreated = 0;
+
+      // 2. Criar cada aula e matricular todos os alunos
+      for (const classItem of classesToCreate) {
+        const dateTime = set(classItem.date, {
           hours: parseInt(hours),
           minutes: parseInt(minutes),
           seconds: 0,
           milliseconds: 0,
         });
         
+        // Converte para UTC (Supabase armazena em TIMESTAMPTZ)
         const startUtc = fromZonedTime(dateTime, Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
         
-        classesToInsert.push({
+        // Insere a aula principal
+        const { data: newClass, error: classError } = await supabase
+          .from('classes')
+          .insert({
+            user_id: user.id,
+            title: classItem.title,
+            start_time: startUtc,
+            duration_minutes: 60,
+            notes: formData.notes || null,
+            student_id: studentsToEnroll.length === 1 ? studentsToEnroll[0] : null, // Se for 1 aluno, vincula diretamente
+          })
+          .select('id')
+          .single();
+
+        if (classError) throw classError;
+        if (!newClass) throw new Error("Falha ao criar a aula.");
+
+        // Insere os participantes (attendees)
+        const attendeesToInsert = studentsToEnroll.map(studentId => ({
           user_id: user.id,
-          title: classTitle,
-          start_time: startUtc,
-          duration_minutes: 60, // Duração fixa em 60 minutos
-          notes: formData.notes || null,
-          student_id: formData.student_id || null,
-        });
+          class_id: newClass.id,
+          student_id: studentId,
+          status: 'Agendado',
+        }));
 
-        // Se for experimental, agendamos apenas uma aula e paramos
-        if (formData.is_experimental) break;
-      }
+        const { error: attendeesError } = await supabase
+          .from('class_attendees')
+          .insert(attendeesToInsert);
 
-      if (classesToInsert.length === 0) {
-        throw new Error("Nenhuma aula válida para agendamento encontrada.");
+        if (attendeesError) throw attendeesError;
+        totalClassesCreated++;
       }
       
-      // Usamos a função RPC para criar a aula e o attendee
-      const results = await Promise.all(classesToInsert.map(async (classData) => {
-        const { error } = await supabase.rpc('create_class_with_attendee', {
-          p_title: classData.title,
-          p_start_time: classData.start_time,
-          p_duration_minutes: classData.duration_minutes,
-          p_notes: classData.notes || '',
-          p_student_id: classData.student_id || null,
-        });
-        if (error) throw error;
-      }));
+      return totalClassesCreated;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (totalClassesCreated) => {
       queryClient.invalidateQueries({ queryKey: ['classes'] });
-      const count = variables.selected_days?.length || 0;
-      showSuccess(`${count} aula(s) agendada(s) com sucesso!`);
+      showSuccess(`${totalClassesCreated} aula(s) agendada(s) com sucesso para ${selectedStudentIds.length} aluno(s)!`);
       onOpenChange(false);
       reset();
     },
@@ -274,30 +225,32 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Agendar Nova Aula</DialogTitle>
+          <DialogTitle>Agendar Nova Aula (Até 10 Alunos)</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="grid gap-4 py-4">
+            
+            {/* Seleção de Múltiplos Alunos */}
             <div className="space-y-2">
-              <Label htmlFor="student_id">Aluno (Opcional)</Label>
+              <Label htmlFor="student_ids">Alunos (Máx. 10)</Label>
               <Controller
-                name="student_id"
+                name="student_ids"
                 control={control}
                 render={({ field }) => (
-                  <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+                  <Popover>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
                         role="combobox"
                         className={cn(
                           "w-full justify-between",
-                          !field.value && "text-muted-foreground"
+                          field.value.length === 0 && "text-muted-foreground"
                         )}
-                        disabled={isLoadingStudents || !!preSelectedStudentId}
+                        disabled={isLoadingStudents}
                       >
-                        {field.value
-                          ? students?.find((student) => student.id === field.value)?.name
-                          : "Selecione um aluno..."}
+                        {field.value.length > 0
+                          ? `${field.value.length} aluno(s) selecionado(s)`
+                          : "Selecione os alunos..."}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
@@ -305,57 +258,77 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
                       <Command>
                         <CommandInput placeholder="Buscar aluno..." />
                         <CommandEmpty>Nenhum aluno encontrado.</CommandEmpty>
-                        <CommandGroup>
-                          {students?.map((student) => (
-                            <CommandItem
-                              value={student.name}
-                              key={student.id}
-                              onSelect={() => {
-                                field.onChange(student.id);
-                                setValue('title', `Aula com ${student.name}`);
-                                setIsPopoverOpen(false); // Fechar após seleção
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  student.id === field.value ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              {student.name}
-                            </CommandItem>
-                          ))}
+                        <CommandGroup className="max-h-40 overflow-y-auto">
+                          {students?.map((student) => {
+                            const isSelected = field.value.includes(student.id);
+                            const isDisabled = !isSelected && field.value.length >= 10;
+                            
+                            return (
+                              <CommandItem
+                                value={student.name}
+                                key={student.id}
+                                disabled={isDisabled}
+                                onSelect={() => {
+                                  const newSelection = isSelected
+                                    ? field.value.filter(id => id !== student.id)
+                                    : [...field.value, student.id];
+                                  field.onChange(newSelection);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    isSelected ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {student.name} ({student.enrollment_type})
+                              </CommandItem>
+                            );
+                          })}
                         </CommandGroup>
                       </Command>
                     </PopoverContent>
                   </Popover>
                 )}
               />
-              {errors.student_id && <p className="text-sm text-destructive mt-1">{errors.student_id.message}</p>}
+              {errors.student_ids && <p className="text-sm text-destructive mt-1">{errors.student_ids.message}</p>}
             </div>
 
-            {!selectedStudentId && (
+            {/* Título da Aula (Opcional, se for aula em grupo) */}
+            {selectedStudentIds.length > 1 && (
               <div className="space-y-2">
-                <Label htmlFor="title">Título da Aula</Label>
+                <Label htmlFor="title">Título da Aula (Opcional)</Label>
                 <Controller name="title" control={control} render={({ field }) => <Input id="title" {...field} />} />
-                {errors.title && <p className="text-sm text-destructive mt-1">{errors.title.message}</p>}
               </div>
             )}
             
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="date">Data de Início (Semana)</Label>
+                <Label htmlFor="date">Data</Label>
                 <Controller name="date" control={control} render={({ field }) => <Input id="date" type="date" {...field} />} />
                 {errors.date && <p className="text-sm text-destructive mt-1">{errors.date.message}</p>}
               </div>
               <div className="space-y-2">
-                <Label>Duração</Label>
-                <Input value="60 minutos" disabled className="font-semibold text-primary" />
+                <Label htmlFor="time">Horário (Hora Cheia)</Label>
+                <Controller
+                  name="time"
+                  control={control}
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger><SelectValue placeholder="Hora" /></SelectTrigger>
+                      <SelectContent>
+                        {availableHours.map(hour => (<SelectItem key={hour} value={hour}>{hour}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {errors.time && <p className="text-sm text-destructive mt-1">{errors.time.message}</p>}
               </div>
             </div>
             
-            <div className="space-y-2 p-3 border rounded-lg">
-              <div className="flex items-center space-x-2 mb-2">
+            {/* Opções de Agendamento */}
+            <div className="space-y-3 p-3 border rounded-lg">
+              <div className="flex items-center space-x-2">
                 <Controller
                   name="is_experimental"
                   control={control}
@@ -363,74 +336,39 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
                     <Checkbox
                       id="is_experimental"
                       checked={field.value}
-                      onCheckedChange={field.onChange}
+                      onCheckedChange={(checked) => {
+                        field.onChange(checked);
+                        if (checked) setValue('is_recurring_4_weeks', false);
+                      }}
+                      disabled={isRecurring}
                     />
                   )}
                 />
-                <Label htmlFor="is_experimental" className="font-semibold">Aula Experimental</Label>
+                <Label htmlFor="is_experimental" className="font-semibold">Aula Experimental (Apenas 1 aluno)</Label>
               </div>
-              {isExperimental && <p className="text-xs text-destructive">Apenas uma aula pode ser agendada por vez.</p>}
+              
+              <div className="flex items-center space-x-2">
+                <Controller
+                  name="is_recurring_4_weeks"
+                  control={control}
+                  render={({ field }) => (
+                    <Checkbox
+                      id="is_recurring_4_weeks"
+                      checked={field.value}
+                      onCheckedChange={(checked) => {
+                        field.onChange(checked);
+                        if (checked) setValue('is_experimental', false);
+                      }}
+                      disabled={isExperimental}
+                    />
+                  )}
+                />
+                <Label htmlFor="is_recurring_4_weeks" className="font-semibold flex items-center">
+                  <Repeat className="w-4 h-4 mr-1 text-primary" /> Agendamento Recorrente (4 Semanas)
+                </Label>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Dias da Semana e Horários (Hora Cheia)</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {DAYS_OF_WEEK.map(day => (
-                  <div key={day.value} className="flex items-center space-x-2">
-                    <Controller
-                      name="selected_days"
-                      control={control}
-                      render={({ field }) => (
-                        <Checkbox
-                          id={day.value}
-                          checked={field.value?.includes(day.value)}
-                          disabled={isExperimental && selectedDays.length >= 1 && !selectedDays.includes(day.value)}
-                          onCheckedChange={(checked) => {
-                            const newSelectedDays = checked
-                              ? [...(field.value || []), day.value]
-                              : (field.value || []).filter((value) => value !== day.value);
-                            field.onChange(newSelectedDays);
-                            if (!checked) {
-                              const newTimesPerDay = { ...timesPerDay };
-                              delete newTimesPerDay[day.value];
-                              setValue('times_per_day', newTimesPerDay);
-                            } else {
-                              if (!timesPerDay[day.value]) {
-                                setValue(`times_per_day.${day.value}`, availableHours[0]);
-                              }
-                            }
-                          }}
-                        />
-                      )}
-                    />
-                    <Label htmlFor={day.value} className="flex-1">{day.label}</Label>
-                    {selectedDays.includes(day.value) && (
-                      <Controller
-                        name={`times_per_day.${day.value}`}
-                        control={control}
-                        render={({ field, fieldState }) => {
-                          return (
-                            <div className="flex flex-col">
-                              <Select onValueChange={field.onChange} value={field.value}>
-                                <SelectTrigger className="w-[100px]">
-                                  <SelectValue placeholder="Hora" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {availableHours.map(hour => (<SelectItem key={hour} value={hour}>{hour}</SelectItem>))}
-                                </SelectContent>
-                              </Select>
-                              {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
-                            </div>
-                          );
-                        }}
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
-              {errors.selected_days && <p className="text-sm text-destructive mt-1">{errors.selected_days.message}</p>}
-            </div>
-            
             <div className="space-y-2">
               <Label htmlFor="notes">Notas (Opcional)</Label>
               <Controller name="notes" control={control} render={({ field }) => <Textarea id="notes" {...field} />} />
