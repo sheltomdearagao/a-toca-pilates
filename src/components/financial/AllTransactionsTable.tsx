@@ -14,17 +14,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Loader2, MoreHorizontal, Repeat, CheckCircle, Edit, Trash2 } from "lucide-react";
+import { Loader2, MoreHorizontal, Repeat, CheckCircle, Edit, Trash2, DollarSign } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import React from "react";
-import { Badge } from "@/components/ui/badge";
-import FinancialTableSkeleton from "./FinancialTableSkeleton"; // Importar o Skeleton
+import FinancialTableSkeleton from "./FinancialTableSkeleton";
 
 interface AllTransactionsTableProps {
   transactions: FinancialTransaction[] | undefined;
@@ -75,14 +69,7 @@ const AllTransactionsTable = ({
               <TableCell className="font-medium flex items-center">
                 {t.description}
                 {t.is_recurring && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Repeat className="w-4 h-4 ml-2 text-muted-foreground" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Despesa Recorrente</p>
-                    </TooltipContent>
-                  </Tooltip>
+                  <Repeat className="w-4 h-4 ml-2 text-muted-foreground" />
                 )}
               </TableCell>
               <TableCell>{t.type === 'revenue' ? 'Receita' : 'Despesa'}</TableCell>
@@ -90,15 +77,18 @@ const AllTransactionsTable = ({
               <TableCell>{t.students?.name || '-'}</TableCell>
               <TableCell>{t.due_date ? format(parseISO(t.due_date), 'dd/MM/yyyy') : '-'}</TableCell>
               <TableCell>
-                <Badge variant={
-                  t.status === 'Pago' ? 'payment-paid' :
-                  t.status === 'Atrasado' ? 'payment-overdue' :
-                  'payment-pending'
-                }>{t.status || '-'}</Badge>
+                <span className={cn(
+                  "px-2 py-1 rounded-full text-xs font-medium",
+                  t.status === 'Pago' && "bg-green-100 text-green-800",
+                  t.status === 'Atrasado' && "bg-red-100 text-red-800",
+                  t.status === 'Pendente' && "bg-yellow-100 text-yellow-800"
+                )}>
+                  {t.status || '-'}
+                </span>
               </TableCell>
               <TableCell className={cn(
                 "text-right font-bold",
-                t.type === 'revenue' ? 'text-green-600' : 'text-red-600'
+                t.type === 'revenue' ? "text-green-600" : "text-red-600"
               )}>
                 {formatCurrency(t.amount)}
               </TableCell>
@@ -116,10 +106,13 @@ const AllTransactionsTable = ({
                     </DropdownMenuItem>
                     {t.status !== 'Pago' && t.type === 'revenue' && (
                       <DropdownMenuItem onClick={() => onMarkAsPaid(t.id)}>
-                        <CheckCircle className="w-4 h-4 mr-2" /> Marcar como Pago
+                        <DollarSign className="w-4 h-4 mr-2" /> Marcar como Pago
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem className="text-destructive" onClick={() => onDelete(t)}>
+                    <DropdownMenuItem 
+                      className="text-destructive" 
+                      onClick={() => onDelete(t)}
+                    >
                       <Trash2 className="w-4 h-4 mr-2" /> Excluir
                     </DropdownMenuItem>
                   </DropdownMenuContent>
