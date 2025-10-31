@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, ChevronsUpDown } from 'lucide-react';
+import { Loader2, ChevronsUpDown, Check } from 'lucide-react';
 import { format, set, parseISO } from 'date-fns';
 import { fromZonedTime } from 'date-fns-tz';
 import type { StudentOption } from '@/types/student';
@@ -66,7 +66,9 @@ const EditClassDialog = ({ isOpen, onOpenChange, classEvent }: EditClassDialogPr
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [allStudents, setAllStudents] = useState<StudentOption[]>([]);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  
+  // Usamos o estado local para o ID selecionado para facilitar a exibição no botão
+  const [localSelectedStudentId, setLocalSelectedStudentId] = useState<string | null>(null);
 
   // Buscar todos os alunos ao abrir o diálogo
   useEffect(() => {
@@ -86,17 +88,21 @@ const EditClassDialog = ({ isOpen, onOpenChange, classEvent }: EditClassDialogPr
     },
   });
 
+  const studentIdWatch = watch('student_id');
+
   useEffect(() => {
     if (isOpen && classEvent) {
       const startTime = parseISO(classEvent.start_time);
+      const studentId = classEvent.student_id || null;
+      
       reset({
-        student_id: classEvent.student_id || null,
+        student_id: studentId,
         title: classEvent.title || '',
         date: format(startTime, 'yyyy-MM-dd'),
-        time: format(startTime, 'HH:mm'),
+        time: format(startTime, 'HH:00'), // Forçando para hora cheia
         notes: classEvent.notes || '',
       });
-      setSelectedStudentId(classEvent.student_id || null);
+      setLocalSelectedStudentId(studentId);
     }
   }, [isOpen, classEvent, reset]);
 
@@ -162,41 +168,55 @@ const EditClassDialog = ({ isOpen, onOpenChange, classEvent }: EditClassDialogPr
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label>Aluno</Label>
-              <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full justify-start"
-                  >
-                    {selectedStudentId
-                      ? allStudents.find(s => s.id === selectedStudentId)?.name || 'Selecionar aluno...'
-                      : 'Selecionar aluno...'}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                  <Command>
-                    <CommandInput placeholder="Buscar aluno..." />
-                    <CommandEmpty>Nenhum aluno encontrado.</CommandEmpty>
-                    <CommandGroup>
-                      {allStudents.map((student) => (
-                        <CommandItem
-                          key={student.id}
-                          value={student.id}
-                          onSelect={(currentValue) => {
-                            setSelectedStudentId(currentValue);
-                            setValue('student_id', currentValue);
-                            setIsPopoverOpen(false);
-                          }}
-                        >
-                          {student.name}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <Controller
+                name="student_id"
+                control={control}
+                render={({ field }) => (
+                  <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between"
+                      >
+                        {localSelectedStudentId
+                          ? allStudents.find(s => s.id === localSelectedStudentId)?.name || 'Selecionar aluno...'
+                          : 'Selecionar aluno...'}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                      <Command>
+                        <CommandInput placeholder="Buscar aluno..." />
+                        <CommandEmpty>Nenhum aluno encontrado.</CommandEmpty>
+                        <CommandGroup>
+                          {allStudents.map((student) => (
+                            <CommandItem
+                              key={student.id}
+                              value={student.name} // Usar o nome para busca
+                              onSelect={() => {
+                                const newId = student.id;
+                                field.onChange(newId);
+                                setLocalSelectedStudentId(newId);
+                                setIsPopoverOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  student.id === localSelectedStudentId ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {student.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              />
             </div>
 
             <div className="space-y-2">
