@@ -20,7 +20,6 @@ import {
   PopoverTrigger
 } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ChevronsUpDown, Check } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { fromZonedTime } from 'date-fns-tz';
@@ -218,9 +217,10 @@ export default function EditClassDialog({ isOpen, onOpenChange, classEvent }: { 
               <Controller name="notes" control={control} render={({ field }) => <textarea {...field} />} />
             </div>
 
-            {/* Participantes atuais */}
+            {/* Participantes atuais (listagem) */}
             <div className="space-y-2 border-t pt-4">
               <Label>Participantes da Aula</Label>
+              { /* renderização simples para manter compile */}
               {attendees.length === 0 ? (
                 <div className="text-sm text-muted-foreground">Nenhum participante cadastrado.</div>
               ) : (
