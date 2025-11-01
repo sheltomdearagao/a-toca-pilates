@@ -112,21 +112,24 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
 
       const baseDate = parseISO(formData.date);
       const [hh] = formData.time.split(':');
-      const createClasses: { date: Date; title: string }[] = [];
-      for (let i = 0; i < (formData.is_recurring_4_weeks ? 4 : 1); i++) {
-        const d = formData.is_recurring_4_weeks ? addWeeks(baseDate, i) : baseDate;
-        const dt = set(d, { hours: +hh, minutes: 0 });
-        createClasses.push({ date: dt, title: formData.title || `Aula (${formData.student_ids.length})` });
-      }
+      const numWeeks = formData.is_recurring_4_weeks ? 4 : 1;
+      let classesCreatedCount = 0;
 
-      let count = 0;
-      for (const cls of createClasses) {
-        const startUtc = fromZonedTime(cls.date, Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
-        const { data: newClass, error: e1 } = await supabase
+      for (let i = 0; i < numWeeks; i++) {
+        const classDate = addWeeks(baseDate, i);
+        const localDateTime = set(classDate, { hours: +hh, minutes: 0 });
+        
+        // Converte a data/hora local para UTC (Supabase armazena em TIMESTAMPTZ)
+        const startUtc = fromZonedTime(localDateTime, Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
+        
+        const classTitle = formData.title || `Aula (${formData.student_ids.length} alunos)`;
+        
+        // 1. Insere a aula
+        const { data: newClass, error: classError } = await supabase
           .from('classes')
           .insert({
             user_id: user.id,
-            title: cls.title,
+            title: classTitle,
             start_time: startUtc,
             duration_minutes: 60,
             notes: formData.notes || null,
@@ -134,19 +137,24 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
           })
           .select('id')
           .single();
-        if (e1) throw e1;
+        
+        if (classError) throw classError;
+        if (!newClass) throw new Error("Falha ao criar a aula.");
 
+        // 2. Insere os participantes
         const attendees = formData.student_ids.map(sid => ({
           user_id: user.id,
           class_id: newClass.id,
           student_id: sid,
           status: 'Agendado',
         }));
-        const { error: e2 } = await supabase.from('class_attendees').insert(attendees);
-        if (e2) throw e2;
-        count++;
+        
+        const { error: attendeesError } = await supabase.from('class_attendees').insert(attendees);
+        if (attendeesError) throw attendeesError;
+        
+        classesCreatedCount++;
       }
-      return count;
+      return classesCreatedCount;
     },
     onSuccess: (c) => {
       qc.invalidateQueries({ queryKey: ['classes'] });
