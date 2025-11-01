@@ -1,3 +1,4 @@
+Wellhub/TotalPass) para deslocamento de alunos quando a turma está cheia.">
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,8 +11,7 @@ import {
 import { UserPlus, Loader2 } from 'lucide-react';
 import { showError } from '@/utils/toast';
 import type { ClassAttendee } from '@/types/schedule';
-import { StudentOption, Student } from '@/types/student';
-import { ClassAttendee as _CA } from '@/types/schedule';
+import { StudentOption } from '@/types/student';
 
 interface AddAttendeeSectionProps {
   availableStudentsForAdd: StudentOption[] | undefined;
@@ -22,9 +22,9 @@ interface AddAttendeeSectionProps {
   isAddingAttendee: boolean;
   isDisplaceConfirmationOpen: boolean;
   onDisplaceConfirmationChange: (isOpen: boolean) => void;
-  setStudentToDisplace: (attendee: _CA | null) => void;
+  setStudentToDisplace: (attendee: ClassAttendee | null) => void;
   setNewStudentForDisplacement: (student: StudentOption | null) => void;
-  attendees: _CA[] | undefined;
+  attendees: ClassAttendee[] | undefined;
   allStudents: StudentOption[] | undefined;
 }
 
@@ -57,14 +57,18 @@ const AddAttendeeSection = React.memo(({
     }
 
     if (!isClassFull) {
+      // 1. Turma não está cheia: Adiciona diretamente
       onAddAttendee(studentToAdd.id);
     } else {
+      // 2. Turma cheia: Verifica prioridade
       if (studentToAdd.enrollment_type === 'Particular') {
+        // Aluno Particular pode deslocar Wellhub/TotalPass
         const displaceableStudents = attendees?.filter(
           a => a.students?.enrollment_type === 'Wellhub' || a.students?.enrollment_type === 'TotalPass'
         );
 
         if (displaceableStudents && displaceableStudents.length > 0) {
+          // Desloca o primeiro aluno de menor prioridade encontrado
           setStudentToDisplace(displaceableStudents[0]);
           setNewStudentForDisplacement(studentToAdd);
           onDisplaceConfirmationChange(true);
@@ -72,6 +76,7 @@ const AddAttendeeSection = React.memo(({
           showError("Turma cheia e não há alunos de menor prioridade para deslocar.");
         }
       } else {
+        // Alunos Wellhub/TotalPass não podem deslocar ninguém
         showError("Turma cheia. Apenas alunos 'Particulares' podem deslocar outros alunos.");
       }
     }
