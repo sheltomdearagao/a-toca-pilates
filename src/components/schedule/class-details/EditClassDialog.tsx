@@ -31,6 +31,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
 import { showError, showSuccess } from '@/utils/toast';
+import { useQueryClient } from '@tanstack/react-query'; // Importar useQueryClient
 
 const availableHours = Array.from({ length: 14 }, (_, i) => {
   const hour = i + 7;
@@ -63,6 +64,7 @@ const fetchAllStudents = async (): Promise<StudentOption[]> => {
 };
 
 const EditClassDialog = ({ isOpen, onOpenChange, classEvent }: EditClassDialogProps) => {
+  const queryClient = useQueryClient(); // Usar queryClient
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [allStudents, setAllStudents] = useState<StudentOption[]>([]);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
@@ -88,8 +90,6 @@ const EditClassDialog = ({ isOpen, onOpenChange, classEvent }: EditClassDialogPr
     },
   });
 
-  const studentIdWatch = watch('student_id');
-
   useEffect(() => {
     if (isOpen && classEvent) {
       const startTime = parseISO(classEvent.start_time);
@@ -108,7 +108,8 @@ const EditClassDialog = ({ isOpen, onOpenChange, classEvent }: EditClassDialogPr
 
   const onSubmit = async (data: ClassFormData) => {
     if (!classEvent?.id) {
-      throw new Error('ID da aula não encontrado para edição.');
+      showError('ID da aula não encontrado para edição.');
+      return;
     }
 
     setIsSubmitting(true);
@@ -116,30 +117,36 @@ const EditClassDialog = ({ isOpen, onOpenChange, classEvent }: EditClassDialogPr
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado.');
 
-      // Construir novo start_time a partir de data/hora
-      const dateParts = data.date.split('-');
-      const year = parseInt(dateParts[0], 10);
-      const month = parseInt(dateParts[1], 10) - 1;
-      const day = parseInt(dateParts[2], 10);
-      const baseDate = new Date(year, month, day);
-      const [hh] = data.time.split(':');
-      const dt = new Date(baseDate);
-      dt.setHours(parseInt(hh || '0', 10), 0, 0, 0);
-      const startUtc = fromZonedTime(dt, Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
+      // 1. Construir novo start_time a partir de data/hora local
+      const [year, month, day] = data.date.split('-').map(Number);
+      const [hh] = data.time.split(':').map(Number);
+      
+      // Cria a data local
+      const localDate = set(new Date(year, month - 1, day), { hours: hh, minutes: 0, seconds: 0, milliseconds: 0 });
+      
+      // Converte a data/hora local para UTC (TIMESTAMPTZ)
+      const startUtc = fromZonedTime(localDate, Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
 
-      // Atualizar aula
-      await supabase.from('classes').update({
+      // 2. Atualizar aula
+      const { error: updateError } = await supabase.from('classes').update({
         title: data.title || null,
         start_time: startUtc,
         duration_minutes: 60,
         notes: data.notes || null,
         student_id: data.student_id || null,
       }).eq('id', classEvent.id);
+      
+      if (updateError) throw updateError;
 
-      // Atualizar participantes (remover todos e adicionar o novo, se houver)
+      // 3. Atualizar participantes:
+      // Se o aluno mudou ou foi removido, precisamos garantir que o class_attendees reflita isso.
+      
+      // Remove todos os participantes existentes para esta aula
       await supabase.from('class_attendees').delete().eq('class_id', classEvent.id);
+      
+      // Adiciona o novo participante, se houver
       if (data.student_id) {
-        await supabase.from('class_attendees').insert([
+        const { error: insertAttendeeError } = await supabase.from('class_attendees').insert([
           {
             user_id: user.id,
             class_id: classEvent.id,
@@ -147,8 +154,13 @@ const EditClassDialog = ({ isOpen, onOpenChange, classEvent }: EditClassDialogPr
             status: 'Agendado',
           },
         ]);
+        if (insertAttendeeError) throw insertAttendeeError;
       }
 
+      // Invalida queries para atualizar a agenda e os detalhes da aula
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
+      queryClient.invalidateQueries({ queryKey: ['classAttendees', classEvent.id] });
+      
       showSuccess('Aula atualizada com sucesso!');
       onOpenChange(false);
     } catch (err: any) {
