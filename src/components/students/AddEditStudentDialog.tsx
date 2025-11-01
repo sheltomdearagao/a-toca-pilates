@@ -74,11 +74,11 @@ const createStudentSchema = (appSettings: any) => {
   return z.object({
     name: z.string().min(3, "O nome deve ter pelo menos 3 caracteres."),
     email: z.string().email("Email inválido.").optional().or(z.literal("")),
-    phone: z.string().optional(),
-    address: z.string().optional(),
-    guardian_phone: z.string().optional(),
+    phone: z.string().optional().or(z.literal("")),
+    address: z.string().optional().or(z.literal("")),
+    guardian_phone: z.string().optional().or(z.literal("")),
     status: z.enum(["Ativo", "Inativo", "Experimental", "Bloqueado"]),
-    notes: z.string().optional(),
+    notes: z.string().optional().or(z.literal("")),
     plan_type: dynamicPlanTypeSchema.default("Avulso"),
     plan_frequency: dynamicPlanFrequencySchema,
     payment_method: dynamicPaymentMethodSchema,
@@ -130,7 +130,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
     resolver: zodResolver(studentSchema),
     defaultValues: {
       name: "", email: "", phone: "", address: "", guardian_phone: "", status: "Experimental", notes: "",
-      plan_type: "Avulso", enrollment_type: "Particular", date_of_birth: "", validity_date: "",
+      plan_type: "Avulso", enrollment_type: "Particular", date_of_birth: null, validity_date: null,
       preferred_days: [], preferred_time: null, plan_frequency: null, payment_method: null,
       has_promotional_value: false, discount_description: null,
       register_payment: false,
@@ -168,8 +168,8 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
           address: selectedStudent.address || '',
           guardian_phone: selectedStudent.guardian_phone || '',
           notes: selectedStudent.notes || '',
-          date_of_birth: selectedStudent.date_of_birth ? format(new Date(selectedStudent.date_of_birth), 'yyyy-MM-dd') : "",
-          validity_date: selectedStudent.validity_date ? format(new Date(selectedStudent.validity_date), 'yyyy-MM-dd') : "",
+          date_of_birth: selectedStudent.date_of_birth ? format(new Date(selectedStudent.date_of_birth), 'yyyy-MM-dd') : null,
+          validity_date: selectedStudent.validity_date ? format(new Date(selectedStudent.validity_date), 'yyyy-MM-dd') : null,
           preferred_days: selectedStudent.preferred_days || [],
           preferred_time: selectedStudent.preferred_time || null,
           plan_frequency: selectedStudent.plan_type === 'Avulso' ? null : selectedStudent.plan_frequency || null,
@@ -183,7 +183,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
       } else {
         reset({
           name: "", email: "", phone: "", address: "", guardian_phone: "", status: "Experimental", notes: "",
-          plan_type: "Avulso", enrollment_type: "Particular", date_of_birth: "", validity_date: "",
+          plan_type: "Avulso", enrollment_type: "Particular", date_of_birth: null, validity_date: null,
           preferred_days: [], preferred_time: null, plan_frequency: null, payment_method: null,
           has_promotional_value: false, discount_description: null,
           register_payment: false,
@@ -212,7 +212,248 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
               )} />
             </div>
 
-            {/* Omitando grandes trechos para manter o foco neste patch de correção de JSX/compilação */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Controller name="email" control={control} render={({ field, fieldState }) => (
+                  <>
+                    <Input {...field} type="email" />
+                    {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                  </>
+                )} />
+              </div>
+              <div className="space-y-2">
+                <Label>Telefone</Label>
+                <Controller name="phone" control={control} render={({ field }) => <Input {...field} />} />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Endereço</Label>
+              <Controller name="address" control={control} render={({ field }) => <Input {...field} />} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Telefone Responsável</Label>
+                <Controller name="guardian_phone" control={control} render={({ field }) => <Input {...field} />} />
+              </div>
+              <div className="space-y-2">
+                <Label>Data de Nascimento</Label>
+                <Controller name="date_of_birth" control={control} render={({ field }) => <Input {...field} type="date" value={field.value || ''} />} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Status do Aluno</Label>
+                <Controller name="status" control={control} render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Ativo">Ativo</SelectItem>
+                      <SelectItem value="Inativo">Inativo</SelectItem>
+                      <SelectItem value="Experimental">Experimental</SelectItem>
+                      <SelectItem value="Bloqueado">Bloqueado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )} />
+              </div>
+              <div className="space-y-2">
+                <Label>Tipo de Matrícula</Label>
+                <Controller name="enrollment_type" control={control} render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger><SelectValue placeholder="Tipo" /></SelectTrigger>
+                    <SelectContent>
+                      {appSettings?.enrollment_types.map(type => (
+                        <SelectItem key={type} value={type}>{type}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )} />
+              </div>
+            </div>
+
+            <h3 className="text-lg font-semibold mt-4 border-t pt-4">Detalhes do Plano</h3>
+
+            <div className="space-y-2">
+              <Label>Tipo de Plano</Label>
+              <Controller name="plan_type" control={control} render={({ field }) => (
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <SelectTrigger><SelectValue placeholder="Tipo de Plano" /></SelectTrigger>
+                  <SelectContent>
+                    {appSettings?.plan_types.map(type => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )} />
+            </div>
+
+            {planType !== 'Avulso' && (
+              <>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Frequência</Label>
+                    <Controller name="plan_frequency" control={control} render={({ field, fieldState }) => (
+                      <>
+                        <Select onValueChange={field.onChange} value={field.value || ''}>
+                          <SelectTrigger><SelectValue placeholder="Frequência" /></SelectTrigger>
+                          <SelectContent>
+                            {appSettings?.plan_frequencies.map(freq => (
+                              <SelectItem key={freq} value={freq}>{freq}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                      </>
+                    )} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Método Pagamento</Label>
+                    <Controller name="payment_method" control={control} render={({ field, fieldState }) => (
+                      <>
+                        <Select onValueChange={field.onChange} value={field.value || ''}>
+                          <SelectTrigger><SelectValue placeholder="Método" /></SelectTrigger>
+                          <SelectContent>
+                            {appSettings?.payment_methods.map(method => (
+                              <SelectItem key={method} value={method}>{method}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                      </>
+                    )} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Data de Validade</Label>
+                    <Controller name="validity_date" control={control} render={({ field }) => <Input {...field} type="date" value={field.value || ''} />} />
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Controller name="has_promotional_value" control={control} render={({ field }) => (
+                    <Checkbox checked={field.value} onCheckedChange={field.onChange} id="has_promotional_value" />
+                  )} />
+                  <Label htmlFor="has_promotional_value">Valor Promocional / Desconto</Label>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Mensalidade (R$)</Label>
+                    <Controller name="monthly_fee" control={control} render={({ field, fieldState }) => (
+                      <>
+                        <Input
+                          {...field}
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          disabled={!hasPromotionalValue}
+                          onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                          value={field.value === undefined ? '' : field.value}
+                        />
+                        {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                      </>
+                    )} />
+                  </div>
+                  {hasPromotionalValue && (
+                    <div className="space-y-2">
+                      <Label>Descrição do Desconto</Label>
+                      <Controller name="discount_description" control={control} render={({ field, fieldState }) => (
+                        <>
+                          <Input {...field} value={field.value || ''} />
+                          {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                        </>
+                      )} />
+                    </div>
+                  )}
+                </div>
+
+                <h3 className="text-lg font-semibold mt-4 border-t pt-4">Preferências de Agendamento</h3>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Dias Preferidos ({preferredDays.length}/{frequencyCount})</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {DAYS_OF_WEEK.map(day => (
+                        <Controller
+                          key={day.value}
+                          name="preferred_days"
+                          control={control}
+                          render={({ field }) => (
+                            <Button
+                              type="button"
+                              variant={field.value?.includes(day.value) ? "default" : "outline"}
+                              size="sm"
+                              className={cn(
+                                "transition-colors",
+                                !canSelectMoreDays && !field.value?.includes(day.value) && "opacity-50 cursor-not-allowed"
+                              )}
+                              onClick={() => {
+                                const isSelected = field.value?.includes(day.value);
+                                if (isSelected) {
+                                  field.onChange(field.value.filter(v => v !== day.value));
+                                } else if (canSelectMoreDays) {
+                                  field.onChange([...(field.value || []), day.value]);
+                                }
+                              }}
+                              disabled={!canSelectMoreDays && !field.value?.includes(day.value)}
+                            >
+                              {day.label}
+                            </Button>
+                          )}
+                        />
+                      ))}
+                    </div>
+                    {errors.preferred_days && <p className="text-sm text-destructive mt-1">{errors.preferred_days.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Horário Preferido</Label>
+                    <Controller name="preferred_time" control={control} render={({ field, fieldState }) => (
+                      <>
+                        <Select onValueChange={field.onChange} value={field.value || ''}>
+                          <SelectTrigger><SelectValue placeholder="Hora Cheia" /></SelectTrigger>
+                          <SelectContent>
+                            {availableHours.map(hour => (
+                              <SelectItem key={hour} value={hour}>{hour}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                      </>
+                    )} />
+                  </div>
+                </div>
+
+                {/* Registro de Pagamento (Apenas para novos alunos ou se o campo estiver vazio) */}
+                {!selectedStudent && (
+                  <div className="space-y-2 border-t pt-4 mt-4">
+                    <div className="flex items-center space-x-2">
+                      <Controller name="register_payment" control={control} render={({ field }) => (
+                        <Checkbox checked={field.value} onCheckedChange={field.onChange} id="register_payment" />
+                      )} />
+                      <Label htmlFor="register_payment">Registrar 1ª Mensalidade como PAGA agora</Label>
+                    </div>
+                    {registerPayment && (
+                      <div className="space-y-2">
+                        <Label>Data de Vencimento (Próximo Mês)</Label>
+                        <Controller name="payment_due_date" control={control} render={({ field, fieldState }) => (
+                          <>
+                            <Input {...field} type="date" value={field.value || ''} />
+                            {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                          </>
+                        )} />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className="space-y-2 mt-4 border-t pt-4">
+              <Label>Notas Adicionais</Label>
+              <Controller name="notes" control={control} render={({ field }) => <Textarea {...field} value={field.value || ''} />} />
+            </div>
 
           </div>
 
