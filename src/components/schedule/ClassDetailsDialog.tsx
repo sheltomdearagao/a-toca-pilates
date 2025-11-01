@@ -9,10 +9,11 @@ import { Loader2, Users, Check, X, Trash2, Edit, UserPlus, Plus } from 'lucide-r
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { ClassEvent, ClassAttendee, AttendanceStatus } from '@/types/schedule';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { showError, showSuccess } from '@/utils/toast';
 import EditClassDialog from './class-details/EditClassDialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { EnrollmentType, StudentOption } from '@/types/student';
 
 interface ClassDetailsDialogProps {
   isOpen: boolean;
@@ -25,7 +26,7 @@ const toClassAttendee = (a: any): ClassAttendee => ({
   id: a.id,
   status: (a.status ?? 'Agendado') as AttendanceStatus,
   student_id: a.student_id ?? undefined,
-  students: a.students ? { name: a.students.name, enrollment_type: a.students.enrollment_type } : undefined,
+  students: a.students ? { name: a.students.name, enrollment_type: a.students.enrollment_type as EnrollmentType | undefined } : undefined,
 });
 
 const fetchClassAttendees = async (classId: string): Promise<ClassAttendee[]> => {
@@ -38,10 +39,10 @@ const fetchClassAttendees = async (classId: string): Promise<ClassAttendee[]> =>
   return (data ?? []).map(toClassAttendee);
 };
 
-const fetchAllStudents = async (): Promise<{ id: string; name: string; enrollment_type?: string }[]> => {
+const fetchAllStudents = async (): Promise<StudentOption[]> => {
   const { data, error } = await supabase.from('students').select('id, name, enrollment_type').order('name');
   if (error) throw error;
-  return data ?? [];
+  return (data as StudentOption[]) ?? [];
 };
 
 const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }: ClassDetailsDialogProps) => {
@@ -53,7 +54,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
   const [selectedStudentToAdd, setSelectedStudentToAdd] = useState<string>('');
   const [isAddingAttendee, setIsAddingAttendee] = useState(false);
 
-  const { data: allStudents, isLoading: isLoadingAllStudents } = useQuery({
+  const { data: allStudents, isLoading: isLoadingAllStudents } = useQuery<StudentOption[]>({
     queryKey: ['allStudents'],
     queryFn: fetchAllStudents,
     staleTime: 1000 * 60 * 5,
@@ -78,7 +79,6 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
 
   useEffect(() => {
     const unsub = AttendeesBus.subscribe((updated) => {
-      // The bus carries ClassAttendee[]; set directly
       setAttendees(updated as ClassAttendee[]);
     });
     return () => unsub();
@@ -169,7 +169,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
       id: `temp_${Date.now()}`,
       status: 'Agendado',
       student_id: selectedStudentToAdd,
-      students: { name: s?.name ?? 'Aluno', enrollment_type: s?.enrollment_type },
+      students: { name: s?.name ?? 'Aluno', enrollment_type: (s?.enrollment_type as EnrollmentType | undefined) },
     };
     const next = [...attendees, optimistic];
     setAttendees(next);
@@ -206,7 +206,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
     }
   };
 
-  const getEnrollmentCode = (enrollmentType?: string) =>
+  const getEnrollmentCode = (enrollmentType?: EnrollmentType) =>
     enrollmentType === 'Wellhub' ? 'G' : enrollmentType === 'TotalPass' ? 'T' : 'P';
 
   return (
@@ -306,7 +306,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                         </Badge>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Badge variant={getStatusVariant((a.status as AttendanceStatus))}>{a.status}</Badge>
+                        <Badge variant={getStatusVariant(a.status as AttendanceStatus)}>{a.status}</Badge>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleUpdateStatus(a.id, 'Presente')} title="Marcar como Presente">
                           <Check className="w-4 h-4" />
                         </Button>
