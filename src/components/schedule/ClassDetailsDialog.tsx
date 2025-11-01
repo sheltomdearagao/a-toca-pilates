@@ -56,7 +56,6 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
   const [selectedStudentToAdd, setSelectedStudentToAdd] = useState<string>('');
   const [isAddingAttendee, setIsAddingAttendee] = useState(false);
 
-  // Buscar todos os alunos disponíveis
   const { data: allStudents, isLoading: isLoadingAllStudents } = useQuery<StudentOption[]>({
     queryKey: ['allStudents'],
     queryFn: fetchAllStudents,
@@ -145,13 +144,47 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
     },
   });
 
+  // Atualização OTIMISTA do status ao clicar (Presente/Faltou)
   const handleUpdateStatus = useCallback((attendeeId: string, status: AttendanceStatus) => {
-    updateStatusMutation.mutate({ attendeeId, status });
-  }, [updateStatusMutation]);
+    const previous = attendees;
+    // Atualiza imediatamente na UI
+    setAttendees(prev => prev.map(a => a.id === attendeeId ? { ...a, status } : a));
 
+    updateStatusMutation.mutate(
+      { attendeeId, status },
+      {
+        onError: () => {
+          // Reverte em caso de erro
+          setAttendees(previous);
+          showError('Falha ao atualizar status.');
+        }
+      }
+    );
+  }, [attendees, updateStatusMutation]);
+
+  // Remoção OTIMISTA do participante ao clicar (Excluir)
   const handleRemoveAttendee = useCallback((attendeeId: string) => {
-    removeAttendeeMutation.mutate(attendeeId);
-  }, [removeAttendeeMutation]);
+    const previous = attendees;
+    const attendeeToRemove = attendees.find(a => a.id === attendeeId);
+    
+    // Atualiza imediatamente na UI
+    setAttendees(prev => prev.filter(a => a.id !== attendeeId));
+
+    removeAttendeeMutation.mutate(
+      attendeeId,
+      {
+        onError: () => {
+          // Reverte em caso de erro
+          if (attendeeToRemove) {
+            setAttendees(prev => [...prev, attendeeToRemove].sort((a, b) => (a.students?.name || '').localeCompare(b.students?.name || '')));
+          } else {
+            setAttendees(previous);
+          }
+          showError('Falha ao remover participante.');
+        }
+      }
+    );
+  }, [attendees, removeAttendeeMutation]);
 
   const handleAddAttendee = useCallback(() => {
     if (!selectedStudentToAdd) {
@@ -159,7 +192,6 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
       return;
     }
 
-    // Otimista: criar um registro temporário na lista para feedback imediato
     const studentObj = allStudents?.find(s => s.id === selectedStudentToAdd);
     const optimistic: any = {
       id: `temp_${Date.now()}`,
@@ -170,8 +202,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
       students: { name: studentObj?.name, enrollment_type: studentObj?.enrollment_type },
     };
 
-    setAttendees(prev => [...prev, optimistic]);
-    // Limpar seleção e iniciar mutação
+    setAttendees(prev => [...prev, optimistic].sort((a, b) => (a.students?.name || '').localeCompare(b.students?.name || '')));
     const idToAdd = selectedStudentToAdd;
     setSelectedStudentToAdd('');
     setIsAddingAttendee(true);
@@ -181,7 +212,6 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
         setIsAddingAttendee(false);
       },
       onError: (err) => {
-        // Reverter a adição otimista
         setAttendees(prev => prev.filter(a => a.id !== optimistic.id));
         setIsAddingAttendee(false);
         showError(err?.message || 'Erro ao adicionar participante.');
@@ -211,7 +241,6 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
     }
   };
 
-  // Exibe todos os alunos que não estão na aula (mesmo que a turma esteja cheia, para permitir adicionar quem não está)
   const availableStudentsToAdd = allStudents?.filter(
     student => !attendees.some(attendee => attendee.student_id === student.id)
   ) || [];
@@ -244,7 +273,6 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
             </div>
           )}
 
-          {/* Seção para adicionar participantes (com UX atualizada) */}
           <div className="space-y-2">
             <h4 className="font-semibold flex items-center justify-between">
               <div className="flex items-center">
@@ -261,8 +289,6 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
               <Select
                 value={selectedStudentToAdd}
                 onValueChange={setSelectedStudentToAdd}
-                // Não desabilitar mesmo que a turma esteja cheia; permitimos adicionar além da limitação física
-                // Apenas evite selecionar já presente na lista
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um aluno..." />
