@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Users, Check, X, Trash2, Edit, UserPlus } from 'lucide-react';
+import { Loader2, Users, Check, X, Trash2, Edit, UserPlus, Plus } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { ClassEvent, ClassAttendee, AttendanceStatus } from '@/types/schedule';
@@ -226,9 +226,14 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
 
           {/* Seção para adicionar participantes */}
           <div className="space-y-2">
-            <h4 className="font-semibold flex items-center">
-              <UserPlus className="w-4 h-4 mr-2" />
-              Adicionar Participante ({attendees.length}/{classCapacity})
+            <h4 className="font-semibold flex items-center justify-between">
+              <div className="flex items-center">
+                <UserPlus className="w-4 h-4 mr-2" />
+                Adicionar Participante ({attendees.length}/{classCapacity})
+              </div>
+              <Badge variant={isClassFull ? "destructive" : "secondary"}>
+                {isClassFull ? "Lotada" : `${classCapacity - attendees.length} vagas`}
+              </Badge>
             </h4>
             <div className="flex gap-2">
               <Select
@@ -256,20 +261,42 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
               <Button
                 onClick={handleAddAttendee}
                 disabled={!selectedStudentToAdd || isClassFull || isAddingAttendee}
+                size="sm"
               >
-                {isAddingAttendee && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isAddingAttendee ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="mr-2 h-4 w-4" />
+                )}
                 Adicionar
               </Button>
             </div>
             {isClassFull && (
-              <p className="text-sm text-muted-foreground">Aula está com capacidade máxima.</p>
+              <p className="text-sm text-destructive">Aula está com capacidade máxima.</p>
             )}
           </div>
 
           <div className="space-y-2">
-            <h4 className="font-semibold flex items-center">
-              <Users className="w-4 h-4 mr-2" />
-              Participantes ({attendees.length}/{classCapacity})
+            <h4 className="font-semibold flex items-center justify-between">
+              <div className="flex items-center">
+                <Users className="w-4 h-4 mr-2" />
+                Participantes ({attendees.length}/{classCapacity})
+              </div>
+              {/* Ícones de status sempre visíveis */}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                  <span>Presente</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                  <span>Faltou</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                  <span>Agendado</span>
+                </div>
+              </div>
             </h4>
             {isLoadingAttendees ? (
               <div className="flex items-center justify-center py-4">
@@ -281,7 +308,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                   attendees.map((attendee) => (
                     <div
                       key={attendee.id}
-                      className="flex items-center justify-between p-3 rounded-lg border bg-secondary/20"
+                      className="flex items-center justify-between p-3 rounded-lg border bg-secondary/20 transition-all hover:shadow-sm"
                     >
                       <div className="flex items-center space-x-3">
                         <span className="font-medium">{attendee.students?.name}</span>
@@ -293,32 +320,33 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                         <Badge variant={getStatusVariant(attendee.status as AttendanceStatus)}>
                           {attendee.status}
                         </Badge>
+                        {/* Ícones de ação sempre visíveis */}
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7"
+                          className="h-7 w-7 hover:bg-green-100 hover:text-green-700"
                           onClick={() => handleUpdateStatus(attendee.id, 'Presente')}
                           title="Marcar como Presente"
                         >
-                          <Check className="w-4 h-4 text-green-600" />
+                          <Check className="w-4 h-4" />
                         </Button>
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7"
+                          className="h-7 w-7 hover:bg-red-100 hover:text-red-700"
                           onClick={() => handleUpdateStatus(attendee.id, 'Faltou')}
                           title="Marcar como Faltou"
                         >
-                          <X className="w-4 h-4 text-red-600" />
+                          <X className="w-4 h-4" />
                         </Button>
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7"
+                          className="h-7 w-7 hover:bg-gray-100 hover:text-gray-700"
                           onClick={() => handleRemoveAttendee(attendee.id)}
                           title="Remover Participante"
                         >
-                          <Trash2 className="w-4 h-4 text-muted-foreground" />
+                          <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
