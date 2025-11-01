@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -22,7 +22,7 @@ import {
 
 interface ClassDetailsDialogProps {
   isOpen: boolean;
-  onOpenChange: (isOpen: boolean) => void;
+  onOpenChange: (open: boolean) => void;
   classEvent: ClassEvent | null;
   classCapacity: number;
 }
@@ -158,16 +158,36 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
       showError("Selecione um aluno para adicionar.");
       return;
     }
+
+    // Otimista: criar um registro temporário na lista para feedback imediato
+    const studentObj = allStudents?.find(s => s.id === selectedStudentToAdd);
+    const optimistic: any = {
+      id: `temp_${Date.now()}`,
+      user_id: null,
+      class_id: classEvent?.id,
+      student_id: selectedStudentToAdd,
+      status: 'Agendado',
+      students: { name: studentObj?.name, enrollment_type: studentObj?.enrollment_type },
+    };
+
+    setAttendees(prev => [...prev, optimistic]);
+    // Limpar seleção e iniciar mutação
+    const idToAdd = selectedStudentToAdd;
+    setSelectedStudentToAdd('');
     setIsAddingAttendee(true);
-    addAttendeeMutation.mutate(selectedStudentToAdd, {
+
+    addAttendeeMutation.mutate(idToAdd, {
       onSuccess: () => {
         setIsAddingAttendee(false);
       },
-      onError: () => {
+      onError: (err) => {
+        // Reverter a adição otimista
+        setAttendees(prev => prev.filter(a => a.id !== optimistic.id));
         setIsAddingAttendee(false);
+        showError(err?.message || 'Erro ao adicionar participante.');
       }
     });
-  }, [selectedStudentToAdd, addAttendeeMutation]);
+  }, [selectedStudentToAdd, allStudents, classEvent?.id, addAttendeeMutation, setAttendees]);
 
   if (!classEvent) return null;
 
@@ -191,7 +211,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
     }
   };
 
-  // Filtrar alunos que já estão na aula
+  // Exibe todos os alunos que não estão na aula (mesmo que a turma esteja cheia, para permitir adicionar quem não está)
   const availableStudentsToAdd = allStudents?.filter(
     student => !attendees.some(attendee => attendee.student_id === student.id)
   ) || [];
@@ -224,7 +244,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
             </div>
           )}
 
-          {/* Seção para adicionar participantes */}
+          {/* Seção para adicionar participantes (com UX atualizada) */}
           <div className="space-y-2">
             <h4 className="font-semibold flex items-center justify-between">
               <div className="flex items-center">
@@ -232,14 +252,17 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                 Adicionar Participante ({attendees.length}/{classCapacity})
               </div>
               <Badge variant={isClassFull ? "destructive" : "secondary"}>
-                {isClassFull ? "Lotada" : `${classCapacity - attendees.length} vagas`}
+                <span className="inline-flex items-center gap-1">
+                  {isClassFull ? 'Lotada' : `${classCapacity - attendees.length} vagas`}
+                </span>
               </Badge>
             </h4>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
               <Select
                 value={selectedStudentToAdd}
                 onValueChange={setSelectedStudentToAdd}
-                disabled={isClassFull || isLoadingAllStudents}
+                // Não desabilitar mesmo que a turma esteja cheia; permitimos adicionar além da limitação física
+                // Apenas evite selecionar já presente na lista
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um aluno..." />
@@ -250,7 +273,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                   ) : availableStudentsToAdd.length > 0 ? (
                     availableStudentsToAdd.map(student => (
                       <SelectItem key={student.id} value={student.id}>
-                        {student.name}
+                        {student.name} ({student.enrollment_type})
                       </SelectItem>
                     ))
                   ) : (
@@ -260,7 +283,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
               </Select>
               <Button
                 onClick={handleAddAttendee}
-                disabled={!selectedStudentToAdd || isClassFull || isAddingAttendee}
+                disabled={!selectedStudentToAdd || isAddingAttendee}
                 size="sm"
               >
                 {isAddingAttendee ? (
@@ -272,7 +295,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
               </Button>
             </div>
             {isClassFull && (
-              <p className="text-sm text-destructive">Aula está com capacidade máxima.</p>
+              <p className="text-sm text-destructive">Aula está com capacidade máxima. A adição de novos alunos não é considerada nessa contagem, mas você pode continuar adicionando.</p>
             )}
           </div>
 
@@ -282,19 +305,15 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                 <Users className="w-4 h-4 mr-2" />
                 Participantes ({attendees.length}/{classCapacity})
               </div>
-              {/* Ícones de status sempre visíveis */}
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                  <span>Presente</span>
+                  <span className="w-2 h-2 rounded-full bg-green-500" /> Presente
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                  <span>Faltou</span>
+                  <span className="w-2 h-2 rounded-full bg-red-500" /> Faltou
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                  <span>Agendado</span>
+                  <span className="w-2 h-2 rounded-full bg-blue-500" /> Agendado
                 </div>
               </div>
             </h4>
@@ -320,11 +339,10 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                         <Badge variant={getStatusVariant(attendee.status as AttendanceStatus)}>
                           {attendee.status}
                         </Badge>
-                        {/* Ícones de ação sempre visíveis */}
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7 hover:bg-green-100 hover:text-green-700"
+                          className="h-7 w-7"
                           onClick={() => handleUpdateStatus(attendee.id, 'Presente')}
                           title="Marcar como Presente"
                         >
@@ -333,7 +351,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7 hover:bg-red-100 hover:text-red-700"
+                          className="h-7 w-7"
                           onClick={() => handleUpdateStatus(attendee.id, 'Faltou')}
                           title="Marcar como Faltou"
                         >
@@ -342,7 +360,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7 hover:bg-gray-100 hover:text-gray-700"
+                          className="h-7 w-7"
                           onClick={() => handleRemoveAttendee(attendee.id)}
                           title="Remover Participante"
                         >
