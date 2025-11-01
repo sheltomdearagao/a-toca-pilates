@@ -7,8 +7,6 @@ import { ClassEvent } from '@/types/schedule';
 import { format } from 'date-fns';
 
 const Schedule: React.FC = () => {
-  // Minimal scaffold to satisfy compile in absence of full runtime wiring
-  // Real app would render calendar/list of classes and dialogs
   return (
     <div className="p-4 space-y-4">
       <h1 className="text-2xl font-bold">Agenda</h1>
