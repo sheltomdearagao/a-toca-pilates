@@ -1,4 +1,3 @@
-Wellhub/TotalPass) para deslocamento de alunos quando a turma está cheia.">
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
