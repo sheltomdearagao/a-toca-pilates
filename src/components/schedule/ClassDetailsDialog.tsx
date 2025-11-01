@@ -1,6 +1,5 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { AttendeesBus } from '@/utils/classAttendeesBus';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -9,10 +8,17 @@ import { Loader2, Users, Check, X, Trash2, Edit, UserPlus, Plus } from 'lucide-r
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { ClassEvent, ClassAttendee, AttendanceStatus } from '@/types/schedule';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
+import { StudentOption } from '@/types/student';
+import { cn } from '@/lib/utils';
 import { showError, showSuccess } from '@/utils/toast';
 import EditClassDialog from './class-details/EditClassDialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface ClassDetailsDialogProps {
   isOpen: boolean;
@@ -21,39 +27,37 @@ interface ClassDetailsDialogProps {
   classCapacity: number;
 }
 
-const toClassAttendee = (a: any): ClassAttendee => ({
-  id: a.id,
-  status: (a.status ?? 'Agendado') as AttendanceStatus,
-  student_id: a.student_id ?? undefined,
-  students: a.students ? { name: a.students.name, enrollment_type: a.students.enrollment_type } : undefined,
-});
-
 const fetchClassAttendees = async (classId: string): Promise<ClassAttendee[]> => {
   const { data, error } = await supabase
     .from('class_attendees')
-    .select(`id, status, student_id, students(name, enrollment_type)`)
+    .select(`
+      id,
+      status,
+      students(name, enrollment_type)
+    `)
     .eq('class_id', classId)
     .order('name', { foreignTable: 'students', ascending: true });
+
   if (error) throw new Error(error.message);
-  return (data ?? []).map(toClassAttendee);
+  return (data as any[] || []);
 };
 
-const fetchAllStudents = async (): Promise<{ id: string; name: string; enrollment_type?: string }[]> => {
+const fetchAllStudents = async (): Promise<StudentOption[]> => {
   const { data, error } = await supabase.from('students').select('id, name, enrollment_type').order('name');
   if (error) throw error;
-  return data ?? [];
+  return data || [];
 };
 
 const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }: ClassDetailsDialogProps) => {
   const queryClient = useQueryClient();
-
   const [attendees, setAttendees] = useState<ClassAttendee[]>([]);
   const [isLoadingAttendees, setIsLoadingAttendees] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedStudentToAdd, setSelectedStudentToAdd] = useState<string>('');
   const [isAddingAttendee, setIsAddingAttendee] = useState(false);
 
-  const { data: allStudents, isLoading: isLoadingAllStudents } = useQuery({
+  // Buscar todos os alunos disponíveis
+  const { data: allStudents, isLoading: isLoadingAllStudents } = useQuery<StudentOption[]>({
     queryKey: ['allStudents'],
     queryFn: fetchAllStudents,
     staleTime: 1000 * 60 * 5,
@@ -64,150 +68,155 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
     if (isOpen && classEvent?.id) {
       setIsLoadingAttendees(true);
       fetchClassAttendees(classEvent.id)
-        .then((list) => {
-          setAttendees(list);
-          AttendeesBus.emit(list);
+        .then((data) => {
+          setAttendees(data);
         })
-        .catch((err) => showError(err.message))
-        .finally(() => setIsLoadingAttendees(false));
+        .catch((error) => {
+          showError(error.message);
+        })
+        .finally(() => {
+          setIsLoadingAttendees(false);
+        });
     } else {
       setAttendees([]);
-      AttendeesBus.emit([]);
     }
   }, [isOpen, classEvent?.id]);
 
-  useEffect(() => {
-    const unsub = AttendeesBus.subscribe((updated) => {
-      // The bus carries ClassAttendee[]; set directly
-      setAttendees(updated as ClassAttendee[]);
-    });
-    return () => unsub();
-  }, []);
-
   const updateStatusMutation = useMutation({
     mutationFn: async ({ attendeeId, status }: { attendeeId: string; status: AttendanceStatus }) => {
-      const { error } = await supabase.from('class_attendees').update({ status }).eq('id', attendeeId);
+      const { error } = await supabase
+        .from('class_attendees')
+        .update({ status })
+        .eq('id', attendeeId);
       if (error) throw error;
     },
-    onMutate: ({ attendeeId, status }) => {
-      const next = attendees.map((a) => (a.id === attendeeId ? { ...a, status } : a));
-      setAttendees(next);
-      AttendeesBus.emit(next);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['classAttendees', classEvent?.id] });
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
+      showSuccess('Status da presença atualizado com sucesso!');
     },
-    onError: (error) => showError(error.message),
-    onSuccess: async () => {
-      if (classEvent?.id) {
-        const list = await fetchClassAttendees(classEvent.id);
-        setAttendees(list);
-        AttendeesBus.emit(list);
-        queryClient.invalidateQueries({ queryKey: ['classAttendees', classEvent.id] });
-      }
+    onError: (error) => {
+      showError(error.message);
     },
   });
 
   const removeAttendeeMutation = useMutation({
     mutationFn: async (attendeeId: string) => {
-      const { error } = await supabase.from('class_attendees').delete().eq('id', attendeeId);
+      const { error } = await supabase
+        .from('class_attendees')
+        .delete()
+        .eq('id', attendeeId);
       if (error) throw error;
     },
-    onSuccess: async () => {
-      if (classEvent?.id) {
-        const list = await fetchClassAttendees(classEvent.id);
-        setAttendees(list);
-        AttendeesBus.emit(list);
-        queryClient.invalidateQueries({ queryKey: ['classAttendees', classEvent.id] });
-        queryClient.invalidateQueries({ queryKey: ['classes'] });
-      }
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['classAttendees', classEvent?.id] });
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
       showSuccess('Participante removido com sucesso!');
     },
-    onError: (error) => showError(error.message),
+    onError: (error) => {
+      showError(error.message);
+    },
   });
 
   const addAttendeeMutation = useMutation({
     mutationFn: async (studentId: string) => {
-      if (!classEvent?.id) throw new Error('ID da aula não encontrado.');
+      if (!classEvent?.id) throw new Error("ID da aula não encontrado.");
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Usuário não autenticado.');
-      const { error } = await supabase.from('class_attendees').insert({
-        user_id: user.id,
-        class_id: classEvent.id,
-        student_id: studentId,
-        status: 'Agendado',
-      });
+      if (!user) throw new Error("Usuário não autenticado.");
+
+      const { error } = await supabase
+        .from('class_attendees')
+        .insert({
+          user_id: user.id,
+          class_id: classEvent.id,
+          student_id: studentId,
+          status: 'Agendado',
+        });
       if (error) throw error;
     },
-    onSuccess: async () => {
-      if (classEvent?.id) {
-        const list = await fetchClassAttendees(classEvent.id);
-        setAttendees(list);
-        AttendeesBus.emit(list);
-        queryClient.invalidateQueries({ queryKey: ['classAttendees', classEvent.id] });
-      }
-      setSelectedStudentToAdd('');
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['classAttendees', classEvent?.id] });
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
       showSuccess('Participante adicionado com sucesso!');
+      setSelectedStudentToAdd('');
     },
-    onError: (error) => showError(error.message),
+    onError: (error) => {
+      showError(error.message);
+    },
   });
 
-  const handleUpdateStatus = useCallback(
-    (attendeeId: string, status: AttendanceStatus) => updateStatusMutation.mutate({ attendeeId, status }),
-    [updateStatusMutation]
-  );
+  const handleUpdateStatus = useCallback((attendeeId: string, status: AttendanceStatus) => {
+    updateStatusMutation.mutate({ attendeeId, status });
+  }, [updateStatusMutation]);
 
-  const handleRemoveAttendee = useCallback(
-    (attendeeId: string) => removeAttendeeMutation.mutate(attendeeId),
-    [removeAttendeeMutation]
-  );
+  const handleRemoveAttendee = useCallback((attendeeId: string) => {
+    removeAttendeeMutation.mutate(attendeeId);
+  }, [removeAttendeeMutation]);
 
   const handleAddAttendee = useCallback(() => {
     if (!selectedStudentToAdd) {
-      showError('Selecione um aluno para adicionar.');
+      showError("Selecione um aluno para adicionar.");
       return;
     }
-    const s = (allStudents ?? []).find((x) => x.id === selectedStudentToAdd);
-    const optimistic: ClassAttendee = {
-      id: `temp_${Date.now()}`,
-      status: 'Agendado',
-      student_id: selectedStudentToAdd,
-      students: { name: s?.name ?? 'Aluno', enrollment_type: s?.enrollment_type },
-    };
-    const next = [...attendees, optimistic];
-    setAttendees(next);
-    AttendeesBus.emit(next);
-    setIsAddingAttendee(true);
-    addAttendeeMutation.mutate(selectedStudentToAdd, {
-      onSettled: () => setIsAddingAttendee(false),
-      onError: () => {
-        const reverted = next.filter((a) => a.id !== optimistic.id);
-        setAttendees(reverted);
-        AttendeesBus.emit(reverted);
-      },
-    });
-  }, [selectedStudentToAdd, allStudents, addAttendeeMutation, attendees]);
 
-  const availableStudentsToAdd = (allStudents ?? []).filter(
-    (s) => !attendees.find((a) => a.student_id === s.id)
-  );
+    // Otimista: criar um registro temporário na lista para feedback imediato
+    const studentObj = allStudents?.find(s => s.id === selectedStudentToAdd);
+    const optimistic: any = {
+      id: `temp_${Date.now()}`,
+      user_id: null,
+      class_id: classEvent?.id,
+      student_id: selectedStudentToAdd,
+      status: 'Agendado',
+      students: { name: studentObj?.name, enrollment_type: studentObj?.enrollment_type },
+    };
+
+    setAttendees(prev => [...prev, optimistic]);
+    // Limpar seleção e iniciar mutação
+    const idToAdd = selectedStudentToAdd;
+    setSelectedStudentToAdd('');
+    setIsAddingAttendee(true);
+
+    addAttendeeMutation.mutate(idToAdd, {
+      onSuccess: () => {
+        setIsAddingAttendee(false);
+      },
+      onError: (err) => {
+        // Reverter a adição otimista
+        setAttendees(prev => prev.filter(a => a.id !== optimistic.id));
+        setIsAddingAttendee(false);
+        showError(err?.message || 'Erro ao adicionar participante.');
+      }
+    });
+  }, [selectedStudentToAdd, allStudents, classEvent?.id, addAttendeeMutation, setAttendees]);
 
   if (!classEvent) return null;
 
   const startTime = parseISO(classEvent.start_time);
-  const isClassFull = attendees.length >= classCapacity;
+  const endTime = new Date(startTime.getTime() + classEvent.duration_minutes * 60000);
 
   const getStatusVariant = (status: AttendanceStatus) => {
     switch (status) {
-      case 'Presente':
-        return 'attendance-present';
-      case 'Faltou':
-        return 'attendance-absent';
-      case 'Agendado':
-      default:
-        return 'attendance-scheduled';
+      case 'Presente': return 'attendance-present';
+      case 'Faltou': return 'attendance-absent';
+      case 'Agendado': return 'attendance-scheduled';
+      default: return 'secondary';
     }
   };
 
-  const getEnrollmentCode = (enrollmentType?: string) =>
-    enrollmentType === 'Wellhub' ? 'G' : enrollmentType === 'TotalPass' ? 'T' : 'P';
+  const getEnrollmentCode = (enrollmentType?: string) => {
+    switch (enrollmentType) {
+      case 'Wellhub': return 'G';
+      case 'TotalPass': return 'T';
+      default: return 'P';
+    }
+  };
+
+  // Exibe todos os alunos que não estão na aula (mesmo que a turma esteja cheia, para permitir adicionar quem não está)
+  const availableStudentsToAdd = allStudents?.filter(
+    student => !attendees.some(attendee => attendee.student_id === student.id)
+  ) || [];
+
+  const isClassFull = attendees.length >= classCapacity;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -218,7 +227,6 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
             {format(startTime, "eeee, dd 'de' MMMM 'às' HH:mm", { locale: ptBR })} ({classEvent.duration_minutes} min)
           </DialogDescription>
         </DialogHeader>
-
         <div className="space-y-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -229,53 +237,66 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
               <Edit className="w-4 h-4 mr-2" /> Editar Aula
             </Button>
           </div>
-
           {classEvent.notes && (
             <div className="space-y-2">
-              <Label>Notas</Label>
-              <div className="text-sm text-muted-foreground">{classEvent.notes}</div>
+              <h4 className="font-semibold">Notas</h4>
+              <p className="text-sm text-muted-foreground">{classEvent.notes}</p>
             </div>
           )}
 
+          {/* Seção para adicionar participantes (com UX atualizada) */}
           <div className="space-y-2">
             <h4 className="font-semibold flex items-center justify-between">
               <div className="flex items-center">
                 <UserPlus className="w-4 h-4 mr-2" />
                 Adicionar Participante ({attendees.length}/{classCapacity})
               </div>
-              <Badge variant={isClassFull ? 'destructive' : 'secondary'}>
-                {isClassFull ? 'Lotada' : `${classCapacity - attendees.length} vagas`}
+              <Badge variant={isClassFull ? "destructive" : "secondary"}>
+                <span className="inline-flex items-center gap-1">
+                  {isClassFull ? 'Lotada' : `${classCapacity - attendees.length} vagas`}
+                </span>
               </Badge>
             </h4>
             <div className="flex gap-2 items-center">
-              <Select value={selectedStudentToAdd} onValueChange={setSelectedStudentToAdd} disabled={isLoadingAllStudents}>
+              <Select
+                value={selectedStudentToAdd}
+                onValueChange={setSelectedStudentToAdd}
+                // Não desabilitar mesmo que a turma esteja cheia; permitimos adicionar além da limitação física
+                // Apenas evite selecionar já presente na lista
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um aluno..." />
                 </SelectTrigger>
                 <SelectContent>
                   {isLoadingAllStudents ? (
-                    <SelectItem value="loading" disabled>
-                      Carregando...
-                    </SelectItem>
-                  ) : availableStudentsToAdd.length ? (
-                    availableStudentsToAdd.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name} ({s.enrollment_type})
+                    <SelectItem value="loading" disabled>Carregando...</SelectItem>
+                  ) : availableStudentsToAdd.length > 0 ? (
+                    availableStudentsToAdd.map(student => (
+                      <SelectItem key={student.id} value={student.id}>
+                        {student.name} ({student.enrollment_type})
                       </SelectItem>
                     ))
                   ) : (
-                    <SelectItem value="none" disabled>
-                      Nenhum aluno disponível
-                    </SelectItem>
+                    <SelectItem value="none" disabled>Nenhum aluno disponível</SelectItem>
                   )}
                 </SelectContent>
               </Select>
-              <Button onClick={handleAddAttendee} disabled={!selectedStudentToAdd || isAddingAttendee} size="sm">
-                {isAddingAttendee ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+              <Button
+                onClick={handleAddAttendee}
+                disabled={!selectedStudentToAdd || isAddingAttendee}
+                size="sm"
+              >
+                {isAddingAttendee ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="mr-2 h-4 w-4" />
+                )}
                 Adicionar
               </Button>
             </div>
-            {isClassFull && <p className="text-sm text-destructive">Aula está Lotada. Você ainda pode adicionar novos alunos.</p>}
+            {isClassFull && (
+              <p className="text-sm text-destructive">Aula está com capacidade máxima. A adição de novos alunos não é considerada nessa contagem, mas você pode continuar adicionando.</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -285,9 +306,15 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                 Participantes ({attendees.length}/{classCapacity})
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="w-2 h-2 rounded-full bg-green-500" /> Presente
-                <span className="w-2 h-2 rounded-full bg-red-500 ml-2" /> Faltou
-                <span className="w-2 h-2 rounded-full bg-blue-500 ml-2" /> Agendado
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-green-500" /> Presente
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-red-500" /> Faltou
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-blue-500" /> Agendado
+                </div>
               </div>
             </h4>
             {isLoadingAttendees ? (
@@ -296,43 +323,66 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
               </div>
             ) : (
               <div className="space-y-2 max-h-48 overflow-y-auto">
-                {attendees.length ? (
-                  attendees.map((a) => (
-                    <div key={a.id} className="flex items-center justify-between p-3 rounded-lg border bg-secondary/20 transition-all hover:shadow-sm">
+                {attendees.length > 0 ? (
+                  attendees.map((attendee) => (
+                    <div
+                      key={attendee.id}
+                      className="flex items-center justify-between p-3 rounded-lg border bg-secondary/20 transition-all hover:shadow-sm"
+                    >
                       <div className="flex items-center space-x-3">
-                        <span className="font-medium">{a.students?.name}</span>
+                        <span className="font-medium">{attendee.students?.name}</span>
                         <Badge variant="outline" className="ml-2">
-                          {getEnrollmentCode(a.students?.enrollment_type)}
+                          {getEnrollmentCode(attendee.students?.enrollment_type)}
                         </Badge>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Badge variant={getStatusVariant((a.status as AttendanceStatus))}>{a.status}</Badge>
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleUpdateStatus(a.id, 'Presente')} title="Marcar como Presente">
+                        <Badge variant={getStatusVariant(attendee.status as AttendanceStatus)}>
+                          {attendee.status}
+                        </Badge>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={() => handleUpdateStatus(attendee.id, 'Presente')}
+                          title="Marcar como Presente"
+                        >
                           <Check className="w-4 h-4" />
                         </Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleUpdateStatus(a.id, 'Faltou')} title="Marcar como Faltou">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={() => handleUpdateStatus(attendee.id, 'Faltou')}
+                          title="Marcar como Faltou"
+                        >
                           <X className="w-4 h-4" />
                         </Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleRemoveAttendee(a.id)} title="Remover Participante">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={() => handleRemoveAttendee(attendee.id)}
+                          title="Remover Participante"
+                        >
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">Nenhum participante nesta aula.</p>
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    Nenhum participante nesta aula.
+                  </p>
                 )}
               </div>
             )}
           </div>
         </div>
-
         <DialogFooter>
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Fechar
           </Button>
         </DialogFooter>
-
         <EditClassDialog isOpen={isEditOpen} onOpenChange={setIsEditOpen} classEvent={classEvent} />
       </DialogContent>
     </Dialog>
