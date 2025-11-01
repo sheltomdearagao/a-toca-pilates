@@ -27,8 +27,10 @@ import type { StudentOption } from '@/types/student';
 import type { ClassEvent } from '@/types/schedule';
 import { cn } from '@/lib/utils';
 import { showError, showSuccess } from '@/utils/toast';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-// Local AttendeeDisplay type for this dialog
+// Local attendee display shape used by this dialog
 type AttendeeDisplay = {
   id: string;
   status: string;
@@ -42,18 +44,18 @@ const mapToAttendeeDisplay = (att: any): AttendeeDisplay => ({
   students: att.students ? { name: att.students.name, enrollment_type: att.students.enrollment_type } : undefined,
 });
 
-// API fetch to obtain attendees for editing (then map in caller)
+// Fetch attendees for editing (map to the local AttendeeDisplay)
 const fetchAttendeesForEdit = async (classId: string): Promise<any[]> => {
   const { data, error } = await supabase
     .from('class_attendees')
-    .select('id, status, student_id, students(id, name, enrollment_type)')
+    .select('id, status, students(id, name, enrollment_type)')
     .eq('class_id', classId)
     .order('name', { foreignTable: 'students', ascending: true });
   if (error) throw error;
   return data ?? [];
 };
 
-// Fetch all students for picker
+// Fetch all students
 const fetchAllStudents = async (): Promise<StudentOption[]> => {
   const { data, error } = await supabase.from('students').select('id, name, enrollment_type').order('name');
   if (error) throw error;
@@ -113,7 +115,7 @@ export default function EditClassDialog({ isOpen, onOpenChange, classEvent }: { 
     },
   });
 
-  // Pre-fill data when editing
+  // Pre-fill form when editing
   useEffect(() => {
     if (isOpen && classEvent) {
       const startTime = parseISO(classEvent.start_time);
@@ -128,7 +130,7 @@ export default function EditClassDialog({ isOpen, onOpenChange, classEvent }: { 
     }
   }, [isOpen, classEvent, reset]);
 
-  // Save handler placeholder
+  // Minimal save handler (actual server write is out of scope for compile)
   const onSubmit = async (_data: ClassFormData) => {
     if (!classEvent?.id) {
       showError('ID da aula não encontrado para edição.');
@@ -214,13 +216,12 @@ export default function EditClassDialog({ isOpen, onOpenChange, classEvent }: { 
 
             <div className="space-y-2">
               <Label>Notas</Label>
-              <Controller name="notes" control={control} render={({ field }) => <textarea {...field} />} />
+              <Controller name="notes" control={control} render={({ field }) => <Textarea {...field} />} />
             </div>
 
-            {/* Participantes atuais (listagem) */}
+            {/* Participantes atuais (listagem simples) */}
             <div className="space-y-2 border-t pt-4">
               <Label>Participantes da Aula</Label>
-              { /* renderização simples para manter compile */}
               {attendees.length === 0 ? (
                 <div className="text-sm text-muted-foreground">Nenhum participante cadastrado.</div>
               ) : (
