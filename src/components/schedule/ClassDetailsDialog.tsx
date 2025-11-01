@@ -9,11 +9,10 @@ import { Loader2, Users, Check, X, Trash2, Edit, UserPlus, Plus } from 'lucide-r
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { ClassEvent, ClassAttendee, AttendanceStatus } from '@/types/schedule';
-import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { showError, showSuccess } from '@/utils/toast';
 import EditClassDialog from './class-details/EditClassDialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label'; // Named import to fix TS2613
 
 interface ClassDetailsDialogProps {
   isOpen: boolean;
@@ -22,6 +21,13 @@ interface ClassDetailsDialogProps {
   classCapacity: number;
 }
 
+const toClassAttendee = (a: any): ClassAttendee => ({
+  id: a.id,
+  status: (a.status ?? 'Agendado') as AttendanceStatus,
+  student_id: a.student_id ?? undefined,
+  students: a.students ? { name: a.students.name, enrollment_type: a.students.enrollment_type } : undefined,
+});
+
 const fetchClassAttendees = async (classId: string): Promise<ClassAttendee[]> => {
   const { data, error } = await supabase
     .from('class_attendees')
@@ -29,7 +35,7 @@ const fetchClassAttendees = async (classId: string): Promise<ClassAttendee[]> =>
     .eq('class_id', classId)
     .order('name', { foreignTable: 'students', ascending: true });
   if (error) throw new Error(error.message);
-  return (data as any[]) ?? [];
+  return (data ?? []).map(toClassAttendee);
 };
 
 const fetchAllStudents = async (): Promise<{ id: string; name: string; enrollment_type?: string }[]> => {
@@ -38,113 +44,63 @@ const fetchAllStudents = async (): Promise<{ id: string; name: string; enrollmen
   return data ?? [];
 };
 
-// AttendeeDisplay with optional student_id (for filtering)
-type AttendeeDisplay = {
-  id: string;
-  status: string;
-  student_id?: string;
-  students?: { name: string; enrollment_type?: string };
-};
-
 const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }: ClassDetailsDialogProps) => {
   const queryClient = useQueryClient();
-  const [attendees, setAttendees] = useState<AttendeeDisplay[]>([]);
+
+  const [attendees, setAttendees] = useState<ClassAttendee[]>([]);
   const [isLoadingAttendees, setIsLoadingAttendees] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedStudentToAdd, setSelectedStudentToAdd] = useState<string>('');
   const [isAddingAttendee, setIsAddingAttendee] = useState(false);
 
-  // Data sources
-  const { data: allStudents, isLoading: isLoadingAllStudents } = useQuery<{ id: string; name: string; enrollment_type?: string }[]>({
+  const { data: allStudents, isLoading: isLoadingAllStudents } = useQuery({
     queryKey: ['allStudents'],
     queryFn: fetchAllStudents,
     staleTime: 1000 * 60 * 5,
     enabled: isOpen,
   });
 
-  // Available to add (derive)
-  const availableStudentsToAdd = (allStudents ?? []).filter((s) => !attendees.find((a) => a.student_id === s.id));
-
-  // Sync via bus
-  useEffect(() => {
-    const unsub = AttendeesBus.subscribe((updated) => {
-      if (classEvent?.id) {
-        fetchClassAttendees(classEvent.id).then((list) => {
-          const mapped = list.map((a) => ({
-            id: a.id,
-            status: a.status ?? 'Agendado',
-            student_id: a.student_id ?? undefined,
-            students: a.students ? { name: a.students.name, enrollment_type: a.students.enrollment_type } : undefined,
-          }));
-          setAttendees(mapped as any);
-          AttendeesBus.emit(mapped as any);
-        });
-      }
-    });
-    return () => unsub();
-  }, [classEvent?.id]);
-
-  // Load attendees on open
   useEffect(() => {
     if (isOpen && classEvent?.id) {
       setIsLoadingAttendees(true);
       fetchClassAttendees(classEvent.id)
-        .then((data) => {
-          const mapped = data.map((a) => ({
-            id: a.id,
-            status: a.status ?? 'Agendado',
-            student_id: a.student_id ?? undefined,
-            students: a.students ? { name: a.students.name, enrollment_type: a.students.enrollment_type } : undefined,
-          }));
-          setAttendees(mapped as any);
-          AttendeesBus.emit(mapped as any);
+        .then((list) => {
+          setAttendees(list);
+          AttendeesBus.emit(list);
         })
-        .catch((error) => {
-          showError(error.message);
-        })
-        .finally(() => {
-          setIsLoadingAttendees(false);
-        });
+        .catch((err) => showError(err.message))
+        .finally(() => setIsLoadingAttendees(false));
     } else {
       setAttendees([]);
       AttendeesBus.emit([]);
     }
   }, [isOpen, classEvent?.id]);
 
-  // Mutations
-  const queryClientForMutations = queryClient;
+  useEffect(() => {
+    const unsub = AttendeesBus.subscribe((updated) => {
+      // The bus carries ClassAttendee[]; set directly
+      setAttendees(updated as ClassAttendee[]);
+    });
+    return () => unsub();
+  }, []);
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ attendeeId, status }: { attendeeId: string; status: AttendanceStatus }) => {
       const { error } = await supabase.from('class_attendees').update({ status }).eq('id', attendeeId);
       if (error) throw error;
     },
-    onMutate: (vars) => {
-      setAttendees((prev) => prev.map((a) => (a.id === vars.attendeeId ? { ...a, status: vars.status } : a)));
-      const next = attendees.map((a) => (a.id === vars.attendeeId ? { ...a, status: vars.status } : a)) as any;
+    onMutate: ({ attendeeId, status }) => {
+      const next = attendees.map((a) => (a.id === attendeeId ? { ...a, status } : a));
+      setAttendees(next);
       AttendeesBus.emit(next);
-      return { prevAttendees: attendees };
     },
-    onError: (error, vars, context) => {
-      if (context?.prevAttendees) {
-        setAttendees(context.prevAttendees as any);
-        AttendeesBus.emit(context.prevAttendees as any);
-      }
-      showError(error.message);
-    },
-    onSuccess: () => {
+    onError: (error) => showError(error.message),
+    onSuccess: async () => {
       if (classEvent?.id) {
-        fetchClassAttendees(classEvent.id).then((list) => {
-          const mapped = list.map((a) => ({
-            id: a.id,
-            status: a.status ?? 'Agendado',
-            student_id: a.student_id ?? undefined,
-            students: a.students ? { name: a.students.name, enrollment_type: a.students.enrollment_type } : undefined,
-          }));
-          setAttendees(mapped as any);
-          AttendeesBus.emit(mapped as any);
-          queryClientForMutations.invalidateQueries({ queryKey: ['classAttendees', classEvent.id] });
-        });
+        const list = await fetchClassAttendees(classEvent.id);
+        setAttendees(list);
+        AttendeesBus.emit(list);
+        queryClient.invalidateQueries({ queryKey: ['classAttendees', classEvent.id] });
       }
     },
   });
@@ -154,22 +110,13 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
       const { error } = await supabase.from('class_attendees').delete().eq('id', attendeeId);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       if (classEvent?.id) {
-        fetchClassAttendees(classEvent.id).then((list) => {
-          const mapped = list.map((a) => ({
-            id: a.id,
-            status: a.status ?? 'Agendado',
-            student_id: a.student_id ?? undefined,
-            students: a.students ? { name: a.students.name, enrollment_type: a.students.enrollment_type } : undefined,
-          }));
-          setAttendees(mapped as any);
-          AttendeesBus.emit(mapped as any);
-          queryClientForMutations.invalidateQueries({ queryKey: ['classAttendees', classEvent.id] });
-          queryClientForMutations.invalidateQueries({ queryKey: ['classes'] });
-        });
-      } else {
-        queryClientForMutations.invalidateQueries({ queryKey: ['classes'] });
+        const list = await fetchClassAttendees(classEvent.id);
+        setAttendees(list);
+        AttendeesBus.emit(list);
+        queryClient.invalidateQueries({ queryKey: ['classAttendees', classEvent.id] });
+        queryClient.invalidateQueries({ queryKey: ['classes'] });
       }
       showSuccess('Participante removido com sucesso!');
     },
@@ -178,10 +125,9 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
 
   const addAttendeeMutation = useMutation({
     mutationFn: async (studentId: string) => {
-      if (!classEvent?.id) throw new Error("ID da aula não encontrado.");
+      if (!classEvent?.id) throw new Error('ID da aula não encontrado.');
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado.");
-
+      if (!user) throw new Error('Usuário não autenticado.');
       const { error } = await supabase.from('class_attendees').insert({
         user_id: user.id,
         class_id: classEvent.id,
@@ -190,100 +136,207 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
       });
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       if (classEvent?.id) {
-        fetchClassAttendees(classEvent.id).then((list) => {
-          const mapped = list.map((a) => ({
-            id: a.id,
-            status: a.status ?? 'Agendado',
-            student_id: a.student_id ?? undefined,
-            students: a.students ? { name: a.students.name, enrollment_type: a.students.enrollment_type } : undefined,
-          }));
-          setAttendees(mapped as any);
-          AttendeesBus.emit(mapped as any);
-          queryClientForMutations.invalidateQueries({ queryKey: ['classAttendees', classEvent.id] });
-        });
+        const list = await fetchClassAttendees(classEvent.id);
+        setAttendees(list);
+        AttendeesBus.emit(list);
+        queryClient.invalidateQueries({ queryKey: ['classAttendees', classEvent.id] });
       }
-      setSelectedStudentToAddState('');
+      setSelectedStudentToAdd('');
       showSuccess('Participante adicionado com sucesso!');
     },
     onError: (error) => showError(error.message),
   });
 
-  // Local selectedStudentToAdd state (single declaration)
-  const [selectedStudentToAdd, setSelectedStudentToAdd] = useState<string>('');
-  // Ensure we don't declare consolidate again elsewhere in this file.
-  // Handlers
-  const handleUpdateStatus = useCallback((attendeeId: string, status: AttendanceStatus) => {
-    updateStatusMutation.mutate({ attendeeId, status });
-  }, [updateStatusMutation]);
-  const handleRemoveAttendee = useCallback((attendeeId: string) => {
-    removeAttendeeMutation.mutate(attendeeId);
-  }, [removeAttendeeMutation]);
+  const handleUpdateStatus = useCallback(
+    (attendeeId: string, status: AttendanceStatus) => updateStatusMutation.mutate({ attendeeId, status }),
+    [updateStatusMutation]
+  );
+
+  const handleRemoveAttendee = useCallback(
+    (attendeeId: string) => removeAttendeeMutation.mutate(attendeeId),
+    [removeAttendeeMutation]
+  );
+
   const handleAddAttendee = useCallback(() => {
     if (!selectedStudentToAdd) {
-      showError("Selecione um aluno para adicionar.");
+      showError('Selecione um aluno para adicionar.');
       return;
     }
-    const idToAdd = selectedStudentToAdd;
-    const studentObj = allStudents?.find((s) => s.id === idToAdd);
-    const optimistic: any = {
+    const s = (allStudents ?? []).find((x) => x.id === selectedStudentToAdd);
+    const optimistic: ClassAttendee = {
       id: `temp_${Date.now()}`,
-      user_id: null,
-      class_id: classEvent?.id,
-      student_id: idToAdd,
       status: 'Agendado',
-      students: { name: studentObj?.name, enrollment_type: studentObj?.enrollment_type },
+      student_id: selectedStudentToAdd,
+      students: { name: s?.name ?? 'Aluno', enrollment_type: s?.enrollment_type },
     };
-    setAttendees((prev) => [...prev, optimistic]);
-    setSelectedStudentToAdd('');
+    const next = [...attendees, optimistic];
+    setAttendees(next);
+    AttendeesBus.emit(next);
     setIsAddingAttendee(true);
-    addAttendeeMutation.mutate(idToAdd, {
-      onSuccess: () => {
-        setIsAddingAttendee(false);
+    addAttendeeMutation.mutate(selectedStudentToAdd, {
+      onSettled: () => setIsAddingAttendee(false),
+      onError: () => {
+        const reverted = next.filter((a) => a.id !== optimistic.id);
+        setAttendees(reverted);
+        AttendeesBus.emit(reverted);
       },
-      onError: (err) => {
-        setAttendees((prev) => prev.filter((a) => a.id !== optimistic.id));
-        setIsAddingAttendee(false);
-        showError(err?.message || 'Erro ao adicionar participante.');
-      }
     });
-  }, [selectedStudentToAdd, allStudents, classEvent?.id, addAttendeeMutation, setAttendees, setSelectedStudentToAdd]);
+  }, [selectedStudentToAdd, allStudents, addAttendeeMutation, attendees]);
 
-  // Rendering
+  const availableStudentsToAdd = (allStudents ?? []).filter(
+    (s) => !attendees.find((a) => a.student_id === s.id)
+  );
+
   if (!classEvent) return null;
 
   const startTime = parseISO(classEvent.start_time);
-  const endTime = new Date(startTime.getTime() + classEvent.duration_minutes * 60000);
+  const isClassFull = attendees.length >= classCapacity;
 
-  // Helpers within this block
   const getStatusVariant = (status: AttendanceStatus) => {
     switch (status) {
-      case 'Presente': return 'attendance-present';
-      case 'Faltou': return 'attendance-absent';
-      case 'Agendado': return 'attendance-scheduled';
-      default: return 'secondary';
+      case 'Presente':
+        return 'attendance-present';
+      case 'Faltou':
+        return 'attendance-absent';
+      case 'Agendado':
+      default:
+        return 'attendance-scheduled';
     }
   };
 
-  const getEnrollmentCode = (enrollmentType?: string) => {
-    switch (enrollmentType) {
-      case 'Wellhub': return 'G';
-      case 'TotalPass': return 'T';
-      default: return 'P';
-    }
-  };
+  const getEnrollmentCode = (enrollmentType?: string) =>
+    enrollmentType === 'Wellhub' ? 'G' : enrollmentType === 'TotalPass' ? 'T' : 'P';
 
-  const isClassFullNow = attendees.length >= classCapacity;
-
-  // Render
   return (
-    <Dialog open={true} onOpenChange={() => {}}>
-      <DialogContent className="sm:max-2xl">
-        <div style={{ display: 'contents' }}>
-          {/* The rest of the UI mirrors the earlier version; this block exists to satisfy TS by keeping a single source of truth for state */}
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Detalhes da Aula</DialogTitle>
+          <DialogDescription>
+            {format(startTime, "eeee, dd 'de' MMMM 'às' HH:mm", { locale: ptBR })} ({classEvent.duration_minutes} min)
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold">Título</span>
+              <span>{classEvent.title}</span>
+            </div>
+            <Button onClick={() => setIsEditOpen(true)}>
+              <Edit className="w-4 h-4 mr-2" /> Editar Aula
+            </Button>
+          </div>
+
+          {classEvent.notes && (
+            <div className="space-y-2">
+              <Label>Notas</Label>
+              <div className="text-sm text-muted-foreground">{classEvent.notes}</div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <h4 className="font-semibold flex items-center justify-between">
+              <div className="flex items-center">
+                <UserPlus className="w-4 h-4 mr-2" />
+                Adicionar Participante ({attendees.length}/{classCapacity})
+              </div>
+              <Badge variant={isClassFull ? 'destructive' : 'secondary'}>
+                {isClassFull ? 'Lotada' : `${classCapacity - attendees.length} vagas`}
+              </Badge>
+            </h4>
+            <div className="flex gap-2 items-center">
+              <Select value={selectedStudentToAdd} onValueChange={setSelectedStudentToAdd} disabled={isLoadingAllStudents}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um aluno..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {isLoadingAllStudents ? (
+                    <SelectItem value="loading" disabled>
+                      Carregando...
+                    </SelectItem>
+                  ) : availableStudentsToAdd.length ? (
+                    availableStudentsToAdd.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name} ({s.enrollment_type})
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="none" disabled>
+                      Nenhum aluno disponível
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              <Button onClick={handleAddAttendee} disabled={!selectedStudentToAdd || isAddingAttendee} size="sm">
+                {isAddingAttendee ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                Adicionar
+              </Button>
+            </div>
+            {isClassFull && <p className="text-sm text-destructive">Aula está Lotada. Você ainda pode adicionar novos alunos.</p>}
+          </div>
+
+          <div className="space-y-2">
+            <h4 className="font-semibold flex items-center justify-between">
+              <div className="flex items-center">
+                <Users className="w-4 h-4 mr-2" />
+                Participantes ({attendees.length}/{classCapacity})
+              </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="w-2 h-2 rounded-full bg-green-500" /> Presente
+                <span className="w-2 h-2 rounded-full bg-red-500 ml-2" /> Faltou
+                <span className="w-2 h-2 rounded-full bg-blue-500 ml-2" /> Agendado
+              </div>
+            </h4>
+            {isLoadingAttendees ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {attendees.length ? (
+                  attendees.map((a) => (
+                    <div key={a.id} className="flex items-center justify-between p-3 rounded-lg border bg-secondary/20 transition-all hover:shadow-sm">
+                      <div className="flex items-center space-x-3">
+                        <span className="font-medium">{a.students?.name}</span>
+                        <Badge variant="outline" className="ml-2">
+                          {getEnrollmentCode(a.students?.enrollment_type)}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Badge variant={getStatusVariant((a.status as AttendanceStatus))}>{a.status}</Badge>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleUpdateStatus(a.id, 'Presente')} title="Marcar como Presente">
+                          <Check className="w-4 h-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleUpdateStatus(a.id, 'Faltou')} title="Marcar como Faltou">
+                          <X className="w-4 h-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleRemoveAttendee(a.id)} title="Remover Participante">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">Nenhum participante nesta aula.</p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
+
+        <DialogFooter>
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+            Fechar
+          </Button>
+        </DialogFooter>
+
+        <EditClassDialog isOpen={isEditOpen} onOpenChange={setIsEditOpen} classEvent={classEvent} />
       </DialogContent>
     </Dialog>
   );
-}
+};
+
+export default ClassDetailsDialog;
