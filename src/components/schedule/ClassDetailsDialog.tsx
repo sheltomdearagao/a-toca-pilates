@@ -15,7 +15,7 @@ import { Loader2, Users, Check, X, Trash2, Edit, UserPlus, Plus } from 'lucide-r
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { ClassEvent, ClassAttendee, AttendanceStatus, AttendanceType } from '@/types/schedule';
-import { StudentOption, EnrollmentType } from '@/types/student'; // Importar EnrollmentType
+import { StudentOption, EnrollmentType } from '@/types/student';
 import { showError, showSuccess } from '@/utils/toast';
 import EditClassDialog from './class-details/EditClassDialog';
 import DeleteClassDialog from './class-details/DeleteClassDialog';
@@ -73,14 +73,15 @@ const fetchClassAttendees = async (classId: string): Promise<ClassAttendee[]> =>
       student_id?: string | null;
       status?: AttendanceStatus;
       attendance_type?: AttendanceType;
+      // O Supabase retorna o JOIN como um array de 1 item se a relação for 1:1
       students?: Array<{
         name?: string;
         enrollment_type?: string;
       }> | null;
     };
 
-    // Extrai o primeiro (e esperado único) objeto do array 'students'
-    const studentRecord = attendee.students?.[0];
+    // Extrai o registro do aluno. Se for um array, pega o primeiro elemento.
+    const studentRecord = Array.isArray(attendee.students) ? attendee.students[0] : attendee.students;
 
     return {
       id: attendee.id,
