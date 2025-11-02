@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { FinancialTransaction } from '@/types/financial';
-import { Loader2 } from 'lucide-react';
+import { Loader2, DollarSign } from 'lucide-react'; // Importar DollarSign
 import ProRataCalculator from '@/components/students/ProRataCalculator';
 import AddClassDialog from '@/components/schedule/AddClassDialog';
 import AddEditStudentDialog from '@/components/students/AddEditStudentDialog';
@@ -15,7 +15,7 @@ import StudentAttendanceHistory from '@/components/students/profile/StudentAtten
 import AddEditTransactionDialog, { TransactionFormData } from '@/components/financial/AddEditTransactionDialog';
 import { useStudentProfileData } from '@/hooks/useStudentProfileData';
 import { Button } from '@/components/ui/button';
-import StudentRepositionCreditsCard from '@/components/students/profile/StudentRepositionCreditsCard'; // NOVO IMPORT
+import StudentRepositionCreditsCard from '@/components/students/profile/StudentRepositionCreditsCard';
 
 const StudentProfile = () => {
   const { studentId } = useParams<{ studentId: string }>();
@@ -27,7 +27,9 @@ const StudentProfile = () => {
 
   // Novos estados para transação avulsa
   const [isTransactionDialogOpen, setTransactionDialogOpen] = useState(false);
-  const [transactionDialogType, setTransactionDialogType] = useState<'revenue' | 'expense'>('revenue');
+  // Removendo transactionDialogType, pois será sempre 'revenue' e status 'Pago'
+  const [transactionToEdit, setTransactionToEdit] = useState<FinancialTransaction | undefined>(undefined);
+
 
   const { 
     data, 
@@ -47,8 +49,8 @@ const StudentProfile = () => {
   const hasMoreTransactions = data?.hasMoreTransactions ?? false;
   const hasMoreAttendance = data?.hasMoreAttendance ?? false;
 
-  const handleRegister = (type: 'revenue' | 'expense') => {
-    setTransactionDialogType(type);
+  const handleRegisterPayment = () => {
+    setTransactionToEdit(undefined); // Garantir que é um novo registro
     setTransactionDialogOpen(true);
   };
 
@@ -95,21 +97,13 @@ const StudentProfile = () => {
         onAddClass={() => setAddClassOpen(true)}
       />
 
-      {/* Botões de Registro de Transação */}
+      {/* NOVO BOTÃO DE REGISTRO DE PAGAMENTO */}
       <div className="flex gap-2">
         <Button
-          variant="outline"
-          className="bg-green-500 hover:bg-green-600 text-white"
-          onClick={() => handleRegister('revenue')}
+          className="bg-primary hover:bg-primary/90 text-white"
+          onClick={handleRegisterPayment}
         >
-          Registrar Receita Avulsa
-        </Button>
-        <Button
-          variant="outline"
-          className="bg-red-500 hover:bg-red-600 text-white"
-          onClick={() => handleRegister('expense')}
-        >
-          Registrar Despesa Avulsa
+          <DollarSign className="w-4 h-4 mr-2" /> Registrar Pagamento
         </Button>
       </div>
 
@@ -169,10 +163,10 @@ const StudentProfile = () => {
         isOpen={isTransactionDialogOpen}
         onOpenChange={setTransactionDialogOpen}
         initialStudentId={studentId}
-        defaultType={transactionDialogType}
+        defaultType={'revenue'} // Sempre Receita
+        defaultStatus={'Pago'} // Novo: Status padrão como Pago
         onSubmit={onSubmitTransaction}
         isSubmitting={mutations.createTransaction.isPending}
-        // Passando lista de alunos vazia, pois o aluno já está fixo
         students={[]}
         isLoadingStudents={false}
       />
