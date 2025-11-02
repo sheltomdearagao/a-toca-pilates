@@ -25,6 +25,10 @@ export type Student = {
   address?: string | null; // Novo campo
   guardian_phone?: string | null; // Novo campo
   discount_description?: string | null; // Novo campo
+
+  // Créditos de Reposição
+  reposition_credits?: number | null;
+  last_credit_renewal?: string | null;
 };
 
 // Novo tipo para uso em dropdowns e seletores de aluno

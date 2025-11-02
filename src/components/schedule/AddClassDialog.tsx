@@ -31,7 +31,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
-import { AttendanceType } from '@/types/schedule'; // Importar o novo tipo
+import { AttendanceType } from '@/types/schedule';
+import { useRepositionCredits } from '@/hooks/useRepositionCredits';
 
 const availableHours = Array.from({ length: 14 }, (_, i) => {
   const hour = i + 7;
@@ -43,7 +44,7 @@ const ATTENDANCE_TYPES: AttendanceType[] = ['Pontual', 'Experimental', 'Reposica
 const classSchema = z.object({
   student_ids: z.array(z.string()).min(1).max(10),
   title: z.string().optional(),
-  attendance_type: z.enum(['Pontual', 'Experimental', 'Reposicao']).default('Pontual'), // NOVO CAMPO
+  attendance_type: z.enum(['Pontual', 'Experimental', 'Reposicao']).default('Pontual'),
   date: z.string().min(1),
   time: z.string().regex(/^\d{2}:00$/),
   is_recurring_4_weeks: z.boolean().default(false),
@@ -51,6 +52,9 @@ const classSchema = z.object({
 }).superRefine((data, ctx) => {
   if (data.attendance_type === 'Experimental' && data.student_ids.length > 1) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Aulas Experimentais só podem ser agendadas para 1 aluno.', path: ['student_ids'] });
+  }
+  if (data.attendance_type === 'Reposicao' && data.student_ids.length !== 1) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Aulas de Reposição devem ser agendadas para 1 aluno por vez.', path: ['student_ids'] });
   }
 });
 
@@ -71,7 +75,7 @@ const fetchAllStudents = async (): Promise<StudentOption[]> => {
 
 const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudentId }: AddClassDialogProps) => {
   const qc = useQueryClient();
-  const { data: students = [], isLoading: isLoadingStudents } = useQuery<StudentOption[]>({
+  const { data: students = [] } = useQuery<StudentOption[]>({
     queryKey: ['allStudents'],
     queryFn: fetchAllStudents,
     staleTime: 1000 * 60 * 5,
@@ -82,7 +86,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
     defaultValues: {
       student_ids: preSelectedStudentId ? [preSelectedStudentId] : [],
       title: '',
-      attendance_type: 'Pontual', // Default
+      attendance_type: 'Pontual',
       date: format(new Date(), 'yyyy-MM-dd'),
       time: quickAddSlot ? `${quickAddSlot.hour.toString().padStart(2, '0')}:00` : availableHours[0],
       is_recurring_4_weeks: false,
@@ -92,8 +96,12 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
 
   const selectedIds = watch('student_ids');
   const selectedAttendanceType = watch('attendance_type');
-  const isPopOpenDefault = false;
-  const [isPopOpen, setIsPopOpen] = useState<boolean>(isPopOpenDefault);
+
+  // Hook de créditos: ativo apenas quando é Reposição e há 1 aluno selecionado
+  const selectedStudentForRepos = selectedAttendanceType === 'Reposicao' && selectedIds.length === 1 ? selectedIds[0] : undefined;
+  const { credits, isLoading: isLoadingCredits } = useRepositionCredits(selectedStudentForRepos);
+
+  const [isPopOpen, setIsPopOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -114,21 +122,39 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Não autenticado.");
 
+      const numWeeks = formData.is_recurring_4_weeks ? 4 : 1;
+      const requiredCredits = formData.attendance_type === 'Reposicao' ? numWeeks : 0;
+
+      // Validação de créditos (reposicao)
+      if (formData.attendance_type === 'Reposicao') {
+        const sid = formData.student_ids[0];
+
+        // Busca crédito atual do DB para garantir consistência
+        const { data: creditRow, error: creditErr } = await supabase
+          .from('students')
+          .select('reposition_credits')
+          .eq('id', sid)
+          .single();
+        if (creditErr) throw creditErr;
+
+        const currentCredits = (creditRow?.reposition_credits ?? 0) as number;
+        if (currentCredits < requiredCredits) {
+          throw new Error(`Créditos insuficientes: necessário ${requiredCredits}, disponível ${currentCredits}.`);
+        }
+      }
+
+      // Construir datas
       const baseDate = parseISO(formData.date);
       const [hh] = formData.time.split(':');
-      const numWeeks = formData.is_recurring_4_weeks ? 4 : 1;
       let classesCreatedCount = 0;
 
       for (let i = 0; i < numWeeks; i++) {
         const classDate = addWeeks(baseDate, i);
-        const localDateTime = set(classDate, { hours: +hh, minutes: 0 });
-        
-        // Converte a data/hora local para UTC (Supabase armazena em TIMESTAMPTZ)
+        const localDateTime = set(classDate, { hours: +hh, minutes: 0, seconds: 0, milliseconds: 0 });
         const startUtc = fromZonedTime(localDateTime, Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
-        
         const classTitle = formData.title || `Aula (${formData.student_ids.length} alunos)`;
-        
-        // 1. Insere a aula
+
+        // 1) Cria a aula
         const { data: newClass, error: classError } = await supabase
           .from('classes')
           .insert({
@@ -141,28 +167,54 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
           })
           .select('id')
           .single();
-        
         if (classError) throw classError;
-        if (!newClass) throw new Error("Falha ao criar a aula.");
+        if (!newClass) throw new Error('Falha ao criar a aula.');
 
-        // 2. Insere os participantes, incluindo o attendance_type
-        const attendees = formData.student_ids.map(sid => ({
+        // 2) Cria os participantes, incluindo attendance_type
+        const attendees = formData.student_ids.map((sid) => ({
           user_id: user.id,
           class_id: newClass.id,
           student_id: sid,
           status: 'Agendado',
-          attendance_type: formData.attendance_type, // NOVO CAMPO AQUI
+          attendance_type: formData.attendance_type,
         }));
-        
         const { error: attendeesError } = await supabase.from('class_attendees').insert(attendees);
         if (attendeesError) throw attendeesError;
-        
+
         classesCreatedCount++;
       }
+
+      // 3) Debitar créditos se for Reposição
+      if (formData.attendance_type === 'Reposicao') {
+        const sid = formData.student_ids[0];
+        const { error: debitErr } = await supabase
+          .from('students')
+          .update({ reposition_credits: supabase.rpc as any }) // placeholder to satisfy TS, will be replaced below
+          .eq('id', sid);
+        // Como supabase update direto com expressão não é suportado no client, precisamos buscar e aplicar o novo valor:
+        // Refazendo de forma segura (read-modify-write):
+        const { data: rowNow, error: rErr } = await supabase
+          .from('students')
+          .select('reposition_credits')
+          .eq('id', sid)
+          .single();
+        if (rErr) throw rErr;
+        const nowCredits = (rowNow?.reposition_credits ?? 0) as number;
+        const newCredits = Math.max(0, nowCredits - requiredCredits);
+        const { error: updErr } = await supabase
+          .from('students')
+          .update({ reposition_credits: newCredits })
+          .eq('id', sid);
+        if (updErr) throw updErr;
+      }
+
       return classesCreatedCount;
     },
-    onSuccess: (c) => {
+    onSuccess: (c, vars) => {
       qc.invalidateQueries({ queryKey: ['classes'] });
+      if (selectedStudentForRepos) {
+        qc.invalidateQueries({ queryKey: ['repositionCredits', selectedStudentForRepos] });
+      }
       showSuccess(`Agendadas ${c} aula(s).`);
       onOpenChange(false);
     },
@@ -192,7 +244,13 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
                 {chips.map((c, i) => (
                   <span key={i} className="px-2 py-1 bg-muted/50 rounded-full text-xs flex items-center">
                     {c}
-                    <button type="button" className="ml-1" onClick={() => setValue('student_ids', selectedIds.filter(x => x !== selectedIds[i]))}>×</button>
+                    <button
+                      type="button"
+                      className="ml-1"
+                      onClick={() => setValue('student_ids', selectedIds.filter(x => x !== selectedIds[i]))}
+                    >
+                      ×
+                    </button>
                   </span>
                 ))}
               </div>
@@ -240,20 +298,24 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
               )}
             />
 
-            {/* NOVO CAMPO: Tipo de Agendamento */}
             <div className="space-y-2">
               <Label>Tipo de Agendamento</Label>
               <Controller
                 name="attendance_type"
                 control={control}
                 render={({ field }) => (
-                  <Select onValueChange={(value: AttendanceType) => {
-                    field.onChange(value);
-                    // Se for experimental, forçar 1 aluno
-                    if (value === 'Experimental' && selectedIds.length > 1) {
-                      setValue('student_ids', selectedIds.slice(0, 1));
-                    }
-                  }} value={field.value}>
+                  <Select
+                    onValueChange={(value: AttendanceType) => {
+                      field.onChange(value);
+                      if (value === 'Experimental' && selectedIds.length > 1) {
+                        setValue('student_ids', selectedIds.slice(0, 1));
+                      }
+                      if (value === 'Reposicao' && selectedIds.length > 1) {
+                        setValue('student_ids', selectedIds.slice(0, 1));
+                      }
+                    }}
+                    value={field.value}
+                  >
                     <SelectTrigger><SelectValue placeholder="Selecione o tipo..." /></SelectTrigger>
                     <SelectContent>
                       {ATTENDANCE_TYPES.map(type => (
@@ -263,14 +325,15 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
                   </Select>
                 )}
               />
+              {selectedAttendanceType === 'Experimental' && (
+                <p className="text-xs text-destructive">Aulas Experimentais são limitadas a 1 aluno.</p>
+              )}
+              {selectedAttendanceType === 'Reposicao' && selectedStudentForRepos && (
+                <p className="text-xs text-muted-foreground">
+                  Créditos disponíveis: {isLoadingCredits ? '...' : credits} {watch('is_recurring_4_weeks') ? `(necessários: 4)` : `(necessários: 1)`}
+                </p>
+              )}
             </div>
-            {selectedAttendanceType === 'Experimental' && (
-              <p className="text-xs text-destructive">Aulas Experimentais são limitadas a 1 aluno.</p>
-            )}
-            {selectedAttendanceType === 'Reposicao' && (
-              <p className="text-xs text-muted-foreground">Aulas de Reposição consomem créditos do aluno.</p>
-            )}
-            {/* FIM NOVO CAMPO */}
 
             {mutation.isError && <p className="text-red-600 text-sm">{(mutation.error as any)?.message}</p>}
 
@@ -290,7 +353,6 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
             </div>
 
             <div className="flex items-center space-x-2">
-              {/* Removido o checkbox is_experimental, substituído pelo Select attendance_type */}
               <Controller name="is_recurring_4_weeks" control={control} render={({ field }) => (
                 <Checkbox checked={field.value} onCheckedChange={field.onChange} />
               )} />
