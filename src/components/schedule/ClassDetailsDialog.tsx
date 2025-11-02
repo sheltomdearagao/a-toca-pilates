@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, Users, Check, X, Trash2, Edit, UserPlus, Plus } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
-import { ClassEvent, ClassAttendee, AttendanceStatus, AttendanceType } from '@/types/schedule'; // Importar AttendanceType
+import { ClassEvent, ClassAttendee, AttendanceStatus, AttendanceType } from '@/types/schedule';
 import { StudentOption } from '@/types/student';
 import { cn } from '@/lib/utils';
 import { showError, showSuccess } from '@/utils/toast';
@@ -27,7 +27,7 @@ interface ClassDetailsDialogProps {
   classCapacity: number;
 }
 
-const ATTENDANCE_TYPES: AttendanceType[] = ['Pontual', 'Experimental', 'Reposicao'];
+const ATTENDANCE_TYPES: AttendanceType[] = ['Pontual', 'Experimental', 'Reposicao', 'Recorrente'];
 
 const fetchClassAttendees = async (classId: string): Promise<ClassAttendee[]> => {
   const { data, error } = await supabase
@@ -57,7 +57,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
   const [isLoadingAttendees, setIsLoadingAttendees] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedStudentToAdd, setSelectedStudentToAdd] = useState<string>('');
-  const [selectedAttendanceType, setSelectedAttendanceType] = useState<AttendanceType>('Pontual'); // Novo estado para o tipo de agendamento
+  const [selectedAttendanceType, setSelectedAttendanceType] = useState<AttendanceType>('Pontual');
   const [isAddingAttendee, setIsAddingAttendee] = useState(false);
 
   const { data: allStudents, isLoading: isLoadingAllStudents } = useQuery<StudentOption[]>({
@@ -134,7 +134,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
           class_id: classEvent.id,
           student_id: studentId,
           status: 'Agendado',
-          attendance_type: attendanceType, // INSERINDO O NOVO CAMPO
+          attendance_type: attendanceType,
         });
       if (error) throw error;
     },
@@ -149,17 +149,14 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
     },
   });
 
-  // Atualização OTIMISTA do status ao clicar (Presente/Faltou)
   const handleUpdateStatus = useCallback((attendeeId: string, status: AttendanceStatus) => {
     const previous = attendees;
-    // Atualiza imediatamente na UI
     setAttendees(prev => prev.map(a => a.id === attendeeId ? { ...a, status } : a));
 
     updateStatusMutation.mutate(
       { attendeeId, status },
       {
         onError: () => {
-          // Reverte em caso de erro
           setAttendees(previous);
           showError('Falha ao atualizar status.');
         }
@@ -167,19 +164,15 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
     );
   }, [attendees, updateStatusMutation]);
 
-  // Remoção OTIMISTA do participante ao clicar (Excluir)
   const handleRemoveAttendee = useCallback((attendeeId: string) => {
     const previous = attendees;
     const attendeeToRemove = attendees.find(a => a.id === attendeeId);
-    
-    // Atualiza imediatamente na UI
     setAttendees(prev => prev.filter(a => a.id !== attendeeId));
 
     removeAttendeeMutation.mutate(
       attendeeId,
       {
         onError: () => {
-          // Reverte em caso de erro
           if (attendeeToRemove) {
             setAttendees(prev => [...prev, attendeeToRemove].sort((a, b) => (a.students?.name || '').localeCompare(b.students?.name || '')));
           } else {
@@ -204,7 +197,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
       class_id: classEvent?.id,
       student_id: selectedStudentToAdd,
       status: 'Agendado',
-      attendance_type: selectedAttendanceType, // Otimista: Novo campo
+      attendance_type: selectedAttendanceType,
       students: { name: studentObj?.name, enrollment_type: studentObj?.enrollment_type },
     };
 
@@ -229,7 +222,6 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
   if (!classEvent) return null;
 
   const startTime = parseISO(classEvent.start_time);
-  const endTime = new Date(startTime.getTime() + classEvent.duration_minutes * 60000);
 
   const getStatusVariant = (status: AttendanceStatus) => {
     switch (status) {

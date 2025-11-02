@@ -39,12 +39,12 @@ const availableHours = Array.from({ length: 14 }, (_, i) => {
   return `${hour.toString().padStart(2, '0')}:00`;
 });
 
-const ATTENDANCE_TYPES: AttendanceType[] = ['Pontual', 'Experimental', 'Reposicao'];
+const ATTENDANCE_TYPES: AttendanceType[] = ['Pontual', 'Experimental', 'Reposicao', 'Recorrente'];
 
 const classSchema = z.object({
   student_ids: z.array(z.string()).min(1).max(10),
   title: z.string().optional(),
-  attendance_type: z.enum(['Pontual', 'Experimental', 'Reposicao']).default('Pontual'),
+  attendance_type: z.enum(['Pontual', 'Experimental', 'Reposicao', 'Recorrente']).default('Pontual'),
   date: z.string().min(1),
   time: z.string().regex(/^\d{2}:00$/),
   is_recurring_4_weeks: z.boolean().default(false),
@@ -97,7 +97,6 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
   const selectedIds = watch('student_ids');
   const selectedAttendanceType = watch('attendance_type');
 
-  // Hook de créditos: ativo apenas quando é Reposição e há 1 aluno selecionado
   const selectedStudentForRepos = selectedAttendanceType === 'Reposicao' && selectedIds.length === 1 ? selectedIds[0] : undefined;
   const { credits, isLoading: isLoadingCredits } = useRepositionCredits(selectedStudentForRepos);
 
@@ -125,11 +124,8 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
       const numWeeks = formData.is_recurring_4_weeks ? 4 : 1;
       const requiredCredits = formData.attendance_type === 'Reposicao' ? numWeeks : 0;
 
-      // Validação de créditos (reposicao)
       if (formData.attendance_type === 'Reposicao') {
         const sid = formData.student_ids[0];
-
-        // Busca crédito atual do DB para garantir consistência
         const { data: creditRow, error: creditErr } = await supabase
           .from('students')
           .select('reposition_credits')
@@ -143,7 +139,6 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
         }
       }
 
-      // Construir datas
       const baseDate = parseISO(formData.date);
       const [hh] = formData.time.split(':');
       let classesCreatedCount = 0;
@@ -154,7 +149,6 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
         const startUtc = fromZonedTime(localDateTime, Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
         const classTitle = formData.title || `Aula (${formData.student_ids.length} alunos)`;
 
-        // 1) Cria a aula
         const { data: newClass, error: classError } = await supabase
           .from('classes')
           .insert({
@@ -170,7 +164,6 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
         if (classError) throw classError;
         if (!newClass) throw new Error('Falha ao criar a aula.');
 
-        // 2) Cria os participantes, incluindo attendance_type
         const attendees = formData.student_ids.map((sid) => ({
           user_id: user.id,
           class_id: newClass.id,
@@ -184,15 +177,8 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
         classesCreatedCount++;
       }
 
-      // 3) Debitar créditos se for Reposição
       if (formData.attendance_type === 'Reposicao') {
         const sid = formData.student_ids[0];
-        const { error: debitErr } = await supabase
-          .from('students')
-          .update({ reposition_credits: supabase.rpc as any }) // placeholder to satisfy TS, will be replaced below
-          .eq('id', sid);
-        // Como supabase update direto com expressão não é suportado no client, precisamos buscar e aplicar o novo valor:
-        // Refazendo de forma segura (read-modify-write):
         const { data: rowNow, error: rErr } = await supabase
           .from('students')
           .select('reposition_credits')
@@ -210,7 +196,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
 
       return classesCreatedCount;
     },
-    onSuccess: (c, vars) => {
+    onSuccess: (c) => {
       qc.invalidateQueries({ queryKey: ['classes'] });
       if (selectedStudentForRepos) {
         qc.invalidateQueries({ queryKey: ['repositionCredits', selectedStudentForRepos] });
