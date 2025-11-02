@@ -4,7 +4,7 @@ import { Student } from '@/types/student';
 import { startOfMonth, isBefore, parseISO, format } from 'date-fns';
 import { showError, showSuccess } from '@/utils/toast';
 
-const MAX_CREDITS = 4;
+const MAX_CREDITS = 0; // Alterado para 0, pois o ganho é por falta
 
 // Função para buscar o aluno e aplicar a lógica de renovação
 const fetchAndRenewCredits = async (studentId: string): Promise<Student> => {
@@ -22,9 +22,9 @@ const fetchAndRenewCredits = async (studentId: string): Promise<Student> => {
   const today = new Date();
   const firstDayOfMonth = startOfMonth(today);
 
-  // Lógica de Renovação: Se hoje é dia 1 ou depois, e a última renovação foi antes do início deste mês, renova.
+  // Lógica de Renovação: Se hoje é dia 1 ou depois, e a última renovação foi antes do início deste mês, zera os créditos.
   if (!lastRenewal || isBefore(lastRenewal, firstDayOfMonth)) {
-    // Renova os créditos para o máximo (4)
+    // Zera os créditos
     currentCredits = MAX_CREDITS;
     const renewalDate = format(today, 'yyyy-MM-dd');
 
@@ -38,7 +38,7 @@ const fetchAndRenewCredits = async (studentId: string): Promise<Student> => {
       .eq('id', studentId);
 
     if (updateError) {
-      console.error('Erro ao renovar créditos no DB:', updateError);
+      console.error('Erro ao zerar créditos no DB:', updateError);
       // Não lançamos erro aqui para não quebrar a consulta, mas logamos.
     }
     
