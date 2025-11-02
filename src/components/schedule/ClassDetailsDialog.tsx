@@ -15,7 +15,7 @@ import { Loader2, Users, Check, X, Trash2, Edit, UserPlus, Plus } from 'lucide-r
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { ClassEvent, ClassAttendee, AttendanceStatus, AttendanceType } from '@/types/schedule';
-import { StudentOption } from '@/types/student';
+import { StudentOption, EnrollmentType } from '@/types/student'; // Importar EnrollmentType
 import { showError, showSuccess } from '@/utils/toast';
 import EditClassDialog from './class-details/EditClassDialog';
 import DeleteClassDialog from './class-details/DeleteClassDialog';
@@ -73,7 +73,6 @@ const fetchClassAttendees = async (classId: string): Promise<ClassAttendee[]> =>
       student_id?: string | null;
       status?: AttendanceStatus;
       attendance_type?: AttendanceType;
-      // Supabase retorna o JOIN como um array se a relação não for 1:1, mas o tipo ClassAttendee espera um objeto.
       students?: Array<{
         name?: string;
         enrollment_type?: string;
@@ -93,7 +92,8 @@ const fetchClassAttendees = async (classId: string): Promise<ClassAttendee[]> =>
       students: studentRecord
         ? {
             name: studentRecord.name ?? 'Aluno',
-            enrollment_type: studentRecord.enrollment_type,
+            // Afirma que a string do banco é um EnrollmentType válido
+            enrollment_type: studentRecord.enrollment_type as EnrollmentType, 
           }
         : undefined,
     } satisfies ClassAttendee;
