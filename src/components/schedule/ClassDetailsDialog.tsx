@@ -52,6 +52,9 @@ const fetchClassAttendees = async (classId: string): Promise<ClassAttendee[]> =>
     .select(
       `
         id,
+        user_id,
+        class_id,
+        student_id,
         status,
         attendance_type,
         students(name, enrollment_type)
@@ -61,7 +64,40 @@ const fetchClassAttendees = async (classId: string): Promise<ClassAttendee[]> =>
     .order('name', { foreignTable: 'students', ascending: true });
 
   if (error) throw new Error(error.message);
-  return (data as ClassAttendee[]) || [];
+
+  return (data ?? []).map((row) => {
+    const attendee = row as unknown as {
+      id: string;
+      user_id?: string;
+      class_id?: string;
+      student_id?: string | null;
+      status?: AttendanceStatus;
+      attendance_type?: AttendanceType;
+      // Supabase retorna o JOIN como um array se a relação não for 1:1, mas o tipo ClassAttendee espera um objeto.
+      students?: Array<{
+        name?: string;
+        enrollment_type?: string;
+      }> | null;
+    };
+
+    // Extrai o primeiro (e esperado único) objeto do array 'students'
+    const studentRecord = attendee.students?.[0];
+
+    return {
+      id: attendee.id,
+      user_id: attendee.user_id,
+      class_id: attendee.class_id,
+      student_id: attendee.student_id ?? undefined,
+      status: attendee.status ?? 'Agendado',
+      attendance_type: attendee.attendance_type ?? 'Pontual',
+      students: studentRecord
+        ? {
+            name: studentRecord.name ?? 'Aluno',
+            enrollment_type: studentRecord.enrollment_type,
+          }
+        : undefined,
+    } satisfies ClassAttendee;
+  });
 };
 
 const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }: ClassDetailsDialogProps) => {
@@ -90,8 +126,8 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
     try {
       const data = await fetchClassAttendees(classEvent.id);
       setAttendees(data);
-    } catch (error: any) {
-      showError(error.message);
+    } catch (err: any) {
+      showError(err.message);
     } finally {
       setIsLoadingAttendees(false);
     }
