@@ -16,6 +16,7 @@ export type ClassEvent = {
 };
 
 export type AttendanceStatus = 'Agendado' | 'Presente' | 'Faltou';
+export type AttendanceType = 'Recorrente' | 'Pontual' | 'Experimental' | 'Reposicao'; // NOVO TIPO
 
 // New types to support enrollment-aware UI in schedule
 export type RecurrencePatternItem = {
@@ -44,5 +45,6 @@ export interface ClassAttendee {
   class_id?: string;
   student_id?: string | null;
   status?: AttendanceStatus;
+  attendance_type?: AttendanceType; // NOVO CAMPO
   students?: { name: string; enrollment_type?: EnrollmentType };
 }

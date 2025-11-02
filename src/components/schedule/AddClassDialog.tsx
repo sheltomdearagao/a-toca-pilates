@@ -31,23 +31,26 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
+import { AttendanceType } from '@/types/schedule'; // Importar o novo tipo
 
 const availableHours = Array.from({ length: 14 }, (_, i) => {
   const hour = i + 7;
   return `${hour.toString().padStart(2, '0')}:00`;
 });
 
+const ATTENDANCE_TYPES: AttendanceType[] = ['Pontual', 'Experimental', 'Reposicao'];
+
 const classSchema = z.object({
   student_ids: z.array(z.string()).min(1).max(10),
   title: z.string().optional(),
-  is_experimental: z.boolean().default(false),
+  attendance_type: z.enum(['Pontual', 'Experimental', 'Reposicao']).default('Pontual'), // NOVO CAMPO
   date: z.string().min(1),
   time: z.string().regex(/^\d{2}:00$/),
   is_recurring_4_weeks: z.boolean().default(false),
   notes: z.string().optional(),
 }).superRefine((data, ctx) => {
-  if (data.is_experimental && data.student_ids.length > 1) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Experimentais só para 1 aluno.', path: ['student_ids'] });
+  if (data.attendance_type === 'Experimental' && data.student_ids.length > 1) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Aulas Experimentais só podem ser agendadas para 1 aluno.', path: ['student_ids'] });
   }
 });
 
@@ -79,7 +82,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
     defaultValues: {
       student_ids: preSelectedStudentId ? [preSelectedStudentId] : [],
       title: '',
-      is_experimental: false,
+      attendance_type: 'Pontual', // Default
       date: format(new Date(), 'yyyy-MM-dd'),
       time: quickAddSlot ? `${quickAddSlot.hour.toString().padStart(2, '0')}:00` : availableHours[0],
       is_recurring_4_weeks: false,
@@ -88,6 +91,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
   });
 
   const selectedIds = watch('student_ids');
+  const selectedAttendanceType = watch('attendance_type');
   const isPopOpenDefault = false;
   const [isPopOpen, setIsPopOpen] = useState<boolean>(isPopOpenDefault);
 
@@ -96,7 +100,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
       reset({
         student_ids: preSelectedStudentId ? [preSelectedStudentId] : [],
         title: '',
-        is_experimental: false,
+        attendance_type: 'Pontual',
         date: quickAddSlot ? format(quickAddSlot.date, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
         time: quickAddSlot ? `${quickAddSlot.hour.toString().padStart(2, '0')}:00` : availableHours[0],
         is_recurring_4_weeks: false,
@@ -141,12 +145,13 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
         if (classError) throw classError;
         if (!newClass) throw new Error("Falha ao criar a aula.");
 
-        // 2. Insere os participantes
+        // 2. Insere os participantes, incluindo o attendance_type
         const attendees = formData.student_ids.map(sid => ({
           user_id: user.id,
           class_id: newClass.id,
           student_id: sid,
           status: 'Agendado',
+          attendance_type: formData.attendance_type, // NOVO CAMPO AQUI
         }));
         
         const { error: attendeesError } = await supabase.from('class_attendees').insert(attendees);
@@ -235,6 +240,38 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
               )}
             />
 
+            {/* NOVO CAMPO: Tipo de Agendamento */}
+            <div className="space-y-2">
+              <Label>Tipo de Agendamento</Label>
+              <Controller
+                name="attendance_type"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={(value: AttendanceType) => {
+                    field.onChange(value);
+                    // Se for experimental, forçar 1 aluno
+                    if (value === 'Experimental' && selectedIds.length > 1) {
+                      setValue('student_ids', selectedIds.slice(0, 1));
+                    }
+                  }} value={field.value}>
+                    <SelectTrigger><SelectValue placeholder="Selecione o tipo..." /></SelectTrigger>
+                    <SelectContent>
+                      {ATTENDANCE_TYPES.map(type => (
+                        <SelectItem key={type} value={type}>{type}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+            {selectedAttendanceType === 'Experimental' && (
+              <p className="text-xs text-destructive">Aulas Experimentais são limitadas a 1 aluno.</p>
+            )}
+            {selectedAttendanceType === 'Reposicao' && (
+              <p className="text-xs text-muted-foreground">Aulas de Reposição consomem créditos do aluno.</p>
+            )}
+            {/* FIM NOVO CAMPO */}
+
             {mutation.isError && <p className="text-red-600 text-sm">{(mutation.error as any)?.message}</p>}
 
             <div className="grid grid-cols-2 gap-4">
@@ -253,12 +290,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
             </div>
 
             <div className="flex items-center space-x-2">
-              <Controller name="is_experimental" control={control} render={({ field }) => (
-                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-              )} />
-              <Label>Aula Experimental</Label>
-            </div>
-            <div className="flex items-center space-x-2">
+              {/* Removido o checkbox is_experimental, substituído pelo Select attendance_type */}
               <Controller name="is_recurring_4_weeks" control={control} render={({ field }) => (
                 <Checkbox checked={field.value} onCheckedChange={field.onChange} />
               )} />

@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, Users, Check, X, Trash2, Edit, UserPlus, Plus } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
-import { ClassEvent, ClassAttendee, AttendanceStatus } from '@/types/schedule';
+import { ClassEvent, ClassAttendee, AttendanceStatus, AttendanceType } from '@/types/schedule'; // Importar AttendanceType
 import { StudentOption } from '@/types/student';
 import { cn } from '@/lib/utils';
 import { showError, showSuccess } from '@/utils/toast';
@@ -27,12 +27,15 @@ interface ClassDetailsDialogProps {
   classCapacity: number;
 }
 
+const ATTENDANCE_TYPES: AttendanceType[] = ['Pontual', 'Experimental', 'Reposicao'];
+
 const fetchClassAttendees = async (classId: string): Promise<ClassAttendee[]> => {
   const { data, error } = await supabase
     .from('class_attendees')
     .select(`
       id,
       status,
+      attendance_type,
       students(name, enrollment_type)
     `)
     .eq('class_id', classId)
@@ -54,6 +57,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
   const [isLoadingAttendees, setIsLoadingAttendees] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedStudentToAdd, setSelectedStudentToAdd] = useState<string>('');
+  const [selectedAttendanceType, setSelectedAttendanceType] = useState<AttendanceType>('Pontual'); // Novo estado para o tipo de agendamento
   const [isAddingAttendee, setIsAddingAttendee] = useState(false);
 
   const { data: allStudents, isLoading: isLoadingAllStudents } = useQuery<StudentOption[]>({
@@ -118,7 +122,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
   });
 
   const addAttendeeMutation = useMutation({
-    mutationFn: async (studentId: string) => {
+    mutationFn: async ({ studentId, attendanceType }: { studentId: string; attendanceType: AttendanceType }) => {
       if (!classEvent?.id) throw new Error("ID da aula não encontrado.");
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado.");
@@ -130,6 +134,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
           class_id: classEvent.id,
           student_id: studentId,
           status: 'Agendado',
+          attendance_type: attendanceType, // INSERINDO O NOVO CAMPO
         });
       if (error) throw error;
     },
@@ -199,15 +204,17 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
       class_id: classEvent?.id,
       student_id: selectedStudentToAdd,
       status: 'Agendado',
+      attendance_type: selectedAttendanceType, // Otimista: Novo campo
       students: { name: studentObj?.name, enrollment_type: studentObj?.enrollment_type },
     };
 
     setAttendees(prev => [...prev, optimistic].sort((a, b) => (a.students?.name || '').localeCompare(b.students?.name || '')));
     const idToAdd = selectedStudentToAdd;
+    const typeToAdd = selectedAttendanceType;
     setSelectedStudentToAdd('');
     setIsAddingAttendee(true);
 
-    addAttendeeMutation.mutate(idToAdd, {
+    addAttendeeMutation.mutate({ studentId: idToAdd, attendanceType: typeToAdd }, {
       onSuccess: () => {
         setIsAddingAttendee(false);
       },
@@ -217,7 +224,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
         showError(err?.message || 'Erro ao adicionar participante.');
       }
     });
-  }, [selectedStudentToAdd, allStudents, classEvent?.id, addAttendeeMutation, setAttendees]);
+  }, [selectedStudentToAdd, selectedAttendanceType, allStudents, classEvent?.id, addAttendeeMutation, setAttendees]);
 
   if (!classEvent) return null;
 
@@ -290,7 +297,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                 value={selectedStudentToAdd}
                 onValueChange={setSelectedStudentToAdd}
               >
-                <SelectTrigger>
+                <SelectTrigger className="flex-1">
                   <SelectValue placeholder="Selecione um aluno..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -305,6 +312,19 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                   ) : (
                     <SelectItem value="none" disabled>Nenhum aluno disponível</SelectItem>
                   )}
+                </SelectContent>
+              </Select>
+              <Select
+                value={selectedAttendanceType}
+                onValueChange={(value: AttendanceType) => setSelectedAttendanceType(value)}
+              >
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ATTENDANCE_TYPES.map(type => (
+                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Button
@@ -360,6 +380,11 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                         <Badge variant="outline" className="ml-2">
                           {getEnrollmentCode(attendee.students?.enrollment_type)}
                         </Badge>
+                        {attendee.attendance_type && (
+                          <Badge variant="secondary" className="ml-1 text-xs font-normal">
+                            {attendee.attendance_type}
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex items-center space-x-2">
                         <Badge variant={getStatusVariant(attendee.status as AttendanceStatus)}>
