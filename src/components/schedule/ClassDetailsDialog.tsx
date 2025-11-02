@@ -1,7 +1,14 @@
-import { useState, useCallback, useEffect } from 'react';
-import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Users, Check, X, Trash2, Edit, UserPlus, Plus } from 'lucide-react';
@@ -9,7 +16,6 @@ import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { ClassEvent, ClassAttendee, AttendanceStatus, AttendanceType } from '@/types/schedule';
 import { StudentOption } from '@/types/student';
-import { cn } from '@/lib/utils';
 import { showError, showSuccess } from '@/utils/toast';
 import EditClassDialog from './class-details/EditClassDialog';
 import DeleteClassDialog from './class-details/DeleteClassDialog';
@@ -30,26 +36,32 @@ interface ClassDetailsDialogProps {
 
 const ATTENDANCE_TYPES: AttendanceType[] = ['Pontual', 'Experimental', 'Reposicao', 'Recorrente'];
 
+const fetchAllStudents = async (): Promise<StudentOption[]> => {
+  const { data, error } = await supabase
+    .from('students')
+    .select('id, name, enrollment_type')
+    .order('name');
+
+  if (error) throw new Error(error.message);
+  return data || [];
+};
+
 const fetchClassAttendees = async (classId: string): Promise<ClassAttendee[]> => {
   const { data, error } = await supabase
     .from('class_attendees')
-    .select(`
-      id,
-      status,
-      attendance_type,
-      students(name, enrollment_type)
-    `)
+    .select(
+      `
+        id,
+        status,
+        attendance_type,
+        students(name, enrollment_type)
+      `,
+    )
     .eq('class_id', classId)
     .order('name', { foreignTable: 'students', ascending: true });
 
   if (error) throw new Error(error.message);
-  return (data as any[] || []);
-};
-
-const fetchAllStudents = async (): Promise<StudentOption[]> => {
-  const { data, error } = await supabase.from('students').select('id, name, enrollment_type').order('name');
-  if (error) throw error;
-  return data || [];
+  return (data as ClassAttendee[]) || [];
 };
 
 const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }: ClassDetailsDialogProps) => {
@@ -57,396 +69,365 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
   const [attendees, setAttendees] = useState<ClassAttendee[]>([]);
   const [isLoadingAttendees, setIsLoadingAttendees] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [selectedStudentToAdd, setSelectedStudentToAdd] = useState<string>('');
+  const [isDeleteOpen, setDeleteOpen] = useState(false);
+  const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [selectedAttendanceType, setSelectedAttendanceType] = useState<AttendanceType>('Pontual');
   const [isAddingAttendee, setIsAddingAttendee] = useState(false);
-  const [isDeleteOpen, setDeleteOpen] = useState(false);
 
-  // Importa alunos para adicionar participantes
-  const { data: allStudents, isLoading: isLoadingAllStudents } = useQuery<StudentOption[]>({
+  const { data: students = [], isLoading: isLoadingStudents } = useQuery({
     queryKey: ['allStudents'],
     queryFn: fetchAllStudents,
-    staleTime: 1000 * 60 * 5,
     enabled: isOpen,
+    staleTime: 1000 * 60 * 5,
   });
 
-  // Carrega participantes
+  const loadAttendees = useCallback(async () => {
+    if (!classEvent?.id) {
+      setAttendees([]);
+      return;
+    }
+    setIsLoadingAttendees(true);
+    try {
+      const data = await fetchClassAttendees(classEvent.id);
+      setAttendees(data);
+    } catch (error: any) {
+      showError(error.message);
+    } finally {
+      setIsLoadingAttendees(false);
+    }
+  }, [classEvent?.id]);
+
   useEffect(() => {
-    if (isOpen && classEvent?.id) {
-      setIsLoadingAttendees(true);
-      fetchClassAttendees(classEvent.id)
-        .then((data) => {
-          setAttendees(data);
-        })
-        .catch((error) => {
-          showError(error.message);
-        })
-        .finally(() => {
-          setIsLoadingAttendees(false);
-        });
+    if (isOpen) {
+      void loadAttendees();
     } else {
       setAttendees([]);
     }
-  }, [isOpen, classEvent?.id]);
+  }, [isOpen, loadAttendees]);
 
-  // Mutations
+  const refreshData = useCallback(async () => {
+    await loadAttendees();
+    queryClient.invalidateQueries({ queryKey: ['classes'] });
+  }, [loadAttendees, queryClient]);
+
   const updateStatusMutation = useMutation({
     mutationFn: async ({ attendeeId, status }: { attendeeId: string; status: AttendanceStatus }) => {
       const { error } = await supabase
         .from('class_attendees')
         .update({ status })
         .eq('id', attendeeId);
+
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['classAttendees', classEvent?.id] });
-      queryClient.invalidateQueries({ queryKey: ['classes'] });
+    onSuccess: async () => {
+      await refreshData();
       showSuccess('Status da presença atualizado com sucesso!');
     },
-    onError: (error) => {
-      showError(error.message);
-    },
+    onError: (error) => showError(error.message),
   });
 
   const removeAttendeeMutation = useMutation({
     mutationFn: async (attendeeId: string) => {
-      const { error } = await supabase
-        .from('class_attendees')
-        .delete()
-        .eq('id', attendeeId);
+      const { error } = await supabase.from('class_attendees').delete().eq('id', attendeeId);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['classAttendees', classEvent?.id] });
-      queryClient.invalidateQueries({ queryKey: ['classes'] });
+    onSuccess: async () => {
+      await refreshData();
       showSuccess('Participante removido com sucesso!');
     },
-    onError: (error) => {
-      showError(error.message);
-    },
+    onError: (error) => showError(error.message),
   });
 
   const addAttendeeMutation = useMutation({
-    mutationFn: async ({ studentId, attendanceType }: { studentId: string; attendanceType: AttendanceType }) => {
-      if (!classEvent?.id) throw new Error("ID da aula não encontrado.");
+    mutationFn: async (studentId: string) => {
+      if (!classEvent?.id) throw new Error('Aula não encontrada.');
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado.");
+      if (!user) throw new Error('Usuário não autenticado.');
 
-      const { error } = await supabase
-        .from('class_attendees')
-        .insert({
-          user_id: user.id,
-          class_id: classEvent.id,
-          student_id: studentId,
-          status: 'Agendado',
-          attendance_type: attendanceType,
-        });
+      const { error } = await supabase.from('class_attendees').insert({
+        user_id: user.id,
+        class_id: classEvent.id,
+        student_id: studentId,
+        status: 'Agendado',
+        attendance_type: selectedAttendanceType,
+      });
+
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['classAttendees', classEvent?.id] });
-      queryClient.invalidateQueries({ queryKey: ['classes'] });
+    onSuccess: async () => {
+      await refreshData();
+      setSelectedStudentId('');
+      setIsAddingAttendee(false);
       showSuccess('Participante adicionado com sucesso!');
-      setSelectedStudentToAdd('');
     },
     onError: (error) => {
+      setIsAddingAttendee(false);
       showError(error.message);
     },
   });
 
-  // Delete Class dialog
-  const { isOpen: isDeleteDialogOpen, onOpenChange: setDeleteDialogOpen, classIdForDelete } = { isOpen: false, onOpenChange: () => {}, classIdForDelete: null }; // placeholder
+  const handleUpdateStatus = (attendeeId: string, status: AttendanceStatus) => {
+    updateStatusMutation.mutate({ attendeeId, status });
+  };
 
-  // Função de delete real para uso no dialog
-  const handleDeleteClass = useCallback(() => {
-    if (!classEvent?.id) return;
-    // Abrir diálogo de confirmação
-    setDeleteOpen(true);
-  }, [classEvent?.id]);
+  const handleRemoveAttendee = (attendeeId: string) => {
+    removeAttendeeMutation.mutate(attendeeId);
+  };
 
-  // handleAddAttendee, handleUpdateStatus, handleRemoveAttendee
-  const handleUpdateStatus = useCallback((attendeeId: string, status: AttendanceStatus) => {
-    const previous = attendees;
-    setAttendees(prev => prev.map(a => a.id === attendeeId ? { ...a, status } : a));
-
-    updateStatusMutation.mutate(
-      { attendeeId, status },
-      {
-        onError: () => {
-          setAttendees(previous);
-          showError('Falha ao atualizar status.');
-        }
-      }
-    );
-  }, [attendees, updateStatusMutation]);
-
-  const handleRemoveAttendee = useCallback((attendeeId: string) => {
-    const previous = attendees;
-    const attendeeToRemove = attendees.find(a => a.id === attendeeId);
-    setAttendees(prev => prev.filter(a => a.id !== attendeeId));
-
-    removeAttendeeMutation.mutate(
-      attendeeId,
-      {
-        onError: () => {
-          if (attendeeToRemove) {
-            setAttendees(prev => [...prev, attendeeToRemove].sort((a, b) => (a.students?.name || '').localeCompare(b.students?.name || '')));
-          } else {
-            setAttendees(previous);
-          }
-          showError('Falha ao remover participante.');
-        }
-      }
-    );
-  }, [attendees, removeAttendeeMutation]);
-
-  const [selectedStudentToAdd, setSelectedStudentToAdd] = useState<string>('');
-  const [isAddingAttendee, setIsAddingAttendee] = useState(false);
-
-  const handleAddAttendee = useCallback(() => {
-    if (!selectedStudentToAdd) {
-      showError("Selecione um aluno para adicionar.");
+  const handleAddAttendee = () => {
+    if (!selectedStudentId) {
+      showError('Selecione um aluno para adicionar.');
       return;
     }
 
-    const studentObj = allStudents?.find(s => s.id === selectedStudentToAdd);
-    const optimistic: any = {
-      id: `temp_${Date.now()}`,
-      user_id: null,
-      class_id: classEvent?.id,
-      student_id: selectedStudentToAdd,
-      status: 'Agendado',
-      attendance_type: selectedAttendanceType,
-      students: { name: studentObj?.name, enrollment_type: studentObj?.enrollment_type },
-    };
-
-    setAttendees(prev => [...prev, optimistic].sort((a, b) => (a.students?.name || '').localeCompare(b.students?.name || '')));
-    const idToAdd = selectedStudentToAdd;
-    const typeToAdd = selectedAttendanceType;
-    setSelectedStudentToAdd('');
     setIsAddingAttendee(true);
+    addAttendeeMutation.mutate(selectedStudentId);
+  };
 
-    addAttendeeMutation.mutate({ studentId: idToAdd, attendanceType: typeToAdd }, {
-      onSuccess: () => {
-        setIsAddingAttendee(false);
-      },
-      onError: (err) => {
-        setAttendees(prev => prev.filter(a => a.id !== optimistic.id));
-        setIsAddingAttendee(false);
-        showError(err?.message || 'Erro ao adicionar participante.');
-      }
-    });
-  }, [selectedStudentToAdd, selectedAttendanceType, allStudents, classEvent?.id, addAttendeeMutation, setAttendees]);
-
-  // DeleteClassDialog wiring
-  const DeleteClassButton = () => (
-    <button
-      className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-destructive hover:bg-destructive/90 text-white"
-      onClick={handleDeleteClass}
-      title="Excluir Aula"
-    >
-      <Trash2 className="w-4 h-4" />
-      Excluir Aula
-    </button>
-  );
-
-  // Delete dialog integration
-  const handleDeletedFromDialog = () => {
+  const handleDeleteSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ['classes'] });
     onOpenChange(false);
   };
 
-  // Conteúdo
-  if (!classEvent) return null;
-
-  const startTime = parseISO(classEvent.start_time);
-
-  const getStatusVariant = (status: AttendanceStatus) => {
-    switch (status) {
-      case 'Presente': return 'attendance-present';
-      case 'Faltou': return 'attendance-absent';
-      case 'Agendado': return 'attendance-scheduled';
-      default: return 'secondary';
-    }
-  };
-
-  const getEnrollmentCode = (enrollmentType?: string) => {
-    switch (enrollmentType) {
-      case 'Wellhub': return 'G';
-      case 'TotalPass': return 'T';
-      default: return 'P';
-    }
-  };
-
-  const availableStudentsToAdd = allStudents?.filter(
-    student => !attendees.some(att => att.student_id === student.id)
-  ) || [];
+  const availableStudents = useMemo(
+    () =>
+      students.filter((student) => !attendees.some((attendee) => attendee.student_id === student.id)),
+    [students, attendees],
+  );
 
   const isClassFull = attendees.length >= classCapacity;
 
+  if (!classEvent) {
+    return null;
+  }
+
+  const startTime = parseISO(classEvent.start_time);
+  const formattedDate = format(startTime, "eeee, dd 'de' MMMM 'às' HH:mm", { locale: ptBR });
+
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Detalhes da Aula</DialogTitle>
-          <DialogDescription>
-            {format(startTime, "eeee, dd 'de' MMMM 'às' HH:mm", { locale: ptBR })} ({classEvent.duration_minutes} min)
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={isOpen} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Detalhes da Aula</DialogTitle>
+            <DialogDescription>{formattedDate} ({classEvent.duration_minutes} min)</DialogDescription>
+          </DialogHeader>
 
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold">Título</span>
-            <span>{classEvent.title}</span>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={() => setIsEditOpen(true)}>
-              <Edit className="w-4 h-4 mr-2" /> Editar Aula
-            </Button>
-            <DeleteClassButton />
-          </div>
-        </div>
-
-        {classEvent.notes && (
-          <div className="space-y-2">
-            <h4 className="font-semibold">Notas</h4>
-            <p className="text-sm text-muted-foreground">{classEvent.notes}</p>
-          </div>
-        )}
-
-        <div className="space-y-2">
-          <h4 className="font-semibold flex items-center justify-between">
-            <div className="flex items-center">
-              <UserPlus className="w-4 h-4 mr-2" />
-              Adicionar Participante ({attendees.length}/{classCapacity})
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">Título</span>
+                <span>{classEvent.title}</span>
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={() => setIsEditOpen(true)}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Editar Aula
+                </Button>
+                <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Excluir Aula
+                </Button>
+              </div>
             </div>
-            <Badge variant={isClassFull ? "destructive" : "secondary"}>
-              <span className="inline-flex items-center gap-1">
-                {isClassFull ? 'Lotada' : `${classCapacity - attendees.length} vagas`}
-              </span>
-            </Badge>
-          </h4>
 
-          <div className="flex gap-2 items-center">
-            <Select value={selectedStudentToAdd} onValueChange={setSelectedStudentToAdd}>
-              <SelectTrigger className="flex-1">
-                <SelectValue placeholder="Selecione um aluno..." />
-              </SelectTrigger>
-              <SelectContent>
-                {isLoadingAllStudents ? (
-                  <SelectItem value="loading" disabled>Carregando...</SelectItem>
-                ) : availableStudentsToAdd.length > 0 ? (
-                  availableStudentsToAdd.map(student => (
-                    <SelectItem key={student.id} value={student.id}>
-                      {student.name} ({student.enrollment_type})
-                    </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="none" disabled>Nenhum aluno disponível</SelectItem>
-                )}
-              </SelectContent>
-            </Select>
+            {classEvent.notes && (
+              <div className="space-y-2">
+                <h4 className="font-semibold">Notas</h4>
+                <p className="text-sm text-muted-foreground">{classEvent.notes}</p>
+              </div>
+            )}
 
-            <Select value={selectedAttendanceType} onValueChange={(value: AttendanceType) => setSelectedAttendanceType(value)}>
-              <SelectTrigger className="w-[150px]"><SelectValue placeholder="Tipo" /></SelectTrigger>
-              <SelectContent>
-                {ATTENDANCE_TYPES.map(type => (
-                  <SelectItem key={type} value={type}>{type}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="flex items-center font-semibold">
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Adicionar Participante ({attendees.length}/{classCapacity})
+                </h4>
+                <Badge variant={isClassFull ? 'destructive' : 'secondary'}>
+                  {isClassFull ? 'Lotada' : `${classCapacity - attendees.length} vagas`}
+                </Badge>
+              </div>
 
-            <Button onClick={handleAddAttendee} disabled={!selectedStudentToAdd || isAddingAttendee} size="sm">
-              {isAddingAttendee ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Plus className="mr-2 h-4 w-4" />
+              <div className="flex items-center gap-2">
+                <Select
+                  value={selectedStudentId}
+                  onValueChange={setSelectedStudentId}
+                  disabled={isLoadingStudents}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Selecione um aluno..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {isLoadingStudents ? (
+                      <SelectItem value="loading" disabled>
+                        Carregando...
+                      </SelectItem>
+                    ) : availableStudents.length > 0 ? (
+                      availableStudents.map((student) => (
+                        <SelectItem key={student.id} value={student.id}>
+                          {student.name} ({student.enrollment_type})
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="none" disabled>
+                        Nenhum aluno disponível
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={selectedAttendanceType}
+                  onValueChange={(value: AttendanceType) => setSelectedAttendanceType(value)}
+                >
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue placeholder="Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ATTENDANCE_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Button onClick={handleAddAttendee} disabled={!selectedStudentId || isAddingAttendee}>
+                  {isAddingAttendee ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="mr-2 h-4 w-4" />
+                  )}
+                  Adicionar
+                </Button>
+              </div>
+
+              {isClassFull && (
+                <p className="text-sm text-muted-foreground">
+                  A aula atingiu a capacidade máxima, mas você ainda pode adicionar alunos se necessário.
+                </p>
               )}
-              Adicionar
-            </Button>
-          </div>
-
-          {isClassFull && (
-            <p className="text-sm text-destructive">Aula está com capacidade máxima. A adição de novos alunos não é contabilizada nesta contagem, mas você pode continuar adicionando.</p>
-          )}
-        </div>
-
-        <div className="space-y-2 mt-4">
-          <h4 className="font-semibold flex items-center justify-between">
-            <div className="flex items-center">
-              <Users className="w-4 h-4 mr-2" />
-              Participantes ({attendees.length}/{classCapacity})
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" /> Presente</span></div>
-              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" /> Faltou</div>
-              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500" /> Agendado</div>
-            </div>
-          </h4>
 
-          {isLoadingAttendees ? (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 className="w-6 h-6 animate-spin" />
-            </div>
-          ) : (
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {attendees.length > 0 ? (
-                attendees.map((attendee) => (
-                  <div key={attendee.id} className="flex items-center justify-between p-3 rounded-lg border bg-secondary/20 transition-all hover:shadow-sm">
-                    <div className="flex items-center space-x-3">
-                      <span className="font-medium">{attendee.students?.name}</span>
-                      <Badge variant="outline" className="ml-2">{getEnrollmentCode(attendee.students?.enrollment_type)}</Badge>
-                      {attendee.attendance_type && (
-                        <Badge variant="secondary" className="ml-1 text-xs font-normal">{attendee.attendance_type}</Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Badge variant={getStatusVariant(attendee.status as AttendanceStatus)}>{attendee.status}</Badge>
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleUpdateStatus(attendee.id, 'Presente')} title="Marcar como Presente">
-                        <Check className="w-4 h-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleUpdateStatus(attendee.id, 'Faltou')} title="Marcar como Faltou">
-                        <X className="w-4 h-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleRemoveAttendee(attendee.id)} title="Remover Participante">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="flex items-center font-semibold">
+                  <Users className="mr-2 h-4 w-4" />
+                  Participantes ({attendees.length}/{classCapacity})
+                </h4>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-green-500" />
+                    Presente
                   </div>
-                ))
+                  <div className="flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-red-500" />
+                    Faltou
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-blue-500" />
+                    Agendado
+                  </div>
+                </div>
+              </div>
+
+              {isLoadingAttendees ? (
+                <div className="flex justify-center py-6">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              ) : attendees.length === 0 ? (
+                <div className="rounded-md border border-dashed py-12 text-center text-sm text-muted-foreground">
+                  Nenhum participante nesta aula até o momento.
+                </div>
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">Nenhum participante nesta aula.</p>
+                <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                  {attendees.map((attendee) => (
+                    <div
+                      key={attendee.id}
+                      className="flex items-center justify-between rounded-lg border bg-secondary/20 p-3 transition-all hover:shadow-sm"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="font-medium">{attendee.students?.name}</span>
+                        {attendee.students?.enrollment_type && (
+                          <Badge variant="outline">{attendee.students.enrollment_type}</Badge>
+                        )}
+                        {attendee.attendance_type && (
+                          <Badge variant="secondary" className="text-xs font-normal">
+                            {attendee.attendance_type}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant={
+                            attendee.status === 'Presente'
+                              ? 'attendance-present'
+                              : attendee.status === 'Faltou'
+                                ? 'attendance-absent'
+                                : 'attendance-scheduled'
+                          }
+                        >
+                          {attendee.status}
+                        </Badge>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleUpdateStatus(attendee.id, 'Presente')}
+                          title="Marcar como Presente"
+                        >
+                          <Check className="h-4 w-4 text-green-600" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleUpdateStatus(attendee.id, 'Faltou')}
+                          title="Marcar como Faltou"
+                        >
+                          <X className="h-4 w-4 text-red-600" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleRemoveAttendee(attendee.id)}
+                          title="Remover Participante"
+                        >
+                          <Trash2 className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-          )}
-        </div>
+          </div>
 
-        {/* Excluir Aula */}
-        <div className="mt-4 flex items-center justify-between">
-          <DeleteClassButton />
-        </div>
+          <DialogFooter className="mt-6">
+            <Button variant="secondary" onClick={() => onOpenChange(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-        <DialogFooter>
-          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
-            Fechar
-          </Button>
-        </DialogFooter>
+      {classEvent && (
+        <EditClassDialog
+          isOpen={isEditOpen}
+          onOpenChange={setIsEditOpen}
+          classEvent={classEvent}
+        />
+      )}
 
-        {/* Integra DeleteClassDialog */}
-        {classEvent?.id && (
-          <DeleteClassDialog
-            isOpen={isDeleteOpen}
-            onOpenChange={setDeleteOpen}
-            classId={classEvent.id}
-            classTitle={classEvent.title}
-            onDeleted={() => {
-              queryClient.invalidateQueries({ queryKey: ['classes'] });
-            }}
-          />
-        )}
-        <EditClassDialog isOpen={isEditOpen} onOpenChange={setIsEditOpen} classEvent={classEvent} />
-      </DialogContent>
-    </Dialog>
+      {classEvent && (
+        <DeleteClassDialog
+          isOpen={isDeleteOpen}
+          onOpenChange={setDeleteOpen}
+          classId={classEvent.id}
+          classTitle={classEvent.title}
+          onDeleted={handleDeleteSuccess}
+        />
+      )}
+    </>
   );
 };
 
