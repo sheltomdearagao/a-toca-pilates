@@ -1,22 +1,22 @@
 import * as React from "react";
-import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
 const cardVariants = cva(
-  "rounded-xl border bg-card text-card-foreground shadow",
+  "rounded-xl border bg-card text-card-foreground shadow-sm transition-all duration-300",
   {
     variants: {
       variant: {
-        default: "",
-        gradient: "card-gradient",
+        default: "shadow-impressionist",
+        bordered: "border-border",
+        "bordered-green": "border-status-active/50 border-l-4",
+        "bordered-red": "border-status-blocked/50 border-l-4",
+        "bordered-yellow": "border-status-experimental/50 border-l-4",
+        "bordered-blue": "border-attendance-scheduled/50 border-l-4", // Adicionado
+        gradient: "card-gradient text-white",
         "gradient-accent": "card-gradient-accent",
         "gradient-destructive": "card-gradient-destructive",
-        bordered: "border-l-4 border-primary/50",
-        "bordered-green": "border-l-4 border-green-500",
-        "bordered-red": "border-l-4 border-red-500",
-        "bordered-yellow": "border-l-4 border-yellow-500",
       },
     },
     defaultVariants: {
@@ -56,7 +56,7 @@ const CardTitle = React.forwardRef<
   <h3
     ref={ref}
     className={cn(
-      "font-semibold leading-none tracking-tight",
+      "text-2xl font-semibold leading-none tracking-tight",
       className
     )}
     {...props}
