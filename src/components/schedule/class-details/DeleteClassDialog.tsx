@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface DeleteClassDialogProps {
   isOpen: boolean;
@@ -29,19 +30,56 @@ const DeleteClassDialog = ({
   classTitle,
   onDeleted,
 }: DeleteClassDialogProps) => {
+  const queryClient = useQueryClient();
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const returnCreditMutation = useMutation({
+    mutationFn: async (studentId: string) => {
+      // Incrementa o crédito do aluno
+      const { error } = await supabase.rpc('increment_reposition_credit', {
+        p_student_id: studentId,
+        p_amount: 1,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (data, studentId) => {
+      queryClient.invalidateQueries({ queryKey: ['repositionCredits', studentId] });
+      queryClient.invalidateQueries({ queryKey: ['studentProfileData', studentId] });
+    },
+    onError: (error) => {
+      console.error("Falha ao devolver crédito:", error);
+      showError("Erro ao devolver crédito de reposição.");
+    }
+  });
 
   const handleDelete = async () => {
     if (!classId) return;
     setIsDeleting(true);
+    
     try {
-      // Primeiro deletar atendentes
-      await supabase.from('class_attendees').delete().eq('class_id', classId);
-      // Em seguida, deletar a aula
-      const { error } = await supabase.from('classes').delete().eq('id', classId);
-      if (error) throw error;
+      // 1. Buscar participantes antes de deletar
+      const { data: attendees, error: fetchError } = await supabase
+        .from('class_attendees')
+        .select('student_id, attendance_type')
+        .eq('class_id', classId);
 
-      showSuccess('Aula apagada com sucesso!');
+      if (fetchError) throw fetchError;
+
+      // 2. Deletar participantes e a aula (mantendo a ordem para evitar erros de FK)
+      await supabase.from('class_attendees').delete().eq('class_id', classId);
+      const { error: deleteClassError } = await supabase.from('classes').delete().eq('id', classId);
+      if (deleteClassError) throw deleteClassError;
+
+      // 3. Devolver créditos se for Reposição
+      const repositions = attendees.filter(a => a.attendance_type === 'Reposicao' && a.student_id);
+      
+      for (const attendee of repositions) {
+        if (attendee.student_id) {
+          await returnCreditMutation.mutateAsync(attendee.student_id);
+        }
+      }
+
+      showSuccess('Aula apagada e créditos devolvidos (se aplicável)!');
       onOpenChange(false);
       onDeleted?.();
     } catch (err: any) {
@@ -59,6 +97,7 @@ const DeleteClassDialog = ({
           <AlertDialogDescription>
             Tem certeza que deseja excluir a aula{classTitle ? ` "${classTitle}"` : ''}?
             Esta ação remove a aula da agenda e todos os participantes associados.
+            Se a aula for uma Reposição, o crédito será devolvido ao aluno.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
