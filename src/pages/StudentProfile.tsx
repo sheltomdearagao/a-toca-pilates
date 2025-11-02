@@ -14,7 +14,8 @@ import StudentFinancialHistory from '@/components/students/profile/StudentFinanc
 import StudentAttendanceHistory from '@/components/students/profile/StudentAttendanceHistory';
 import AddEditTransactionDialog, { TransactionFormData } from '@/components/financial/AddEditTransactionDialog';
 import { useStudentProfileData } from '@/hooks/useStudentProfileData';
-import { Button } from '@/components/ui/button'; // <-- Import adicionado
+import { Button } from '@/components/ui/button';
+import StudentRepositionCreditsCard from '@/components/students/profile/StudentRepositionCreditsCard'; // NOVO IMPORT
 
 const StudentProfile = () => {
   const { studentId } = useParams<{ studentId: string }>();
@@ -116,6 +117,8 @@ const StudentProfile = () => {
 
       <div className="grid lg:grid-cols-4 gap-6">
         <StudentDetailsCard student={student} isLoading={isLoading} />
+        {/* NOVO CARD DE CRÉDITOS */}
+        <StudentRepositionCreditsCard studentId={studentId} />
         <StudentRecurringScheduleCard student={student} recurringTemplate={recurringTemplate} isLoading={isLoading} />
       </div>
 

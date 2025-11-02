@@ -87,7 +87,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
       student_ids: preSelectedStudentId ? [preSelectedStudentId] : [],
       title: '',
       attendance_type: 'Pontual',
-      date: format(new Date(), 'yyyy-MM-dd'),
+      date: quickAddSlot ? format(quickAddSlot.date, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
       time: quickAddSlot ? `${quickAddSlot.hour.toString().padStart(2, '0')}:00` : availableHours[0],
       is_recurring_4_weeks: false,
       notes: '',
@@ -98,7 +98,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
   const selectedAttendanceType = watch('attendance_type');
 
   const selectedStudentForRepos = selectedAttendanceType === 'Reposicao' && selectedIds.length === 1 ? selectedIds[0] : undefined;
-  const { credits, isLoading: isLoadingCredits } = useRepositionCredits(selectedStudentForRepos);
+  const { credits, isLoading: isLoadingCredits, consumeCredit } = useRepositionCredits(selectedStudentForRepos);
 
   const [isPopOpen, setIsPopOpen] = useState<boolean>(false);
 
@@ -124,26 +124,25 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
       const numWeeks = formData.is_recurring_4_weeks ? 4 : 1;
       const requiredCredits = formData.attendance_type === 'Reposicao' ? numWeeks : 0;
 
+      // 1. Validação e Consumo de Crédito (Apenas para Reposição)
       if (formData.attendance_type === 'Reposicao') {
-        const sid = formData.student_ids[0];
-        const { data: creditRow, error: creditErr } = await supabase
-          .from('students')
-          .select('reposition_credits')
-          .eq('id', sid)
-          .single();
-        if (creditErr) throw creditErr;
-
-        const currentCredits = (creditRow?.reposition_credits ?? 0) as number;
-        if (currentCredits < requiredCredits) {
-          throw new Error(`Créditos insuficientes: necessário ${requiredCredits}, disponível ${currentCredits}.`);
+        if (requiredCredits > 0) {
+          // O hook useRepositionCredits já tem a lógica de validação de saldo.
+          // Chamamos a mutação de consumo de crédito para cada aula a ser agendada.
+          for (let i = 0; i < numWeeks; i++) {
+            // Usamos mutateAsync para garantir que o débito ocorra antes de prosseguir
+            await consumeCredit.mutateAsync();
+          }
         }
       }
 
-      const baseDate = parseISO(formData.date);
-      const [hh] = formData.time.split(':');
+      // 2. Criação das Aulas
       let classesCreatedCount = 0;
 
       for (let i = 0; i < numWeeks; i++) {
+        const baseDate = parseISO(formData.date);
+        const [hh] = formData.time.split(':');
+        
         const classDate = addWeeks(baseDate, i);
         const localDateTime = set(classDate, { hours: +hh, minutes: 0, seconds: 0, milliseconds: 0 });
         const startUtc = fromZonedTime(localDateTime, Intl.DateTimeFormat().resolvedOptions().timeZone).toISOString();
@@ -177,34 +176,21 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
         classesCreatedCount++;
       }
 
-      if (formData.attendance_type === 'Reposicao') {
-        const sid = formData.student_ids[0];
-        const { data: rowNow, error: rErr } = await supabase
-          .from('students')
-          .select('reposition_credits')
-          .eq('id', sid)
-          .single();
-        if (rErr) throw rErr;
-        const nowCredits = (rowNow?.reposition_credits ?? 0) as number;
-        const newCredits = Math.max(0, nowCredits - requiredCredits);
-        const { error: updErr } = await supabase
-          .from('students')
-          .update({ reposition_credits: newCredits })
-          .eq('id', sid);
-        if (updErr) throw updErr;
-      }
-
       return classesCreatedCount;
     },
     onSuccess: (c) => {
       qc.invalidateQueries({ queryKey: ['classes'] });
       if (selectedStudentForRepos) {
+        // Invalida o saldo de créditos para refletir o consumo
         qc.invalidateQueries({ queryKey: ['repositionCredits', selectedStudentForRepos] });
       }
       showSuccess(`Agendadas ${c} aula(s).`);
       onOpenChange(false);
     },
-    onError: (err: any) => showError(err.message),
+    onError: (err: any) => {
+      // Se o erro veio da mutação de consumo de crédito, ele será tratado aqui.
+      showError(err.message);
+    },
   });
 
   const onSubmit = (d: ClassFormData) => mutation.mutate(d);
@@ -217,6 +203,9 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
       }),
     [students, selectedIds]
   );
+
+  const requiredCredits = watch('is_recurring_4_weeks') ? 4 : 1;
+  const isCreditCheckFailed = selectedAttendanceType === 'Reposicao' && !isLoadingCredits && credits < requiredCredits;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -293,10 +282,8 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
                   <Select
                     onValueChange={(value: AttendanceType) => {
                       field.onChange(value);
-                      if (value === 'Experimental' && selectedIds.length > 1) {
-                        setValue('student_ids', selectedIds.slice(0, 1));
-                      }
-                      if (value === 'Reposicao' && selectedIds.length > 1) {
+                      // Força 1 aluno para Experimental/Reposição
+                      if ((value === 'Experimental' || value === 'Reposicao') && selectedIds.length > 1) {
                         setValue('student_ids', selectedIds.slice(0, 1));
                       }
                     }}
@@ -315,13 +302,14 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
                 <p className="text-xs text-destructive">Aulas Experimentais são limitadas a 1 aluno.</p>
               )}
               {selectedAttendanceType === 'Reposicao' && selectedStudentForRepos && (
-                <p className="text-xs text-muted-foreground">
+                <p className={cn("text-xs", isCreditCheckFailed ? "text-destructive" : "text-muted-foreground")}>
                   Créditos disponíveis: {isLoadingCredits ? '...' : credits} {watch('is_recurring_4_weeks') ? `(necessários: 4)` : `(necessários: 1)`}
                 </p>
               )}
             </div>
 
             {mutation.isError && <p className="text-red-600 text-sm">{(mutation.error as any)?.message}</p>}
+            {isCreditCheckFailed && <p className="text-red-600 text-sm">Créditos insuficientes para agendar esta reposição.</p>}
 
             <div className="grid grid-cols-2 gap-4">
               <Controller name="date" control={control} render={({ field }) => (
@@ -354,8 +342,8 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
           </div>
           <DialogFooter>
             <DialogClose asChild><Button variant="secondary">Cancelar</Button></DialogClose>
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending && <Loader2 className="mr-2 w-4 h-4 animate-spin" />} Agendar
+            <Button type="submit" disabled={mutation.isPending || isCreditCheckFailed}>
+              {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Agendar
             </Button>
           </DialogFooter>
         </form>
