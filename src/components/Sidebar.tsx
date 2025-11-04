@@ -14,6 +14,7 @@ interface SidebarProps {
 const Sidebar = ({ onOpenExporter }: SidebarProps) => {
   const navigate = useNavigate();
   const { profile } = useSession();
+  const isAdmin = profile?.role === 'admin';
 
   const logoUrl = "https://nkwsvsmmzvukdghlyxpm.supabase.co/storage/v1/object/public/app-assets/atocalogo.png";
 
@@ -52,7 +53,7 @@ const Sidebar = ({ onOpenExporter }: SidebarProps) => {
           <Users className="w-5 h-5 mr-3 group-hover:scale-105 transition-transform" />
           <span className="group-hover:font-semibold">Alunos</span>
         </NavLink>
-        {profile?.role === 'admin' && (
+        {isAdmin && (
           <NavLink to="/financeiro" className={navLinkClasses}>
             <DollarSign className="w-5 h-5 mr-3 group-hover:scale-105 transition-transform" />
             <span className="group-hover:font-semibold">Financeiro</span>
@@ -64,7 +65,7 @@ const Sidebar = ({ onOpenExporter }: SidebarProps) => {
         </NavLink>
       </nav>
       <div className="mt-4 space-y-2">
-        {profile?.role === 'admin' && (
+        {isAdmin && (
           <Button
             variant="ghost"
             className="w-full justify-start text-sidebar-foreground hover:bg-secondary hover:text-secondary-foreground transition-colors duration-200"

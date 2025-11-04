@@ -8,8 +8,8 @@ import ColoredSeparator from "@/components/ColoredSeparator";
 import { Card } from "@/components/ui/card";
 import { formatCurrency } from "@/utils/formatters";
 import PaymentDueAlert from "@/components/PaymentDueAlert"; // Importar o novo componente
+import { useSession } from "@/contexts/SessionProvider"; // Importar useSession
 
-// Atualização: fetchDashboardStats com tipagem estável para TS
 const fetchDashboardStats = async () => {
   const now = new Date();
   const monthStart = startOfMonth(now);
@@ -17,52 +17,60 @@ const fetchDashboardStats = async () => {
   const todayStart = startOfDay(now);
   const todayEnd = endOfDay(now);
 
-  // Consulta 1: pagamentos atrasados (inadimplentes)
-  const overdueQuery = supabase
+  // 1. Busca transações em atraso para calcular o valor total
+  const { data: overdueData, error: overdueError } = await supabase
     .from('financial_transactions')
     .select('amount, student_id')
     .eq('type', 'revenue')
     .or(`status.eq.Atrasado,and(status.eq.Pendente,due_date.lt.${now.toISOString()})`);
 
-  // Consulta 2: alunos ativos
-  const activeQuery = supabase.from('students').select('id', { count: 'exact', head: true }).eq('status','Ativo');
+  if (overdueError) throw new Error(`Inadimplência: ${overdueError.message}`);
 
-  // Consulta 3: receita paga no mês
-  const revenueQuery = supabase.from('financial_transactions')
-    .select('amount')
-    .eq('type','revenue')
-    .eq('status','Pago')
-    .gte('paid_at', monthStart.toISOString())
-    .lte('paid_at', monthEnd.toISOString());
+  const totalOverdue = overdueData?.reduce((sum, t) => sum + t.amount, 0) || 0;
+  
+  // 2. Calcula a contagem de alunos únicos inadimplentes
+  const uniqueOverdueStudents = new Set(overdueData?.map(t => t.student_id).filter(id => id !== null));
+  const overdueStudentCount = uniqueOverdueStudents.size;
 
-  // Consulta 4: aulas hoje
-  const classesQuery = supabase.from('classes')
-    .select('id', { count: 'exact', head: true })
-    .gte('start_time', todayStart.toISOString())
-    .lte('start_time', todayEnd.toISOString());
+  // Executa as outras consultas em paralelo
+  const [
+    activeStudents,
+    revenueData,
+    todayClasses,
+  ] = await Promise.all([
+    // Alunos ativos
+    (async () => {
+      const { count, error } = await supabase.from('students').select('id', { count: 'exact', head: true }).eq('status', 'Ativo');
+      if (error) throw error;
+      return count ?? 0;
+    })(),
+    // Receita paga no mês
+    (async () => {
+      const { data, error } = await supabase.from('financial_transactions')
+        .select('amount')
+        .eq('type', 'revenue')
+        .eq('status', 'Pago')
+        .gte('paid_at', monthStart.toISOString())
+        .lte('paid_at', monthEnd.toISOString());
+      if (error) throw error;
+      return data ?? [];
+    })(),
+    // Aulas hoje
+    (async () => {
+      const { count, error } = await supabase.from('classes').select('id', { count: 'exact', head: true }).gte('start_time', todayStart.toISOString()).lte('start_time', todayEnd.toISOString());
+      if (error) throw error;
+      return count ?? 0;
+    })(),
+  ]);
 
-  const [overdueRes, activeRes, revenueRes, classesRes] = await Promise.all([
-    overdueQuery, activeQuery, revenueQuery, classesQuery
-  ]) as any[];
-
-  const overdueData = overdueRes?.data ?? [];
-  const totalOverdue = overdueData.reduce((sum: number, t: any) => sum + (t.amount ?? 0), 0);
-
-  const overdueStudentCount = new Set((overdueData.map((t: any) => t.student_id)).filter((id: any) => id != null)).size;
-
-  const activeStudents = activeRes?.count ?? 0;
-
-  const revenueData = revenueRes?.data ?? [];
-  const monthlyRevenueValue = revenueData?.reduce((sum: number, t: any) => sum + (t.amount ?? 0), 0) ?? 0;
-
-  const todayClasses = classesRes?.count ?? 0;
+  const monthlyRevenue = (revenueData?.reduce((sum, t) => sum + t.amount, 0)) ?? 0;
 
   return {
-    activeStudents,
-    monthlyRevenue: formatCurrency(monthlyRevenueValue),
+    activeStudents: activeStudents ?? 0,
+    monthlyRevenue: formatCurrency(monthlyRevenue),
     totalOverdue: formatCurrency(totalOverdue),
-    overdueStudentCount,
-    todayClasses
+    overdueStudentCount: overdueStudentCount, // Nova métrica
+    todayClasses: todayClasses ?? 0,
   };
 };
 
@@ -70,9 +78,11 @@ const Dashboard = () => {
   const { data: stats, isLoading } = useQuery({
     queryKey: ['dashboardStats'],
     queryFn: fetchDashboardStats,
-    // Cache seguro para UX estável
-    staleTime: 1000 * 60 * 10,
+    staleTime: 1000 * 60 * 10, // Aumentado para 10 minutos
   });
+  
+  const { profile } = useSession();
+  const isRecepcao = profile?.role === 'recepcao';
 
   const logoUrl = "https://nkwsvsmmzvukdghlyxpm.supabase.co/storage/v1/object/public/app-assets/atocalogo.png";
 
@@ -100,13 +110,15 @@ const Dashboard = () => {
           isLoading={isLoading}
           variant="bordered-green"
         />
-        <StatCard
-          title="Receita do Mês"
-          value={stats?.monthlyRevenue ?? formatCurrency(0)}
-          icon={<DollarSign className="h-6 w-6" />}
-          isLoading={isLoading}
-          variant="bordered-green"
-        />
+        {!isRecepcao && ( // Oculta para recepcao
+          <StatCard
+            title="Receita do Mês"
+            value={stats?.monthlyRevenue ?? formatCurrency(0)}
+            icon={<DollarSign className="h-6 w-6" />}
+            isLoading={isLoading}
+            variant="bordered-green"
+          />
+        )}
         <StatCard
           title="Alunos Inadimplentes"
           value={stats?.overdueStudentCount ?? 0}
