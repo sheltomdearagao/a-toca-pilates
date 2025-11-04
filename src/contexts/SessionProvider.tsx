@@ -42,44 +42,27 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const handleAuthChange = async (event: string, currentSession: Session | null) => {
-      if (!isMounted) return;
-
-      setSession(currentSession);
+    // O listener dispara um evento 'INITIAL_SESSION' (ou 'SIGNED_IN' se redirecionado do login)
+    // que é o momento perfeito para definir o estado de carregamento como falso.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setSession(session);
       
       let profileData: Profile | null = null;
-      if (currentSession) {
+      if (session?.user) {
         try {
-          profileData = await getProfile(currentSession.user.id);
+          profileData = await getProfile(session.user.id);
         } catch (e) {
-          console.error("Falha ao carregar perfil durante a mudança de estado:", e);
+          console.error("Falha ao carregar perfil:", e);
         }
       }
       setProfile(profileData);
-
-      // O evento INITIAL_SESSION é disparado assim que o Supabase lê o token do storage.
-      // Este é o momento ideal para resolver o estado de carregamento.
-      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-        setIsLoading(false);
-      }
-    };
-
-    // 1. Configura o listener para todas as mudanças de estado
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthChange);
-
-    // 2. Tenta obter a sessão imediatamente (para o caso de o listener demorar a disparar)
-    // Embora o listener deva disparar 'INITIAL_SESSION', esta chamada garante que o estado inicial seja capturado.
-    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
-        if (isMounted && isLoading) { // Se ainda estiver carregando, resolve o estado
-            handleAuthChange('INITIAL_SESSION', initialSession);
-        }
+      
+      // O estado de carregamento é definido como falso assim que a sessão inicial é carregada.
+      // Isso lida corretamente com o cenário de atualização da página.
+      setIsLoading(false);
     });
 
-
     return () => {
-      isMounted = false;
       subscription.unsubscribe();
     };
   }, []);
