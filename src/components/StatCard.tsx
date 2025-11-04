@@ -9,16 +9,15 @@ interface StatCardProps {
   description?: string;
   icon: React.ReactNode;
   isLoading: boolean;
-  variant?: "default" | "gradient" | "gradient-accent" | "gradient-destructive" | "bordered" | "bordered-green" | "bordered-red" | "bordered-yellow"; // Adicionado novas variantes
+  variant?: "default" | "gradient" | "gradient-accent" | "gradient-destructive" | "bordered" | "bordered-green" | "bordered-red" | "bordered-yellow";
 }
 
 const StatCard = React.memo(({ title, value, description, icon, isLoading, variant = "default" }: StatCardProps) => {
   return (
     <Card 
-      variant={variant} // Usando a nova prop variant
       className={cn(
-        "transition-all duration-200 hover:scale-[1.02] hover:shadow-lg", // Animação de hover mais sutil
-        (variant === "default" || variant.startsWith("bordered")) && "shadow-subtle-glow" // Apply subtle glow to default and bordered variants
+        "transition-all duration-200 hover:scale-[1.02] hover:shadow-lg shadow-impressionist",
+        (variant === "default" || variant.startsWith("bordered")) && "shadow-subtle-glow"
       )}
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

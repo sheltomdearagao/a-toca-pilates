@@ -19,16 +19,16 @@ import { Button } from '@/components/ui/button';
 import { Loader2, MoreHorizontal, CalendarPlus } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import FinancialTableSkeleton from '@/components/financial/FinancialTableSkeleton'; // Reutilizando o skeleton de tabela
-import { Badge } from '@/components/ui/badge'; // Importar Badge
+import FinancialTableSkeleton from '@/components/financial/FinancialTableSkeleton';
+import { Badge } from '@/components/ui/badge';
 
 interface StudentsTableProps {
   students: Student[] | undefined;
   isLoading: boolean;
   onEdit: (student: Student) => void;
   onDelete: (student: Student) => void;
-  onScheduleClass: (student: Student) => void; // Nova prop
-  paymentStatusMap: Record<string, 'Em Dia' | 'Atrasado'> | undefined; // Nova prop
+  onScheduleClass: (student: Student) => void;
+  paymentStatusMap: Record<string, 'Em Dia' | 'Atrasado'> | undefined;
 }
 
 const StudentsTable = React.memo(({ students, isLoading, onEdit, onDelete, onScheduleClass, paymentStatusMap }: StudentsTableProps) => {
@@ -47,7 +47,7 @@ const StudentsTable = React.memo(({ students, isLoading, onEdit, onDelete, onSch
   }
 
   return (
-    <Card className="shadow-subtle-glow">
+    <Card className="shadow-impressionist shadow-subtle-glow">
       <Table>
         <TableHeader>
           <TableRow>
@@ -55,7 +55,7 @@ const StudentsTable = React.memo(({ students, isLoading, onEdit, onDelete, onSch
             <TableHead>Plano</TableHead>
             <TableHead>Tipo Matrícula</TableHead>
             <TableHead>Status Aluno</TableHead>
-            <TableHead>Status Pagamento</TableHead> {/* NOVA COLUNA */}
+            <TableHead>Status Pagamento</TableHead>
             <TableHead className="text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
@@ -97,7 +97,7 @@ const StudentsTable = React.memo(({ students, isLoading, onEdit, onDelete, onSch
                     {student.status}
                   </Badge>
                 </TableCell>
-                <TableCell> {/* NOVA CÉLULA */}
+                <TableCell>
                   <Badge variant={
                     paymentStatus === 'Atrasado' ? 'payment-overdue' : 'payment-paid'
                   }>
