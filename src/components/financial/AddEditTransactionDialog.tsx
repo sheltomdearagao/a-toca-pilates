@@ -19,28 +19,29 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import { useAppSettings } from '@/hooks/useAppSettings';
-import { PaymentStatus } from '@/types/financial'; // Importar PaymentStatus
+import { FinancialTransaction, PaymentStatus } from '@/types/financial';
+import { format, parseISO } from 'date-fns';
 
 export interface AddEditTransactionDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  selectedTransaction?: FinancialTransaction;
   initialStudentId?: string;
   defaultType?: 'revenue' | 'expense';
-  defaultStatus?: PaymentStatus; // Novo prop
+  defaultStatus?: PaymentStatus;
   onSubmit: (data: TransactionFormData) => void;
   isSubmitting: boolean;
-
-  selectedTransaction?: any;
-  students?: any[];
+  students?: { id: string; name: string }[];
   isLoadingStudents?: boolean;
 }
 
 const AddEditTransactionDialog = ({
   isOpen,
   onOpenChange,
+  selectedTransaction,
   initialStudentId,
   defaultType = 'revenue',
-  defaultStatus = 'Pendente', // Usar Pendente como fallback
+  defaultStatus = 'Pendente',
   onSubmit,
   isSubmitting,
   students = [],
@@ -56,41 +57,55 @@ const AddEditTransactionDialog = ({
       description: '',
       amount: 0,
       category: '',
-      status: defaultStatus, // Usar defaultStatus
+      status: defaultStatus,
       due_date: null,
     },
   });
 
   useEffect(() => {
     if (isOpen) {
-      reset({
-        type: defaultType,
-        student_id: initialStudentId ?? null,
-        description: '',
-        amount: 0,
-        category: '',
-        status: defaultStatus, // Usar defaultStatus no reset
-        due_date: null,
-      });
+      if (selectedTransaction) {
+        // Modo Edição: Carrega dados da transação selecionada
+        reset({
+          type: selectedTransaction.type,
+          student_id: selectedTransaction.student_id,
+          description: selectedTransaction.description,
+          amount: selectedTransaction.amount,
+          category: selectedTransaction.category,
+          status: selectedTransaction.status || 'Pendente',
+          due_date: selectedTransaction.due_date ? format(parseISO(selectedTransaction.due_date), 'yyyy-MM-dd') : null,
+        });
+      } else {
+        // Modo Adição: Reseta para os valores padrão
+        reset({
+          type: defaultType,
+          student_id: initialStudentId ?? null,
+          description: '',
+          amount: 0,
+          category: '',
+          status: defaultStatus,
+          due_date: null,
+        });
+      }
     }
-  }, [isOpen, initialStudentId, defaultType, defaultStatus, reset]);
+  }, [isOpen, selectedTransaction, initialStudentId, defaultType, defaultStatus, reset]);
 
   const transactionType = watch('type');
   const isRevenue = transactionType === 'revenue';
-  const isExpense = transactionType === 'expense';
-  const isStudentSelected = !!watch('student_id');
 
   const categories = isRevenue ? appSettings?.revenue_categories : appSettings?.expense_categories;
+  const dialogTitle = selectedTransaction
+    ? 'Editar Lançamento'
+    : transactionType === 'revenue' ? 'Registrar Receita' : 'Registrar Despesa';
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{transactionType === 'revenue' ? 'Registrar Receita' : 'Registrar Despesa'}</DialogTitle>
+          <DialogTitle>{dialogTitle}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="grid gap-4 py-4">
-            {/* Tipo de Transação (Oculto se initialStudentId estiver presente, pois é sempre Receita) */}
             {!initialStudentId && (
               <Controller
                 name="type"
@@ -110,14 +125,13 @@ const AddEditTransactionDialog = ({
               />
             )}
 
-            {/* Aluno (Apenas se não estiver fixo) */}
             {!initialStudentId && (
               <Controller
                 name="student_id"
                 control={control}
                 render={({ field }) => (
                   <div className="space-y-2">
-                    <Label>Aluno</Label>
+                    <Label>Aluno (Opcional)</Label>
                     <Select
                       onValueChange={(v) => field.onChange(v === 'none' ? null : v)}
                       value={field.value ?? 'none'}
@@ -157,8 +171,8 @@ const AddEditTransactionDialog = ({
                       step="0.01"
                       placeholder="0.00"
                       {...field}
-                      onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                      value={field.value === 0 ? '' : field.value}
+                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                      value={field.value || ''}
                     />
                   )}
                 />
@@ -182,7 +196,6 @@ const AddEditTransactionDialog = ({
               </div>
             </div>
 
-            {/* Status e Vencimento (Apenas para Receita) */}
             {isRevenue && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
