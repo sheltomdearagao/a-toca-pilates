@@ -42,53 +42,37 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchSessionAndProfile = async () => {
-      // 1. Tenta obter a sessão ativa. Isso lê do localStorage.
-      const { data: { session: activeSession }, error } = await supabase.auth.getSession();
-      
-      if (error) {
-        console.error("Erro ao obter sessão:", error);
-        setIsLoading(false);
-        return;
-      }
-
-      setSession(activeSession);
-
-      let profileData: Profile | null = null;
-      if (activeSession?.user) {
-        try {
-          profileData = await getProfile(activeSession.user.id);
-        } catch (e) {
-          console.error("Falha ao carregar perfil inicial:", e);
-        }
-      }
-      setProfile(profileData);
-      
-      // 2. Marca o carregamento inicial como concluído.
-      setIsLoading(false);
+    // Este efeito lida exclusivamente com a sessão e o estado de carregamento.
+    const fetchInitialSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+      setIsLoading(false); // Finaliza o carregamento assim que a sessão é verificada.
     };
 
-    fetchSessionAndProfile();
+    fetchInitialSession();
 
-    // 3. Ouve por mudanças no estado de autenticação (login, logout, etc.)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
-      setSession(newSession);
-      
-      let profileData: Profile | null = null;
-      if (newSession?.user) {
-        try {
-          profileData = await getProfile(newSession.user.id);
-        } catch (e) {
-          console.error("Falha ao carregar perfil na mudança de auth:", e);
-        }
-      }
-      setProfile(profileData);
+    // Ouve por mudanças futuras (login/logout).
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
     });
 
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    // Este efeito busca o perfil sempre que a sessão mudar.
+    // Ele não afeta mais o estado de 'isLoading'.
+    if (session?.user) {
+      getProfile(session.user.id)
+        .then(profileData => setProfile(profileData))
+        .catch(e => {
+          console.error("Falha ao carregar perfil:", e);
+          setProfile(null);
+        });
+    } else {
+      setProfile(null); // Limpa o perfil se não houver sessão.
+    }
+  }, [session]); // Depende apenas da sessão.
 
   return (
     <SessionContext.Provider value={{ session, profile, isLoading }}>
