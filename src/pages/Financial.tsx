@@ -6,7 +6,7 @@ import { StudentOption } from '@/types/student';
 import { formatCurrency } from '@/utils/formatters';
 import { showError, showSuccess } from '@/utils/toast';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Settings, DollarSign, Search } from 'lucide-react';
+import { PlusCircle, Settings, DollarSign, Search, ListChecks } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AddEditTransactionDialog, { TransactionFormData } from '@/components/financial/AddEditTransactionDialog';
 import AllTransactionsTable from '@/components/financial/AllTransactionsTable';
@@ -18,6 +18,7 @@ import { ptBR } from 'date-fns/locale/pt-BR';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { Navigate } from 'react-router-dom';
 import { useSession } from '@/contexts/SessionProvider';
+import CategoryManagerDialog from '@/components/financial/CategoryManagerDialog'; // Importar o novo diálogo
 
 type ChartData = {
   month: string;
@@ -132,13 +133,15 @@ const Financial = () => {
   }, [data, searchTerm, typeFilter, statusFilter, categoryFilter, studentFilter]);
 
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false); // Novo estado
   const [selectedTransaction, setSelectedTransaction] = useState<FinancialTransaction | null>(null);
 
   // Create/Update
   const upsertMutation = useMutation({
     mutationFn: async (formData: TransactionFormData) => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } = { user: null } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado.');
+      
       const payload: any = {
         user_id: user.id,
         student_id: formData.student_id,
@@ -150,7 +153,10 @@ const Financial = () => {
         due_date: formData.due_date,
         paid_at: formData.status === 'Pago' ? new Date().toISOString() : null,
       };
+      
       if (selectedTransaction) {
+        // Garante que o user_id não seja alterado durante a edição
+        delete payload.user_id; 
         await supabase.from('financial_transactions').update(payload).eq('id', selectedTransaction.id);
       } else {
         await supabase.from('financial_transactions').insert([payload]);
@@ -158,6 +164,8 @@ const Financial = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financialData'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+      queryClient.invalidateQueries({ queryKey: ['upcomingPayments'] });
       showSuccess(`Lançamento ${selectedTransaction ? 'atualizado' : 'criado'} com sucesso!`);
       setIsAddEditOpen(false);
       setSelectedTransaction(null);
@@ -176,6 +184,8 @@ const Financial = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financialData'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+      queryClient.invalidateQueries({ queryKey: ['upcomingPayments'] });
       showSuccess('Lançamento marcado como pago!');
     },
     onError: (err: any) => showError(err.message),
@@ -200,10 +210,19 @@ const Financial = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financialData'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+      queryClient.invalidateQueries({ queryKey: ['upcomingPayments'] });
       showSuccess('Lançamento removido com sucesso!');
     },
     onError: (err: any) => showError(err.message),
   });
+
+  // Combina todas as categorias únicas para o filtro
+  const allCategories = useMemo(() => {
+    const revenue = appSettings?.revenue_categories || [];
+    const expense = appSettings?.expense_categories || [];
+    return Array.from(new Set([...revenue, ...expense]));
+  }, [appSettings]);
 
   return (
     <div className="space-y-6">
@@ -220,11 +239,11 @@ const Financial = () => {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleAdd}>
-            <PlusCircle className="w-4 h-4 mr-2" /> Novo Lançamento
+          <Button variant="outline" onClick={() => setIsCategoryManagerOpen(true)}>
+            <ListChecks className="w-4 h-4 mr-2" /> Gerenciar Categorias
           </Button>
-          <Button onClick={() => setIsAddEditOpen(true)}>
-            <Settings className="w-4 h-4 mr-2" /> Configurações
+          <Button onClick={handleAdd}>
+            <PlusCircle className="w-4 h-4 mr-2" /> Novo Lançamento
           </Button>
         </div>
       </div>
@@ -271,7 +290,7 @@ const Financial = () => {
               <span className="text-sm text-muted-foreground">Categoria</span>
               <select className="select w-full" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
                 <option value="all">Todas</option>
-                {(appSettings?.revenue_categories ?? appSettings?.expense_categories ?? []).map((c: string) => (
+                {allCategories.map((c: string) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
@@ -304,6 +323,11 @@ const Financial = () => {
             isSubmitting={upsertMutation.isPending}
             students={data?.students ?? []}
             isLoadingStudents={false}
+          />
+          
+          <CategoryManagerDialog
+            isOpen={isCategoryManagerOpen}
+            onOpenChange={setIsCategoryManagerOpen}
           />
         </CardContent>
       </Card>

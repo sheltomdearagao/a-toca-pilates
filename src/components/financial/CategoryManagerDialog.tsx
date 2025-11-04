@@ -35,6 +35,7 @@ const CategoryManagerDialog = ({ isOpen, onOpenChange }: CategoryManagerDialogPr
 
   const updateCategoriesMutation = useMutation({
     mutationFn: async (updatedCategories: string[]) => {
+      // Garante que a lista seja salva como JSON string no campo 'value'
       const { error } = await supabase
         .from('app_settings')
         .upsert({ key: categoriesKey, value: JSON.stringify(updatedCategories), updated_at: new Date().toISOString() }, { onConflict: 'key' });
@@ -42,6 +43,7 @@ const CategoryManagerDialog = ({ isOpen, onOpenChange }: CategoryManagerDialogPr
       if (error) throw error;
     },
     onSuccess: () => {
+      // Invalida as configurações para que o hook useAppSettings recarregue os novos valores
       queryClient.invalidateQueries({ queryKey: ['appSettings'] });
       showSuccess('Categorias atualizadas com sucesso!');
       setNewCategory('');

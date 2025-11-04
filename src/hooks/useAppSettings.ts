@@ -14,7 +14,12 @@ interface AppSettings {
 
 const parseJsonSetting = (value: string, defaultValue: string[], key: string) => {
   try {
-    return JSON.parse(value);
+    const parsed = JSON.parse(value);
+    // Garante que o resultado seja um array de strings
+    if (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) {
+        return parsed;
+    }
+    throw new Error("Parsed value is not a string array.");
   } catch (e) {
     console.error(`Failed to parse ${key} from app_settings:`, e);
     return defaultValue;
