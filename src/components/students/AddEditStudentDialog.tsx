@@ -43,19 +43,7 @@ const pricingTable = {
   },
 };
 
-const DAYS_OF_WEEK = [
-  { value: 'monday', label: 'Seg' },
-  { value: 'tuesday', label: 'Ter' },
-  { value: 'wednesday', label: 'Qua' },
-  { value: 'thursday', label: 'Qui' },
-  { value: 'friday', label: 'Sex' },
-  { value: 'saturday', label: 'Sáb' },
-];
-
-const availableHours = Array.from({ length: 14 }, (_, i) => {
-  const hour = i + 7;
-  return `${hour.toString().padStart(2, '0')}:00`;
-});
+// Removendo DAYS_OF_WEEK e availableHours, pois não são mais usados aqui.
 
 interface AddEditStudentDialogProps {
   isOpen: boolean;
@@ -89,11 +77,7 @@ const createStudentSchema = (appSettings: any) => {
     enrollment_type: dynamicEnrollmentTypeSchema.default("Particular"),
     date_of_birth: z.string().optional().nullable(),
     validity_date: z.string().optional().nullable(),
-    preferred_days: z.array(z.string()).optional(),
-    preferred_time: z.string().optional().nullable().refine(
-      (val) => val === null || val === undefined || (typeof val === 'string' && val.endsWith(':00')),
-      { message: "O horário deve ser em hora cheia (ex: 08:00)." }
-    ),
+    // preferred_days e preferred_time removidos
     has_promotional_value: z.boolean().optional(),
     discount_description: z.string().optional().nullable(),
     register_payment: z.boolean().optional(),
@@ -107,11 +91,7 @@ const createStudentSchema = (appSettings: any) => {
     if (data.has_promotional_value && (!data.discount_description || data.discount_description.trim() === '')) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A descrição do desconto é obrigatória.', path: ['discount_description'] });
     }
-    if (data.preferred_days && data.preferred_days.length > 0 && !data.preferred_time) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'O horário é obrigatório se os dias forem selecionados.', path: ['preferred_time'] });
-    if (data.plan_frequency && data.preferred_days) {
-      const expectedCount = parseInt(data.plan_frequency.replace('x', ''), 10);
-      if (data.preferred_days.length > 0 && data.preferred_days.length !== expectedCount) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Selecione exatamente ${expectedCount} dias.`, path: ['preferred_days'] });
-    }
+    // Validação de preferred_days/time removida
     if (data.register_payment && data.plan_type !== 'Avulso') {
       if (!data.payment_due_date) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A data de vencimento do pagamento é obrigatória.', path: ['payment_due_date'] });
@@ -131,7 +111,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
     defaultValues: {
       name: "", email: "", phone: "", address: "", guardian_phone: "", status: "Experimental", notes: "",
       plan_type: "Avulso", enrollment_type: "Particular", date_of_birth: null, validity_date: null,
-      preferred_days: [], preferred_time: null, plan_frequency: null, payment_method: null,
+      plan_frequency: null, payment_method: null,
       has_promotional_value: false, discount_description: null,
       register_payment: false,
       payment_due_date: null,
@@ -142,12 +122,8 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
   const planType = watch("plan_type");
   const planFrequency = watch("plan_frequency");
   const paymentMethod = watch("payment_method");
-  const preferredDays = watch("preferred_days") || [];
   const hasPromotionalValue = watch("has_promotional_value");
   const registerPayment = watch("register_payment");
-
-  const frequencyCount = planFrequency ? parseInt(planFrequency.replace('x', ''), 10) : 0;
-  const canSelectMoreDays = preferredDays.length < frequencyCount || frequencyCount === 0;
 
   useEffect(() => {
     if (!hasPromotionalValue && planType && planType !== 'Avulso' && planFrequency && paymentMethod) {
@@ -170,8 +146,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
           notes: selectedStudent.notes || '',
           date_of_birth: selectedStudent.date_of_birth ? format(new Date(selectedStudent.date_of_birth), 'yyyy-MM-dd') : null,
           validity_date: selectedStudent.validity_date ? format(new Date(selectedStudent.validity_date), 'yyyy-MM-dd') : null,
-          preferred_days: selectedStudent.preferred_days || [],
-          preferred_time: selectedStudent.preferred_time || null,
+          // preferred_days e preferred_time removidos do reset
           plan_frequency: selectedStudent.plan_type === 'Avulso' ? null : selectedStudent.plan_frequency || null,
           payment_method: selectedStudent.plan_type === 'Avulso' ? null : selectedStudent.payment_method || null,
           has_promotional_value: !!selectedStudent.discount_description,
@@ -184,7 +159,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
         reset({
           name: "", email: "", phone: "", address: "", guardian_phone: "", status: "Experimental", notes: "",
           plan_type: "Avulso", enrollment_type: "Particular", date_of_birth: null, validity_date: null,
-          preferred_days: [], preferred_time: null, plan_frequency: null, payment_method: null,
+          plan_frequency: null, payment_method: null,
           has_promotional_value: false, discount_description: null,
           register_payment: false,
           payment_due_date: null,
@@ -369,61 +344,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
                   )}
                 </div>
 
-                <h3 className="text-lg font-semibold mt-4 border-t pt-4">Preferências de Agendamento</h3>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Dias Preferidos ({preferredDays.length}/{frequencyCount})</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {DAYS_OF_WEEK.map(day => (
-                        <Controller
-                          key={day.value}
-                          name="preferred_days"
-                          control={control}
-                          render={({ field }) => (
-                            <Button
-                              type="button"
-                              variant={field.value?.includes(day.value) ? "default" : "outline"}
-                              size="sm"
-                              className={cn(
-                                "transition-colors",
-                                !canSelectMoreDays && !field.value?.includes(day.value) && "opacity-50 cursor-not-allowed"
-                              )}
-                              onClick={() => {
-                                const isSelected = field.value?.includes(day.value);
-                                if (isSelected) {
-                                  field.onChange(field.value.filter(v => v !== day.value));
-                                } else if (canSelectMoreDays) {
-                                  field.onChange([...(field.value || []), day.value]);
-                                }
-                              }}
-                              disabled={!canSelectMoreDays && !field.value?.includes(day.value)}
-                            >
-                              {day.label}
-                            </Button>
-                          )}
-                        />
-                      ))}
-                    </div>
-                    {errors.preferred_days && <p className="text-sm text-destructive mt-1">{errors.preferred_days.message}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Horário Preferido</Label>
-                    <Controller name="preferred_time" control={control} render={({ field, fieldState }) => (
-                      <>
-                        <Select onValueChange={field.onChange} value={field.value || ''}>
-                          <SelectTrigger><SelectValue placeholder="Hora Cheia" /></SelectTrigger>
-                          <SelectContent>
-                            {availableHours.map(hour => (
-                              <SelectItem key={hour} value={hour}>{hour}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
-                      </>
-                    )} />
-                  </div>
-                </div>
+                {/* Preferências de Agendamento REMOVIDAS */}
 
                 {/* Registro de Pagamento (Apenas para novos alunos ou se o campo estiver vazio) */}
                 {!selectedStudent && (

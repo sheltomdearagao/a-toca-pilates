@@ -25,9 +25,8 @@ const DAYS_OF_WEEK_MAP: { [key: string]: string } = {
 };
 
 const StudentRecurringScheduleCard = ({ student, recurringTemplate, isLoading }: StudentRecurringScheduleCardProps) => {
-  const preferredDaysDisplay = student?.preferred_days?.map(day => DAYS_OF_WEEK_MAP[day]).join(', ') || 'N/A';
-  const preferredTimeDisplay = student?.preferred_time || 'N/A';
-
+  // preferredDaysDisplay e preferredTimeDisplay removidos, pois os campos foram removidos do Student
+  
   return (
     <Card variant="bordered-yellow" className="lg:col-span-2 shadow-impressionist shadow-subtle-glow">
       <CardHeader>
@@ -43,16 +42,9 @@ const StudentRecurringScheduleCard = ({ student, recurringTemplate, isLoading }:
           <p className="text-muted-foreground">Este aluno possui plano Avulso e não tem agendamento recorrente.</p>
         ) : (
           <>
-            <div className="flex items-center">
-              <Calendar className="w-4 h-4 mr-3 text-muted-foreground" />
-              <span className="font-semibold">Dias Preferidos:</span> <span>{preferredDaysDisplay}</span>
-            </div>
-            <div className="flex items-center">
-              <Clock className="w-4 h-4 mr-3 text-muted-foreground" />
-              <span className="font-semibold">Horário Preferido:</span> <span>{preferredTimeDisplay}</span>
-            </div>
+            {/* Removido a exibição de Dias e Horários Preferidos */}
             
-            <ColoredSeparator color="yellow" className="my-2" />
+            {/* <ColoredSeparator color="yellow" className="my-2" /> */}
 
             {recurringTemplate ? (
               <div className="space-y-2">
@@ -72,7 +64,7 @@ const StudentRecurringScheduleCard = ({ student, recurringTemplate, isLoading }:
                 )}
               </div>
             ) : (
-              <p className="text-muted-foreground">Nenhum modelo de aula recorrente gerado automaticamente.</p>
+              <p className="text-muted-foreground">Nenhum modelo de aula recorrente ativo. Use o botão 'Gerenciar Recorrência' para configurar.</p>
             )}
           </>
         )}
