@@ -21,43 +21,57 @@ const SessionContext = createContext<SessionContextType>({
   isLoading: true,
 });
 
+const getProfile = async (userId: string): Promise<Profile | null> => {
+  const { data: profileData } = await supabase
+    .from('profiles')
+    .select('id, full_name, role')
+    .eq('id', userId)
+    .single();
+  return profileData;
+};
+
 export const SessionProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const setData = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
-      if (session) {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('id, full_name, role') // Selecionando apenas as colunas necessárias
-          .eq('id', session.user.id)
-          .single();
-        setProfile(profileData);
+    let isMounted = true;
+
+    const loadSession = async () => {
+      // 1. Tenta obter a sessão persistida (do localStorage)
+      const { data: { session: initialSession } } = await supabase.auth.getSession();
+      
+      if (isMounted) {
+        setSession(initialSession);
+        if (initialSession) {
+          // 2. Se houver sessão, busca o perfil
+          const profileData = await getProfile(initialSession.user.id);
+          setProfile(profileData);
+        }
+        setIsLoading(false); // Marca como carregado APENAS após a primeira tentativa de sessão
       }
-      setIsLoading(false);
     };
 
-    setData();
+    loadSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      if (session) {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('id, full_name, role') // Selecionando apenas as colunas necessárias
-          .eq('id', session.user.id)
-          .single();
-        setProfile(profileData);
-      } else {
-        setProfile(null);
+    // 3. Configura o listener para mudanças futuras (login/logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
+      if (isMounted) {
+        setSession(currentSession);
+        if (currentSession) {
+          const profileData = await getProfile(currentSession.user.id);
+          setProfile(profileData);
+        } else {
+          setProfile(null);
+        }
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   return (
