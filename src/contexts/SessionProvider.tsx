@@ -30,7 +30,6 @@ const getProfile = async (userId: string): Promise<Profile | null> => {
     
   if (error && error.code !== 'PGRST116') { // PGRST116 = No rows found (perfil não existe)
     console.error("Erro ao buscar perfil:", error);
-    // Não lançamos erro aqui, apenas retornamos null para não travar o SessionProvider
     return null;
   }
   
@@ -45,44 +44,39 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
   useEffect(() => {
     let isMounted = true;
 
-    const loadSession = async () => {
-      // 1. Tenta obter a sessão persistida (do localStorage)
-      const { data: { session: initialSession } } = await supabase.auth.getSession();
+    const handleAuthChange = async (event: string, currentSession: Session | null) => {
+      if (!isMounted) return;
+
+      setSession(currentSession);
       
-      if (isMounted) {
-        setSession(initialSession);
-        
-        if (initialSession) {
-          try {
-            // 2. Se houver sessão, busca o perfil
-            const profileData = await getProfile(initialSession.user.id);
-            setProfile(profileData);
-          } catch (e) {
-            console.error("Falha crítica ao carregar perfil:", e);
-            // Se falhar, a sessão é mantida, mas o perfil é nulo.
-            setProfile(null);
-          }
+      let profileData: Profile | null = null;
+      if (currentSession) {
+        try {
+          profileData = await getProfile(currentSession.user.id);
+        } catch (e) {
+          console.error("Falha ao carregar perfil durante a mudança de estado:", e);
         }
-        
-        // 3. Garante que o estado de carregamento seja resolvido
-        setIsLoading(false); 
+      }
+      setProfile(profileData);
+
+      // O evento INITIAL_SESSION é disparado assim que o Supabase lê o token do storage.
+      // Este é o momento ideal para resolver o estado de carregamento.
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+        setIsLoading(false);
       }
     };
 
-    loadSession();
+    // 1. Configura o listener para todas as mudanças de estado
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthChange);
 
-    // 4. Configura o listener para mudanças futuras (login/logout)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
-      if (isMounted) {
-        setSession(currentSession);
-        if (currentSession) {
-          const profileData = await getProfile(currentSession.user.id);
-          setProfile(profileData);
-        } else {
-          setProfile(null);
+    // 2. Tenta obter a sessão imediatamente (para o caso de o listener demorar a disparar)
+    // Embora o listener deva disparar 'INITIAL_SESSION', esta chamada garante que o estado inicial seja capturado.
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+        if (isMounted && isLoading) { // Se ainda estiver carregando, resolve o estado
+            handleAuthChange('INITIAL_SESSION', initialSession);
         }
-      }
     });
+
 
     return () => {
       isMounted = false;
