@@ -17,13 +17,16 @@ type BirthdayStudent = {
 
 const fetchBirthdayStudents = async (): Promise<BirthdayStudent[]> => {
   const currentMonth = new Date().getMonth() + 1;
-  const { data, error } = await supabase
-    .from('students')
-    .select('id, name, date_of_birth, phone')
-    .not('date_of_birth', 'is', null)
-    .eq('status', 'Ativo') // Apenas alunos ativos
-    .filter('EXTRACT(MONTH FROM date_of_birth)::int', 'eq', currentMonth);
-  if (error) throw new Error(error.message);
+  
+  // Usando a nova e mais confiável função RPC do banco de dados
+  const { data, error } = await supabase.rpc('get_birthday_students_for_month', {
+    p_month: currentMonth
+  });
+
+  if (error) {
+    console.error("Erro ao buscar aniversariantes:", error);
+    throw new Error(error.message);
+  }
   return (data as BirthdayStudent[]) || [];
 };
 
