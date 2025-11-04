@@ -7,6 +7,7 @@ import BirthdayCard from "@/components/BirthdayCard";
 import ColoredSeparator from "@/components/ColoredSeparator";
 import { Card } from "@/components/ui/card";
 import { formatCurrency } from "@/utils/formatters";
+import PaymentDueAlert from "@/components/PaymentDueAlert"; // Importar o novo componente
 
 const fetchDashboardStats = async () => {
   const now = new Date();
@@ -92,6 +93,8 @@ const Dashboard = () => {
         </div>
       </div>
       
+      <PaymentDueAlert /> {/* NOVO ALERTA AQUI */}
+
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Alunos Ativos"
