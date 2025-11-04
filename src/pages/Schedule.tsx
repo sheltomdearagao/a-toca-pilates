@@ -64,13 +64,18 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
   const classEvent = classesInSlot[0]; // Lógica de UMA aula por slot
   const attendeeCount = classEvent?.class_attendees?.[0]?.count ?? 0;
 
-  // Novo: cor por tipo de matrícula
-  const enrollmentType = classEvent?.students?.enrollment_type;
-  const enrollmentCode = enrollmentType === 'Wellhub' ? 'G' : enrollmentType === 'TotalPass' ? 'T' : 'P';
-  const colorClass = enrollmentType === 'Wellhub' ? 'bg-blue-600' : enrollmentType === 'TotalPass' ? 'bg-green-600' : 'bg-yellow-500';
+  // Nova lógica de cores baseada na lotação
+  let colorClass = 'bg-primary'; // Cor padrão
+  const textColorClass = 'text-white';
+
+  if (attendeeCount >= 1 && attendeeCount <= 5) {
+    colorClass = 'bg-green-600';
+  } else if (attendeeCount >= 6 && attendeeCount <= 9) {
+    colorClass = 'bg-yellow-500';
+  } else if (attendeeCount >= 10) {
+    colorClass = 'bg-red-600';
+  }
   
-  // Duração fixa de 60 minutos
-  // Event title pode vir com nome do aluno (se houver)
   const eventTitle = classEvent?.students?.name ?? classEvent?.title ?? '';
 
   return (
@@ -89,12 +94,12 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
           onClick={(e) => { e.stopPropagation(); onClassClick(classEvent); }}
           className={cn(
             "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-md h-full flex flex-col justify-center absolute inset-0",
-            colorClass, "text-white"
+            colorClass, textColorClass
           )}
         >
           <div className="flex items-center justify-between">
             <span className="font-semibold truncate">{eventTitle}</span>
-            <span className="ml-2 text-xs rounded-full bg-white text-black px-1">{enrollmentCode}</span>
+            {/* Badge de tipo de aluno removido */}
           </div>
           <div className="text-[10px] opacity-90">{attendeeCount}/{classCapacity} alunos (60 min)</div>
         </div>
