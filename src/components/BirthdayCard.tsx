@@ -18,7 +18,7 @@ type BirthdayStudent = {
 const fetchBirthdayStudents = async (): Promise<BirthdayStudent[]> => {
   const currentMonth = new Date().getMonth() + 1;
   
-  // Usando a nova e mais confiável função RPC do banco de dados
+  // Usando a nova função DB para buscar aniversariantes com dados de perfil
   const { data, error } = await supabase.rpc('get_birthday_students_for_month', {
     p_month: currentMonth
   });
@@ -54,6 +54,7 @@ const BirthdayCard = () => {
           <Cake className="w-4 h-4 mr-1" />
           {isLoading ? <Skeleton className="h-4 w-8" /> : `${birthdaysThisMonth?.length || 0} aniversários`}
         </div>
+      </CardTitle>
       </CardHeader>
       <CardContent>
         {isLoading ? (

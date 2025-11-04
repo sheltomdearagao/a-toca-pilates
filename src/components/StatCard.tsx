@@ -1,3 +1,5 @@
+"use client";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import React from "react";
@@ -13,18 +15,35 @@ interface StatCardProps {
 }
 
 const StatCard = React.memo(({ title, value, description, icon, isLoading, variant = "default" }: StatCardProps) => {
+  // Novo: borda esquerda colorida com base no variant
+  let borderLeftClass = "";
+  switch (variant) {
+    case "bordered-green":
+      borderLeftClass = "border-l-4 border-green-500";
+      break;
+    case "bordered-red":
+      borderLeftClass = "border-l-4 border-red-500";
+      break;
+    case "bordered-yellow":
+      borderLeftClass = "border-l-4 border-yellow-500";
+      break;
+    default:
+      borderLeftClass = "";
+  }
+
   return (
-    <Card 
+    <Card
       className={cn(
         "transition-all duration-200 hover:scale-[1.02] hover:shadow-lg shadow-impressionist",
+        borderLeftClass,
         (variant === "default" || variant.startsWith("bordered")) && "shadow-subtle-glow"
       )}
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className={cn(
           "text-sm font-medium",
-          variant === "gradient" || variant === "gradient-accent" || variant === "gradient-destructive" 
-            ? "text-white/90" 
+          variant === "gradient" || variant === "gradient-accent" || variant === "gradient-destructive"
+            ? "text-white/90"
             : "text-muted-foreground"
         )}>
           {title}
@@ -35,7 +54,7 @@ const StatCard = React.memo(({ title, value, description, icon, isLoading, varia
             ? "bg-white/20"
             : "bg-primary/10"
         )}>
-          {React.cloneElement(icon as React.ReactElement, { 
+          {React.cloneElement(icon as React.ReactElement, {
             className: cn(
               "h-5 w-5",
               variant === "gradient" || variant === "gradient-accent" || variant === "gradient-destructive"
