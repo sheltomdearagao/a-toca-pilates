@@ -11,7 +11,7 @@ const Layout = () => {
   const [isExporterOpen, setIsExporterOpen] = useState(false); // Novo estado
 
   return (
-    <div className={cn("flex min-h-screen", isAdmin ? "theme-admin" : "")}>
+    <div className={cn("flex min-h-screen")}> {/* Removida a classe condicional theme-admin */}
       <Sidebar onOpenExporter={() => setIsExporterOpen(true)} />
       <main className="flex-1 p-8 bg-background">
         <Outlet />
