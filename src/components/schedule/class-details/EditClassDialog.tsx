@@ -52,6 +52,10 @@ const classSchema = z.object({
   if (data.attendance_type === 'Reposicao' && data.student_id === null) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Aulas de Reposição exigem um aluno selecionado.', path: ['student_id'] });
   }
+  // Se não houver aluno, o título deve ser validado
+  if (data.student_id === null && (!data.title || data.title.trim().length < 3)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'O título é obrigatório se nenhum aluno for selecionado.', path: ['title'] });
+  }
 });
 
 type ClassFormData = z.infer<typeof classSchema>;
@@ -267,6 +271,7 @@ const EditClassDialog = ({ isOpen, onOpenChange, classEvent }: EditClassDialogPr
                                 const newId = student.id;
                                 field.onChange(newId);
                                 setLocalSelectedStudentId(newId);
+                                // Preenche o título automaticamente se um aluno for selecionado
                                 setValue('title', `Aula com ${student.name}`);
                                 setIsPopoverOpen(false);
                               }}
