@@ -28,30 +28,7 @@ import { useAppSettings } from '@/hooks/useAppSettings';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 
-const pricingTable = {
-  Mensal: {
-    '2x': { 'Crédito': 245, 'Débito': 230, 'Pix': 230, 'Espécie': 230 },
-    '3x': { 'Crédito': 275, 'Débito': 260, 'Pix': 260, 'Espécie': 260 },
-    '4x': { 'Crédito': 300, 'Débito': 285, 'Pix': 285, 'Espécie': 285 },
-    '5x': { 'Crédito': 320, 'Débito': 305, 'Pix': 305, 'Espécie': 305 },
-  },
-  Trimestral: {
-    '2x': { 'Crédito': 225, 'Débito': 210, 'Pix': 210, 'Espécie': 210 },
-    '3x': { 'Crédito': 255, 'Débito': 240, 'Pix': 240, 'Espécie': 240 },
-    '4x': { 'Crédito': 285, 'Débito': 270, 'Pix': 270, 'Espécie': 270 },
-    '5x': { 'Crédito': 300, 'Débito': 285, 'Pix': 285, 'Espécie': 285 },
-  },
-};
-
-// Removendo DAYS_OF_WEEK e availableHours, pois não são mais usados aqui.
-
-interface AddEditStudentDialogProps {
-  isOpen: boolean;
-  onOpenChange: (isOpen: boolean) => void;
-  selectedStudent: Student | null;
-  onSubmit: (data: any) => void;
-  isSubmitting: boolean;
-}
+// Tabela de preços foi removida para dar flexibilidade e evitar sobrescrever o valor inserido.
 
 const createStudentSchema = (appSettings: any) => {
   const dynamicPlanTypeSchema = z.enum(appSettings?.plan_types as [string, ...string[]] || ["Avulso"]);
@@ -77,7 +54,6 @@ const createStudentSchema = (appSettings: any) => {
     enrollment_type: dynamicEnrollmentTypeSchema.default("Particular"),
     date_of_birth: z.string().optional().nullable(),
     validity_date: z.string().optional().nullable(),
-    // preferred_days e preferred_time removidos
     has_promotional_value: z.boolean().optional(),
     discount_description: z.string().optional().nullable(),
     register_payment: z.boolean().optional(),
@@ -91,7 +67,6 @@ const createStudentSchema = (appSettings: any) => {
     if (data.has_promotional_value && (!data.discount_description || data.discount_description.trim() === '')) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A descrição do desconto é obrigatória.', path: ['discount_description'] });
     }
-    // Validação de preferred_days/time removida
     if (data.register_payment && data.plan_type !== 'Avulso') {
       if (!data.payment_due_date) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A data de vencimento do pagamento é obrigatória.', path: ['payment_due_date'] });
@@ -101,6 +76,14 @@ const createStudentSchema = (appSettings: any) => {
 };
 
 type StudentFormData = z.infer<ReturnType<typeof createStudentSchema>>;
+
+interface AddEditStudentDialogProps {
+  isOpen: boolean;
+  onOpenChange: (isOpen: boolean) => void;
+  selectedStudent: Student | null;
+  onSubmit: (data: any) => void;
+  isSubmitting: boolean;
+}
 
 const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit, isSubmitting }: AddEditStudentDialogProps) => {
   const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
@@ -120,19 +103,14 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
   });
 
   const planType = watch("plan_type");
-  const planFrequency = watch("plan_frequency");
-  const paymentMethod = watch("payment_method");
   const hasPromotionalValue = watch("has_promotional_value");
   const registerPayment = watch("register_payment");
 
   useEffect(() => {
-    if (!hasPromotionalValue && planType && planType !== 'Avulso' && planFrequency && paymentMethod) {
-      const fee = pricingTable[planType as keyof typeof pricingTable]?.[planFrequency as keyof typeof pricingTable['Mensal']]?.[paymentMethod as keyof typeof pricingTable['Mensal']['2x']] || 0;
-      setValue('monthly_fee', fee);
-    } else if (planType === 'Avulso') {
+    if (planType === 'Avulso') {
       setValue('monthly_fee', 0);
     }
-  }, [planType, planFrequency, paymentMethod, hasPromotionalValue, setValue]);
+  }, [planType, setValue]);
 
   useEffect(() => {
     if (isOpen) {
@@ -146,7 +124,6 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
           notes: selectedStudent.notes || '',
           date_of_birth: selectedStudent.date_of_birth ? format(new Date(selectedStudent.date_of_birth), 'yyyy-MM-dd') : null,
           validity_date: selectedStudent.validity_date ? format(new Date(selectedStudent.validity_date), 'yyyy-MM-dd') : null,
-          // preferred_days e preferred_time removidos do reset
           plan_frequency: selectedStudent.plan_type === 'Avulso' ? null : selectedStudent.plan_frequency || null,
           payment_method: selectedStudent.plan_type === 'Avulso' ? null : selectedStudent.payment_method || null,
           has_promotional_value: !!selectedStudent.discount_description,
@@ -344,9 +321,6 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
                   )}
                 </div>
 
-                {/* Preferências de Agendamento REMOVIDAS */}
-
-                {/* Registro de Pagamento (Apenas para novos alunos ou se o campo estiver vazio) */}
                 {!selectedStudent && (
                   <div className="space-y-2 border-t pt-4 mt-4">
                     <div className="flex items-center space-x-2">
