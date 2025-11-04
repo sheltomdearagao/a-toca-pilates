@@ -1,25 +1,28 @@
-import { Cake, User, Gift } from "lucide-react";
+import { Cake, User, Gift, Phone } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, getMonth, getDate, parseISO } from "date-fns";
+import { format, getDate, parseISO } from "date-fns";
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { Link } from "react-router-dom";
 
 type BirthdayStudent = {
   id: string;
   name: string;
   date_of_birth: string;
+  phone: string | null;
 };
 
 const fetchBirthdayStudents = async (): Promise<BirthdayStudent[]> => {
-  const currentMonth = new Date().getMonth() + 1; // getMonth é 0-indexed, então adicionamos 1
+  const currentMonth = new Date().getMonth() + 1;
   const { data, error } = await supabase
     .from('students')
-    .select('id, name, date_of_birth')
+    .select('id, name, date_of_birth, phone')
     .not('date_of_birth', 'is', null)
-    .filter('EXTRACT(MONTH FROM date_of_birth)::int', 'eq', currentMonth); // Filtra por mês no SQL
+    .eq('status', 'Ativo') // Apenas alunos ativos
+    .filter('EXTRACT(MONTH FROM date_of_birth)::int', 'eq', currentMonth);
   if (error) throw new Error(error.message);
   return (data as BirthdayStudent[]) || [];
 };
@@ -71,10 +74,20 @@ const BirthdayCard = () => {
                     <User className="w-4 h-4 text-white" />
                   </div>
                   <div>
-                    <p className="font-medium text-foreground">{student.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {format(parseISO(student.date_of_birth), 'dd \'de\' MMMM', { locale: ptBR })}
-                    </p>
+                    <Link to={`/alunos/${student.id}`} className="font-medium text-foreground hover:underline hover:text-primary">
+                      {student.name}
+                    </Link>
+                    <div className="flex items-center space-x-4 text-sm text-muted-foreground mt-1">
+                      <span>
+                        {format(parseISO(student.date_of_birth), 'dd \'de\' MMMM', { locale: ptBR })}
+                      </span>
+                      {student.phone && (
+                        <span className="flex items-center">
+                          <Phone className="w-3 h-3 mr-1.5" />
+                          {student.phone}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="text-2xl">
