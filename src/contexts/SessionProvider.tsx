@@ -22,11 +22,18 @@ const SessionContext = createContext<SessionContextType>({
 });
 
 const getProfile = async (userId: string): Promise<Profile | null> => {
-  const { data: profileData } = await supabase
+  const { data: profileData, error } = await supabase
     .from('profiles')
     .select('id, full_name, role')
     .eq('id', userId)
     .single();
+    
+  if (error && error.code !== 'PGRST116') { // PGRST116 = No rows found (perfil não existe)
+    console.error("Erro ao buscar perfil:", error);
+    // Não lançamos erro aqui, apenas retornamos null para não travar o SessionProvider
+    return null;
+  }
+  
   return profileData;
 };
 
@@ -44,18 +51,27 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
       
       if (isMounted) {
         setSession(initialSession);
+        
         if (initialSession) {
-          // 2. Se houver sessão, busca o perfil
-          const profileData = await getProfile(initialSession.user.id);
-          setProfile(profileData);
+          try {
+            // 2. Se houver sessão, busca o perfil
+            const profileData = await getProfile(initialSession.user.id);
+            setProfile(profileData);
+          } catch (e) {
+            console.error("Falha crítica ao carregar perfil:", e);
+            // Se falhar, a sessão é mantida, mas o perfil é nulo.
+            setProfile(null);
+          }
         }
-        setIsLoading(false); // Marca como carregado APENAS após a primeira tentativa de sessão
+        
+        // 3. Garante que o estado de carregamento seja resolvido
+        setIsLoading(false); 
       }
     };
 
     loadSession();
 
-    // 3. Configura o listener para mudanças futuras (login/logout)
+    // 4. Configura o listener para mudanças futuras (login/logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
       if (isMounted) {
         setSession(currentSession);
