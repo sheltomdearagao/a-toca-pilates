@@ -28,7 +28,7 @@ const getProfile = async (userId: string): Promise<Profile | null> => {
     .eq('id', userId)
     .single();
     
-  if (error && error.code !== 'PGRST116') { // PGRST116 = No rows found (perfil não existe)
+  if (error && error.code !== 'PGRST116') {
     console.error("Erro ao buscar perfil:", error);
     return null;
   }
@@ -42,24 +42,47 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // O listener dispara um evento 'INITIAL_SESSION' (ou 'SIGNED_IN' se redirecionado do login)
-    // que é o momento perfeito para definir o estado de carregamento como falso.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setSession(session);
+    const fetchSessionAndProfile = async () => {
+      // 1. Tenta obter a sessão ativa. Isso lê do localStorage.
+      const { data: { session: activeSession }, error } = await supabase.auth.getSession();
       
+      if (error) {
+        console.error("Erro ao obter sessão:", error);
+        setIsLoading(false);
+        return;
+      }
+
+      setSession(activeSession);
+
       let profileData: Profile | null = null;
-      if (session?.user) {
+      if (activeSession?.user) {
         try {
-          profileData = await getProfile(session.user.id);
+          profileData = await getProfile(activeSession.user.id);
         } catch (e) {
-          console.error("Falha ao carregar perfil:", e);
+          console.error("Falha ao carregar perfil inicial:", e);
         }
       }
       setProfile(profileData);
       
-      // O estado de carregamento é definido como falso assim que a sessão inicial é carregada.
-      // Isso lida corretamente com o cenário de atualização da página.
+      // 2. Marca o carregamento inicial como concluído.
       setIsLoading(false);
+    };
+
+    fetchSessionAndProfile();
+
+    // 3. Ouve por mudanças no estado de autenticação (login, logout, etc.)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      setSession(newSession);
+      
+      let profileData: Profile | null = null;
+      if (newSession?.user) {
+        try {
+          profileData = await getProfile(newSession.user.id);
+        } catch (e) {
+          console.error("Falha ao carregar perfil na mudança de auth:", e);
+        }
+      }
+      setProfile(profileData);
     });
 
     return () => {
