@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Link } from 'react-router-dom';
 
 interface ClassDetailsDialogProps {
   isOpen: boolean;
@@ -57,7 +58,7 @@ const fetchClassAttendees = async (classId: string): Promise<ClassAttendee[]> =>
         student_id,
         status,
         attendance_type,
-        students(name, enrollment_type)
+        students(id, name, enrollment_type)
       `,
     )
     .eq('class_id', classId)
@@ -73,14 +74,10 @@ const fetchClassAttendees = async (classId: string): Promise<ClassAttendee[]> =>
       student_id?: string | null;
       status?: AttendanceStatus;
       attendance_type?: AttendanceType;
-      // O Supabase retorna o JOIN como um array de 1 item se a relação for 1:1
-      students?: Array<{
-        name?: string;
-        enrollment_type?: string;
-      }> | null;
+      students?: { id?: string; name?: string; enrollment_type?: string } | Array<{ id?: string; name?: string; enrollment_type?: string }> | null;
     };
 
-    // Extrai o registro do aluno. Se for um array, pega o primeiro elemento.
+    // Garantir objeto único (Supabase pode retornar objeto diretamente no 1:1)
     const studentRecord = Array.isArray(attendee.students) ? attendee.students[0] : attendee.students;
 
     return {
@@ -92,9 +89,9 @@ const fetchClassAttendees = async (classId: string): Promise<ClassAttendee[]> =>
       attendance_type: attendee.attendance_type ?? 'Pontual',
       students: studentRecord
         ? {
+            id: studentRecord.id,
             name: studentRecord.name ?? 'Aluno',
-            // Afirma que a string do banco é um EnrollmentType válido
-            enrollment_type: studentRecord.enrollment_type as EnrollmentType, 
+            enrollment_type: studentRecord.enrollment_type as EnrollmentType,
           }
         : undefined,
     } satisfies ClassAttendee;
@@ -385,7 +382,17 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                       className="flex items-center justify-between rounded-lg border bg-secondary/20 p-3 transition-all hover:shadow-sm"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="font-medium">{attendee.students?.name}</span>
+                        {attendee.students?.id ? (
+                          <Link
+                            to={`/alunos/${attendee.students.id}`}
+                            className="font-medium hover:underline hover:text-primary"
+                            title="Abrir perfil do aluno"
+                          >
+                            {attendee.students?.name}
+                          </Link>
+                        ) : (
+                          <span className="font-medium">{attendee.students?.name}</span>
+                        )}
                         {attendee.students?.enrollment_type && (
                           <Badge variant="outline">{attendee.students.enrollment_type}</Badge>
                         )}

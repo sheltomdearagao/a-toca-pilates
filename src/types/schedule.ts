@@ -46,5 +46,6 @@ export interface ClassAttendee {
   student_id?: string | null;
   status?: AttendanceStatus;
   attendance_type?: AttendanceType; // NOVO CAMPO
-  students?: { name: string; enrollment_type?: EnrollmentType };
+  // Agora inclui id para permitir navegação ao perfil
+  students?: { id?: string; name?: string; enrollment_type?: EnrollmentType };
 }
