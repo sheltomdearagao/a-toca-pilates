@@ -27,7 +27,6 @@ import { Student } from '@/types/student';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
-import { useEffect } from 'react';
 
 type PriceTable = {
   [planType: string]: {
