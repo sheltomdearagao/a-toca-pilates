@@ -28,8 +28,6 @@ import { useAppSettings } from '@/hooks/useAppSettings';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 
-// Tabela de preços foi removida para dar flexibilidade e evitar sobrescrever o valor inserido.
-
 const createStudentSchema = (appSettings: any) => {
   const dynamicPlanTypeSchema = z.enum(appSettings?.plan_types as [string, ...string[]] || ["Avulso"]);
   const dynamicPlanFrequencySchema = z.enum(appSettings?.plan_frequencies as [string, ...string[]] || ["2x"]).optional().nullable();
@@ -103,14 +101,52 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
   });
 
   const planType = watch("plan_type");
+  const planFrequency = watch("plan_frequency");
+  const paymentMethod = watch("payment_method");
   const hasPromotionalValue = watch("has_promotional_value");
   const registerPayment = watch("register_payment");
 
+  // Efeito para preenchimento automático da mensalidade
   useEffect(() => {
     if (planType === 'Avulso') {
       setValue('monthly_fee', 0);
+      return;
     }
-  }, [planType, setValue]);
+
+    // Se for edição e já tiver valor promocional, não sobrescreve
+    if (selectedStudent && hasPromotionalValue) {
+      return;
+    }
+    
+    // Se for valor promocional, não preenche automaticamente
+    if (hasPromotionalValue) {
+      return;
+    }
+
+    // Lógica de preenchimento automático
+    if (planType && planFrequency && paymentMethod && appSettings?.price_table) {
+      const priceTable = appSettings.price_table;
+      
+      const planPrices = priceTable[planType];
+      if (planPrices) {
+        const frequencyPrices = planPrices[planFrequency];
+        if (frequencyPrices) {
+          const price = frequencyPrices[paymentMethod];
+          if (price !== undefined) {
+            setValue('monthly_fee', price, { shouldValidate: true });
+            return;
+          }
+        }
+      }
+    }
+    
+    // Se não encontrou preço na tabela, limpa o campo (ou mantém o valor atual se for edição)
+    if (!selectedStudent) {
+        setValue('monthly_fee', undefined);
+    }
+    
+  }, [planType, planFrequency, paymentMethod, hasPromotionalValue, appSettings, setValue, selectedStudent]);
+
 
   useEffect(() => {
     if (isOpen) {
@@ -300,7 +336,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
                           type="number"
                           step="0.01"
                           placeholder="0.00"
-                          disabled={!hasPromotionalValue}
+                          disabled={!!(!hasPromotionalValue && planType !== 'Avulso' && planFrequency && paymentMethod)}
                           onChange={(e) => field.onChange(parseFloat(e.target.value))}
                           value={field.value === undefined ? '' : field.value}
                         />
