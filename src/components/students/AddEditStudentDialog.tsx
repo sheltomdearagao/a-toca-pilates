@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import {
   Dialog,
   DialogContent,
@@ -13,204 +13,208 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
-  SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectContent,
+  SelectItem,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
-import { Student } from '@/types/student';
 import { useAppSettings } from '@/hooks/useAppSettings';
-import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
+import { Student } from '@/types/student';
 
 type PriceTable = {
   [planType: string]: {
     [frequency: string]: {
       [method: string]: number;
-    }
-  }
+    };
+  };
 };
 
 const createStudentSchema = (appSettings: any) => {
-  const dynamicPlanTypeSchema = z.enum(appSettings?.plan_types as [string, ...string[]] || ["Avulso"]);
-  const dynamicPlanFrequencySchema = z.enum(appSettings?.plan_frequencies as [string, ...string[]] || ["2x"]).optional().nullable();
-  const dynamicPaymentMethodSchema = z.enum(appSettings?.payment_methods as [string, ...string[]] || ["Crédito"]).optional().nullable();
-  const dynamicEnrollmentTypeSchema = z.enum(appSettings?.enrollment_types as [string, ...string[]] || ["Particular"]);
+  const planTypes = appSettings?.plan_types as [string, ...string[]] || ['Avulso'];
+  const frequencies = appSettings?.plan_frequencies as [string, ...string[]] || ['2x'];
+  const methods = appSettings?.payment_methods as [string, ...string[]] || ['Espécie'];
+  const enrollTypes = appSettings?.enrollment_types as [string, ...string[]] || ['Particular'];
 
   return z.object({
-    name: z.string().min(3, "O nome deve ter pelo menos 3 caracteres."),
-    email: z.string().email("Email inválido.").optional().or(z.literal("")),
-    phone: z.string().optional().or(z.literal("")),
-    address: z.string().optional().or(z.literal("")),
-    guardian_phone: z.string().optional().or(z.literal("")),
-    status: z.enum(["Ativo", "Inativo", "Experimental", "Bloqueado"]),
-    notes: z.string().optional().or(z.literal("")),
-    plan_type: dynamicPlanTypeSchema.default("Avulso"),
-    plan_frequency: dynamicPlanFrequencySchema,
-    payment_method: dynamicPaymentMethodSchema,
+    name: z.string().min(3, 'Nome obrigatório'),
+    email: z.string().email('Email inválido').optional().nullable(),
+    phone: z.string().optional().nullable(),
+    address: z.string().optional().nullable(),
+    guardian_phone: z.string().optional().nullable(),
+    status: z.enum(['Ativo', 'Inativo', 'Experimental', 'Bloqueado']),
+    notes: z.string().optional().nullable(),
+    plan_type: z.enum(planTypes),
+    plan_frequency: z.enum(frequencies).optional().nullable(),
+    payment_method: z.enum(methods).optional().nullable(),
     monthly_fee: z.preprocess(
       (val) => (typeof val === 'string' ? parseFloat(val.replace(',', '.')) : val),
-      z.number().optional()
-    ),
-    enrollment_type: dynamicEnrollmentTypeSchema.default("Particular"),
+      z.number().min(0, 'Valor deve ser ≥ 0')
+    ).optional(),
+    enrollment_type: z.enum(enrollTypes),
     date_of_birth: z.string().optional().nullable(),
     validity_date: z.string().optional().nullable(),
+    preferred_days: z.array(z.string()).optional().nullable(),
+    preferred_time: z.string().optional().nullable(),
     has_promotional_value: z.boolean().optional(),
     discount_description: z.string().optional().nullable(),
     register_payment: z.boolean().optional(),
     payment_due_date: z.string().optional().nullable(),
   }).superRefine((data, ctx) => {
     if (data.plan_type !== 'Avulso') {
-      if (!data.plan_frequency) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A frequência é obrigatória.', path: ['plan_frequency'] });
-      if (!data.payment_method) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'O método de pagamento é obrigatório.', path: ['payment_method'] });
-      if (!data.monthly_fee || data.monthly_fee <= 0) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'O valor da mensalidade deve ser maior que zero.', path: ['monthly_fee'] });
+      if (!data.plan_frequency) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Frequência obrigatória', path: ['plan_frequency'] });
+      if (!data.payment_method) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Método de pagamento obrigatório', path: ['payment_method'] });
+      if (data.monthly_fee === undefined || data.monthly_fee === null) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Mensalidade obrigatória', path: ['monthly_fee'] });
+      }
     }
     if (data.has_promotional_value && (!data.discount_description || data.discount_description.trim() === '')) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A descrição do desconto é obrigatória.', path: ['discount_description'] });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Descrição do desconto obrigatória', path: ['discount_description'] });
     }
-    if (data.register_payment && data.plan_type !== 'Avulso') {
-      if (!data.payment_due_date) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A data de vencimento do pagamento é obrigatória.', path: ['payment_due_date'] });
-      }
+    if (data.register_payment && data.plan_type !== 'Avulso' && !data.payment_due_date) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Data de vencimento obrigatória', path: ['payment_due_date'] });
     }
   });
 };
 
-type StudentFormData = z.infer<ReturnType<typeof createStudentSchema>>;
+type FormData = z.infer<ReturnType<typeof createStudentSchema>>;
 
-interface AddEditStudentDialogProps {
+interface Props {
   isOpen: boolean;
-  onOpenChange: (isOpen: boolean) => void;
+  onOpenChange: (open: boolean) => void;
   selectedStudent: Student | null;
-  onSubmit: (data: any) => void;
+  onSubmit: (data: FormData) => void;
   isSubmitting: boolean;
 }
 
-const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit, isSubmitting }: AddEditStudentDialogProps) => {
-  const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
-  const studentSchema = createStudentSchema(appSettings);
+const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit, isSubmitting }: Props) => {
+  const { data: appSettings, isLoading: loadingSettings } = useAppSettings();
+  const schema = createStudentSchema(appSettings);
 
-  const { control, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<StudentFormData>({
-    resolver: zodResolver(studentSchema),
+  const { control, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormData>({
+    resolver: zodResolver(schema),
     defaultValues: {
-      name: "", email: "", phone: "", address: "", guardian_phone: "", status: "Experimental", notes: "",
-      plan_type: "Avulso", enrollment_type: "Particular", date_of_birth: null, validity_date: null,
-      plan_frequency: null, payment_method: null,
+      name: '', email: '', phone: '', address: '', guardian_phone: '',
+      status: 'Experimental', notes: '',
+      plan_type: 'Avulso', plan_frequency: null, payment_method: null, monthly_fee: 0,
+      enrollment_type: 'Particular',
+      date_of_birth: null, validity_date: null, preferred_days: null, preferred_time: null,
       has_promotional_value: false, discount_description: null,
-      register_payment: false,
-      payment_due_date: null,
-      monthly_fee: undefined,
+      register_payment: false, payment_due_date: null,
     },
   });
 
-  const planType = watch("plan_type");
-  const planFrequency = watch("plan_frequency");
-  const paymentMethod = watch("payment_method");
-  const hasPromotionalValue = watch("has_promotional_value");
-  const registerPayment = watch("register_payment");
+  const planType = watch('plan_type');
+  const planFrequency = watch('plan_frequency');
+  const paymentMethod = watch('payment_method');
+  const hasPromo = watch('has_promotional_value');
 
-  // Efeito para preenchimento automático da mensalidade com price_table
   useEffect(() => {
-    // Se for Avulso, zera mensalidade
+    if (!appSettings?.price_table) return;
     if (planType === 'Avulso') {
       setValue('monthly_fee', 0);
       return;
     }
+    if (hasPromo) return;
+    const table: PriceTable = appSettings.price_table;
+    const freqMap = table[planType]?.[planFrequency ?? ''] ?? {};
+    const price = freqMap[paymentMethod ?? ''] ?? null;
+    if (price !== null) setValue('monthly_fee', price);
+  }, [planType, planFrequency, paymentMethod, hasPromo, appSettings, setValue]);
 
-    // Se houver valor promocional, não fazer auto-fill
-    if (hasPromotionalValue) {
-      return;
-    }
-
-    if (planType && planFrequency && paymentMethod && appSettings?.price_table) {
-      const priceTable = appSettings.price_table as PriceTable;
-      const planPrices = priceTable[planType];
-      if (planPrices) {
-        const freqPrices = planPrices[planFrequency];
-        if (freqPrices) {
-          const price = freqPrices[paymentMethod];
-          if (typeof price === 'number') {
-            setValue('monthly_fee', price, { shouldValidate: true });
-            return;
-          }
-        }
-      }
-    }
-
-    // Se não encontrar preço, não sobrescreve o valor atual
-  }, [planType, planFrequency, paymentMethod, hasPromotionalValue, appSettings, setValue]);
-
-  // Sincronização com dados existentes (edição)
   useEffect(() => {
-    if (isOpen) {
-      if (selectedStudent) {
-        reset({
-          ...selectedStudent,
-          email: selectedStudent.email || '',
-          phone: selectedStudent.phone || '',
-          address: selectedStudent.address || '',
-          guardian_phone: selectedStudent.guardian_phone || '',
-          notes: selectedStudent.notes || '',
-          date_of_birth: selectedStudent.date_of_birth ? format(new Date(selectedStudent.date_of_birth), 'yyyy-MM-dd') : null,
-          validity_date: selectedStudent.validity_date ? format(new Date(selectedStudent.validity_date), 'yyyy-MM-dd') : null,
-          plan_frequency: selectedStudent.plan_type === 'Avulso' ? null : selectedStudent.plan_frequency || null,
-          payment_method: selectedStudent.plan_type === 'Avulso' ? null : selectedStudent.payment_method || null,
-          has_promotional_value: !!selectedStudent.discount_description,
-          discount_description: selectedStudent.discount_description || null,
-          register_payment: false,
-          payment_due_date: null,
-          monthly_fee: selectedStudent.monthly_fee ?? undefined,
-        });
-      } else {
-        reset({
-          name: "", email: "", phone: "", address: "", guardian_phone: "", status: "Experimental", notes: "",
-          plan_type: "Avulso", enrollment_type: "Particular", date_of_birth: null, validity_date: null,
-          plan_frequency: null, payment_method: null,
-          has_promotional_value: false, discount_description: null,
-          register_payment: false,
-          payment_due_date: null,
-          monthly_fee: undefined,
-        });
-      }
+    if (!isOpen) return;
+    if (selectedStudent) {
+      reset({
+        name: selectedStudent.name,
+        email: selectedStudent.email,
+        phone: selectedStudent.phone,
+        address: selectedStudent.address,
+        guardian_phone: selectedStudent.guardian_phone,
+        status: selectedStudent.status,
+        notes: selectedStudent.notes,
+        plan_type: selectedStudent.plan_type,
+        plan_frequency: selectedStudent.plan_frequency || null,
+        payment_method: selectedStudent.payment_method || null,
+        monthly_fee: selectedStudent.monthly_fee ?? 0,
+        enrollment_type: selectedStudent.enrollment_type,
+        date_of_birth: selectedStudent.date_of_birth ? format(parseISO(selectedStudent.date_of_birth), 'yyyy-MM-dd') : null,
+        validity_date: selectedStudent.validity_date ? format(parseISO(selectedStudent.validity_date), 'yyyy-MM-dd') : null,
+        preferred_days: selectedStudent.preferred_days || null,
+        preferred_time: selectedStudent.preferred_time || null,
+        has_promotional_value: !!selectedStudent.discount_description,
+        discount_description: selectedStudent.discount_description || null,
+        register_payment: false,
+        payment_due_date: null,
+      });
+    } else {
+      reset({});
     }
-  }, [isOpen, selectedStudent, reset, appSettings]);
+  }, [isOpen, selectedStudent, reset]);
 
-  if (isLoadingSettings) return null;
+  if (loadingSettings) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle className="text-xl">{selectedStudent ? "Editar Aluno" : "Adicionar Novo Aluno"}</DialogTitle></DialogHeader>
+      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{selectedStudent ? 'Editar Aluno' : 'Novo Aluno'}</DialogTitle>
+        </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label>Nome</Label>
-              <Controller name="name" control={control} render={({ field, fieldState }) => (
-                <>
-                  <Input {...field} />
-                  {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
-                </>
-              )} />
+              <Controller name="name" control={control} render={({ field }) => <Input {...field} />} />
+              {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
             </div>
-
-            {/* Campos simples omitidos para brevidade; manter a estrutura existente... */}
-
-            {/* Campos de plano e pagamento (dinâmicos via appSettings) */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Tipo de Plano</Label>
+                <Label>Email</Label>
+                <Controller name="email" control={control} render={({ field }) => <Input {...field} />} />
+                {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label>Telefone</Label>
+                <Controller name="phone" control={control} render={({ field }) => <Input {...field} />} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Endereço</Label>
+              <Controller name="address" control={control} render={({ field }) => <Input {...field} />} />
+            </div>
+            <div className="space-y-2">
+              <Label>Telefone Responsável</Label>
+              <Controller name="guardian_phone" control={control} render={({ field }) => <Input {...field} />} />
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Controller name="status" control={control} render={({ field }) => (
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {['Ativo','Inativo','Experimental','Bloqueado'].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )} />
+            </div>
+            <div className="space-y-2">
+              <Label>Notas</Label>
+              <Controller name="notes" control={control} render={({ field }) => <Textarea {...field} />} />
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Plano</Label>
                 <Controller name="plan_type" control={control} render={({ field }) => (
                   <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger><SelectValue placeholder="Tipo de Plano" /></SelectTrigger>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {appSettings?.plan_types.map(type => (
-                        <SelectItem key={type} value={type}>{type}</SelectItem>
-                      ))}
+                      {appSettings.plan_types.map(pt => <SelectItem key={pt} value={pt}>{pt}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 )} />
@@ -219,59 +223,93 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
                 <Label>Frequência</Label>
                 <Controller name="plan_frequency" control={control} render={({ field }) => (
                   <Select onValueChange={field.onChange} value={field.value || ''}>
-                    <SelectTrigger><SelectValue placeholder="Frequência" /></SelectTrigger>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {appSettings?.plan_frequencies.map(freq => (
-                        <SelectItem key={freq} value={freq}>{freq}</SelectItem>
-                      ))}
+                      {appSettings.plan_frequencies.map(fp => <SelectItem key={fp} value={fp}>{fp}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 )} />
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Forma de Pagamento</Label>
+                <Label>Forma Pagto</Label>
                 <Controller name="payment_method" control={control} render={({ field }) => (
                   <Select onValueChange={field.onChange} value={field.value || ''}>
-                    <SelectTrigger><SelectValue placeholder="Meio de pagamento" /></SelectTrigger>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {appSettings?.price_table
-                        ? (Object.keys(appSettings.price_table) // plano
-                            .flatMap(plan => Object.values(appSettings.price_table![plan]).flatMap(freq => Object.keys(freq)) )
-                            .filter((v, i, self) => self.indexOf(v) === i)
-                          )
-                        : null}
-                      {appSettings?.payment_methods.map(m => (
-                        <SelectItem key={m} value={m}>{m}</SelectItem>
-                      ))}
+                      {appSettings.payment_methods.map(pm => <SelectItem key={pm} value={pm}>{pm}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 )} />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Mensalidade (R$)</Label>
+              <Controller name="monthly_fee" control={control} render={({ field }) => <Input type="number" step="0.01" {...field} />} />
+              {errors.monthly_fee && <p className="text-sm text-destructive">{errors.monthly_fee.message}</p>}
+            </div>
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>Mensalidade (R$)</Label>
-                <Controller name="monthly_fee" control={control} render={({ field }) => (
-                  <Input type="number" step="0.01" placeholder="0.00" {...field} />
+                <Label>Data Nasc.</Label>
+                <Controller name="date_of_birth" control={control} render={({ field }) => <Input type="date" {...field} />} />
+              </div>
+              <div className="space-y-2">
+                <Label>Validade</Label>
+                <Controller name="validity_date" control={control} render={({ field }) => <Input type="date" {...field} />} />
+              </div>
+              <div className="space-y-2">
+                <Label>Tipo Matrícula</Label>
+                <Controller name="enrollment_type" control={control} render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {appSettings.enrollment_types.map(et => <SelectItem key={et} value={et}>{et}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 )} />
               </div>
             </div>
-
             <div className="space-y-2">
-              <Label>Notas (Opcional)</Label>
-              <Controller name="notes" control={control} render={({ field }) => <Textarea id="notes" {...field} />} />
+              <Label>Dias Preferidos</Label>
+              <Controller name="preferred_days" control={control} render={({ field }) => (
+                <Input placeholder="e.g. monday,tuesday" {...field} />
+              )} />
             </div>
+            <div className="space-y-2">
+              <Label>Horário Preferido</Label>
+              <Controller name="preferred_time" control={control} render={({ field }) => <Input type="time" {...field} />} />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Controller name="has_promotional_value" control={control} render={({ field }) => (
+                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+              )} />
+              <Label>Valor Promocional</Label>
+            </div>
+            {watch('has_promotional_value') && (
+              <div className="space-y-2">
+                <Label>Descrição do Desconto</Label>
+                <Controller name="discount_description" control={control} render={({ field }) => <Input {...field} />} />
+              </div>
+            )}
+            <div className="flex items-center space-x-2">
+              <Controller name="register_payment" control={control} render={({ field }) => (
+                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+              )} />
+              <Label>Registrar 1º Pagamento</Label>
+            </div>
+            {watch('register_payment') && (
+              <div className="space-y-2">
+                <Label>Data Vencimento 1º</Label>
+                <Controller name="payment_due_date" control={control} render={({ field }) => <Input type="date" {...field} />} />
+              </div>
+            )}
           </div>
-
-          <div className="flex justify-end gap-2 mt-4">
-            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
-              Cancelar
+          <DialogFooter className="flex justify-end gap-2">
+            <DialogClose asChild><Button variant="secondary">Cancelar</Button></DialogClose>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Salvar
             </Button>
-            <Button type="submit" disabled={false}>
-              <Loader2 className="mr-2 h-4 w-4" /> Salvar
-            </Button>
-          </div>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
