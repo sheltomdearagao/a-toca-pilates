@@ -268,7 +268,7 @@ export const useStudentProfileData = (studentId: string | undefined) => {
     loadMoreAttendance,
     mutations: {
       updateStudent: updateStudentMutation,
-      createTransaction: createTransactionMutation, // Nova mutação
+      createTransaction: createTransactionMutation,
       markAsPaid: markAsPaidMutation,
       deleteTransaction: deleteTransactionMutation,
     }

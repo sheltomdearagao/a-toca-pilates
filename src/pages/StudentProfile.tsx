@@ -112,7 +112,7 @@ const StudentProfile = () => {
       <div className="grid lg:grid-cols-4 gap-6">
         <StudentDetailsCard student={student} isLoading={isLoading} />
         {/* NOVO CARD DE CRÉDITOS */}
-        <StudentRepositionCreditsCard studentId={studentId} />
+        <StudentRepositionCreditsCard studentId={studentId} isAdmin={isAdmin} />
         <StudentRecurringScheduleCard student={student} recurringTemplate={recurringTemplate} isLoading={isLoading} />
       </div>
 

@@ -82,10 +82,32 @@ export const useRepositionCredits = (studentId: string | undefined) => {
     },
   });
 
+  const adjustCreditMutation = useMutation({
+    mutationFn: async ({ amount, reason }: { amount: number; reason: string }) => {
+      if (!studentId) throw new Error('ID do aluno não fornecido.');
+
+      const { error } = await supabase.rpc('adjust_reposition_credit_manual', {
+        p_student_id: studentId,
+        p_amount: amount,
+        p_reason: reason,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['repositionCredits', studentId] });
+      queryClient.invalidateQueries({ queryKey: ['studentProfileData', studentId] });
+      showSuccess(`Crédito ${variables.amount > 0 ? 'adicionado' : 'removido'} com sucesso!`);
+    },
+    onError: (err: any) => {
+      showError(err.message);
+    },
+  });
+
   return {
     credits: studentData?.reposition_credits ?? 0,
     isLoading,
     error,
     consumeCredit: consumeCreditMutation,
+    adjustCredit: adjustCreditMutation,
   };
 };
