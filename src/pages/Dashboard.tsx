@@ -61,6 +61,7 @@ const fetchDashboardStats = async () => {
   const monthlyRevenueValue = revenueData?.reduce((sum: number, t: any) => sum + (t.amount ?? 0), 0) ?? 0;
 
   // Aulas Hoje
+  // Garantindo que o count seja extraído corretamente
   const todayClasses = classesRes?.count ?? 0;
 
   return {
