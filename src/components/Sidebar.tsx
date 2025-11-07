@@ -36,9 +36,8 @@ const Sidebar = ({ onOpenExporter }: SidebarProps) => {
   };
 
   return (
-    <aside className="w-64 h-screen p-4 border-r border-sidebar-border flex flex-col bg-gradient-to-b from-sidebar-gradient-start to-sidebar-gradient-end">
+    <aside className="fixed left-0 top-0 w-64 h-screen p-4 border-r border-sidebar-border flex flex-col bg-gradient-to-b from-sidebar-gradient-start to-sidebar-gradient-end z-20 overflow-y-auto">
       <div className="flex items-center mb-8">
-        {/* Removido o div com o frame, a imagem agora está diretamente no flex container */}
         <img src={logoUrl} alt="A Toca Pilates Logo" className="w-6 h-6 object-contain mr-3" />
         <h1 className="text-xl font-bold text-foreground">
           A Toca
