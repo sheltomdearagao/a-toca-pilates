@@ -22,6 +22,11 @@ import { cn } from '@/lib/utils';
 import FinancialTableSkeleton from '@/components/financial/FinancialTableSkeleton';
 import { Badge } from '@/components/ui/badge';
 
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { showError, showSuccess } from '@/utils/toast';
+
 interface StudentsTableProps {
   students: Student[] | undefined;
   isLoading: boolean;
@@ -32,6 +37,23 @@ interface StudentsTableProps {
 }
 
 const StudentsTable = React.memo(({ students, isLoading, onEdit, onDelete, onScheduleClass, paymentStatusMap }: StudentsTableProps) => {
+  const queryClient = useQueryClient();
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: Student['status'] }) => {
+      const { error } = await supabase.from('students').update({ status }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+      showSuccess('Status do aluno atualizado com sucesso!');
+    },
+    onError: (err: any) => {
+      showError(err.message || 'Erro ao atualizar status.');
+    },
+  });
+
   if (isLoading) {
     return <FinancialTableSkeleton columns={6} rows={10} />;
   }
@@ -88,14 +110,28 @@ const StudentsTable = React.memo(({ students, isLoading, onEdit, onDelete, onSch
                 </TableCell>
                 <TableCell>{student.enrollment_type}</TableCell>
                 <TableCell>
-                  <Badge variant={
-                    student.status === 'Ativo' ? 'status-active' :
-                    student.status === 'Inativo' ? 'status-inactive' :
-                    student.status === 'Experimental' ? 'status-experimental' :
-                    'status-blocked'
-                  }>
-                    {student.status}
-                  </Badge>
+                  {/* Inline status selector */}
+                  <div className="max-w-[220px]">
+                    <Select
+                      onValueChange={(value) => {
+                        if (value && value !== student.status) {
+                          updateStatusMutation.mutate({ id: student.id, status: value as Student['status'] });
+                        }
+                      }}
+                      value={student.status}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Ativo">Ativo</SelectItem>
+                        <SelectItem value="Experimental">Experimental</SelectItem>
+                        <SelectItem value="Inativo">Inativo</SelectItem>
+                        <SelectItem value="Bloqueado">Bloqueado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {updateStatusMutation.isPending && <div className="text-xs text-muted-foreground mt-1">Atualizando...</div>}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <Badge variant={
