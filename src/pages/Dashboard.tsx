@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Users, DollarSign, AlertCircle, Calendar, UserX } from "lucide-react";
 import { startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
+import { zonedTimeToUtc } from 'date-fns-tz'; // Importando zonedTimeToUtc
 import BirthdayCard from "@/components/BirthdayCard";
 import ColoredSeparator from "@/components/ColoredSeparator";
 import { Card } from "@/components/ui/card";
@@ -11,12 +12,20 @@ import PaymentDueAlert from "@/components/PaymentDueAlert";
 import { useSession } from "@/contexts/SessionProvider";
 import UpcomingPaymentsCard from "@/components/UpcomingPaymentsCard"; // Importando o novo card
 
+// Obtém o fuso horário local
+const TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 const fetchDashboardStats = async () => {
   const now = new Date();
   const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
-  const todayStart = startOfDay(now);
-  const todayEnd = endOfDay(now);
+  
+  // Calcula o início e fim do dia atual no fuso horário local, e converte para UTC para a consulta
+  const todayStartLocal = startOfDay(now);
+  const todayEndLocal = endOfDay(now);
+  
+  const todayStartUtc = zonedTimeToUtc(todayStartLocal, TIME_ZONE).toISOString();
+  const todayEndUtc = zonedTimeToUtc(todayEndLocal, TIME_ZONE).toISOString();
 
   // 1. Busca transações em atraso para calcular o valor total
   const overdueQuery = supabase
@@ -36,11 +45,11 @@ const fetchDashboardStats = async () => {
     .gte('paid_at', monthStart.toISOString())
     .lte('paid_at', monthEnd.toISOString());
 
-  // 4. Aulas hoje (Ajustado para garantir que a contagem seja precisa)
+  // 4. Aulas hoje (Usando limites de UTC ajustados pelo fuso horário local)
   const classesTodayQuery = supabase.from('classes')
     .select('id', { count: 'exact', head: true })
-    .gte('start_time', todayStart.toISOString())
-    .lte('start_time', todayEnd.toISOString());
+    .gte('start_time', todayStartUtc)
+    .lte('start_time', todayEndUtc);
 
   const [overdueRes, activeRes, revenueRes, classesRes] = await Promise.all([
     overdueQuery, activeQuery, revenueQuery, classesTodayQuery
@@ -61,7 +70,6 @@ const fetchDashboardStats = async () => {
   const monthlyRevenueValue = revenueData?.reduce((sum: number, t: any) => sum + (t.amount ?? 0), 0) ?? 0;
 
   // Aulas Hoje
-  // Garantindo que o count seja extraído corretamente
   const todayClasses = classesRes?.count ?? 0;
 
   return {
