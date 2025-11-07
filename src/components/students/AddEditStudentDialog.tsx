@@ -28,6 +28,7 @@ import { useAppSettings } from '@/hooks/useAppSettings';
 import { cn } from '@/lib/utils';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Student } from '@/types/student';
+import { showError } from '@/utils/toast'; // Importando showError
 
 type PriceTable = {
   [planType: string]: {
@@ -188,6 +189,20 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
     }
   }, [isOpen, selectedStudent, reset]);
 
+  const handleFormSubmit = (data: FormData) => {
+    onSubmit(data);
+  };
+
+  const handleFormError = (validationErrors: any) => {
+    // Encontra a primeira mensagem de erro
+    const firstErrorKey = Object.keys(validationErrors)[0];
+    if (firstErrorKey) {
+      const error = validationErrors[firstErrorKey];
+      const message = Array.isArray(error) ? error[0].message : error.message;
+      showError(`Preencha o campo: ${message}`);
+    }
+  };
+
   if (settingsLoading) return null;
 
   return (
@@ -196,7 +211,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
         <DialogHeader>
           <DialogTitle>{selectedStudent ? 'Editar Aluno' : 'Novo Aluno'}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit(handleFormSubmit, handleFormError)}>
           <div className="grid gap-4 py-4">
             {/* Dados Pessoais */}
             <div className="space-y-2">
@@ -247,6 +262,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
                     </SelectContent>
                   </Select>
                 )} />
+                {errors.plan_frequency && <p className="text-sm text-destructive">{errors.plan_frequency.message}</p>}
               </div>
               <div className="space-y-2">
                 <Label>Pagamento</Label>
@@ -258,6 +274,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
                     </SelectContent>
                   </Select>
                 )} />
+                {errors.payment_method && <p className="text-sm text-destructive">{errors.payment_method.message}</p>}
               </div>
             </div>
             <div className="space-y-2">
@@ -326,6 +343,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
               <div className="space-y-2">
                 <Label>Data Vencimento 1º</Label>
                 <Controller name="payment_due_date" control={control} render={({ field }) => <Input type="date" {...field} />} />
+                {errors.payment_due_date && <p className="text-sm text-destructive">{errors.payment_due_date.message}</p>}
               </div>
             )}
           </div>
