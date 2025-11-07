@@ -11,6 +11,7 @@ import { formatCurrency } from "@/utils/formatters";
 import PaymentDueAlert from "@/components/PaymentDueAlert";
 import { useSession } from "@/contexts/SessionProvider";
 import UpcomingPaymentsCard from "@/components/UpcomingPaymentsCard";
+import { Link } from "react-router-dom";
 
 const TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -130,14 +131,17 @@ const Dashboard: React.FC = () => {
       <PaymentDueAlert />
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Alunos Ativos"
-          value={stats?.activeStudents ?? 0}
-          icon={<Users className="h-6 w-6" />}
-          isLoading={isLoading}
-          variant="bordered-green"
-        />
-        {!isRecepcao && (
+        <Link to="/alunos?status=Ativo" className="block">
+          <StatCard
+            title="Alunos Ativos"
+            value={stats?.activeStudents ?? 0}
+            icon={<Users className="h-6 w-6" />}
+            isLoading={isLoading}
+            variant="bordered-green"
+          />
+        </Link>
+
+        <Link to="/financeiro" className="block">
           <StatCard
             title="Receita do Mês"
             value={stats?.monthlyRevenue ?? formatCurrency(0)}
@@ -145,21 +149,27 @@ const Dashboard: React.FC = () => {
             isLoading={isLoading}
             variant="bordered-green"
           />
-        )}
-        <StatCard
-          title="Alunos Inadimplentes"
-          value={stats?.overdueStudentCount ?? 0}
-          icon={<UserX className="h-6 w-6" />}
-          isLoading={isLoading}
-          variant="bordered-red"
-        />
-        <StatCard
-          title="Aulas Hoje"
-          value={stats?.todayClasses ?? 0}
-          icon={<Calendar className="h-6 w-6" />}
-          isLoading={isLoading}
-          variant="bordered-yellow"
-        />
+        </Link>
+
+        <Link to="/alunos?payment=Atrasado" className="block">
+          <StatCard
+            title="Alunos Inadimplentes"
+            value={stats?.overdueStudentCount ?? 0}
+            icon={<UserX className="h-6 w-6" />}
+            isLoading={isLoading}
+            variant="bordered-red"
+          />
+        </Link>
+
+        <Link to="/agenda" className="block">
+          <StatCard
+            title="Aulas Hoje"
+            value={stats?.todayClasses ?? 0}
+            icon={<Calendar className="h-6 w-6" />}
+            isLoading={isLoading}
+            variant="bordered-yellow"
+          />
+        </Link>
       </div>
 
       <ColoredSeparator color="primary" className="my-8" />

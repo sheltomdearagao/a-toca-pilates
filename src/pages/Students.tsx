@@ -1,8 +1,9 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Student, StudentStatus, PlanType, EnrollmentType } from "@/types/student";
 import { showError, showSuccess } from "@/utils/toast";
+import { useSearchParams } from "react-router-dom";
 
 // Importar os novos componentes modulares
 import StudentsHeader from '@/components/students/StudentsHeader';
@@ -52,6 +53,8 @@ const fetchStudentPaymentStatus = async (): Promise<Record<string, 'Em Dia' | 'A
 
 const Students = () => {
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+
   const [isFormOpen, setFormOpen] = useState(false);
   const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
   const [isImportOpen, setImportOpen] = useState(false); // Estado para o diálogo de importação
@@ -65,6 +68,23 @@ const Students = () => {
   const [filterPlanType, setFilterPlanType] = useState<PlanType | 'all'>('all');
   const [filterEnrollmentType, setFilterEnrollmentType] = useState<EnrollmentType | 'all'>('all');
   const [filterPaymentStatus, setFilterPaymentStatus] = useState<'all' | 'Em Dia' | 'Atrasado'>('all'); // Novo filtro
+
+  // Read initial filters from query params on mount
+  useEffect(() => {
+    const status = searchParams.get('status');
+    const payment = searchParams.get('payment');
+    const plan = searchParams.get('plan');
+
+    if (status && ['Ativo', 'Inativo', 'Experimental', 'Bloqueado'].includes(status)) {
+      setFilterStatus(status as StudentStatus);
+    }
+    if (payment && ['Em Dia', 'Atrasado'].includes(payment)) {
+      setFilterPaymentStatus(payment as 'Em Dia' | 'Atrasado');
+    }
+    if (plan) {
+      setFilterPlanType(plan as PlanType | 'all');
+    }
+  }, [searchParams]);
 
   const { data: students, isLoading } = useQuery({ queryKey: ["students"], queryFn: fetchStudents });
   const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
