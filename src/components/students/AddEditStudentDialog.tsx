@@ -97,7 +97,7 @@ const createStudentSchema = (appSettings: any) => {
     if (data.has_promotional_value && (!data.discount_description || data.discount_description.trim() === '')) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Descrição do desconto obrigatória', path: ['discount_description'] });
     }
-    if (data.register_payment && data.plan_type !== 'Avulso' && !data.payment_due_date) {
+    if (data.register_payment && data.plan_type !== 'Avulso' && (!data.payment_due_date || data.payment_due_date.trim() === '')) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Data de vencimento obrigatória', path: ['payment_due_date'] });
     }
   });
@@ -121,7 +121,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
     resolver: zodResolver(schema),
     defaultValues: {
       name: '', email: '', phone: '', address: '', guardian_phone: '',
-      status: 'Experimental', notes: '',
+      status: 'Ativo', notes: '',
       plan_type: 'Avulso', plan_frequency: null, payment_method: null, monthly_fee: 0,
       enrollment_type: 'Particular',
       date_of_birth: null, validity_date: null,
@@ -175,7 +175,16 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
         payment_due_date: null,
       });
     } else {
-      reset({});
+      reset({
+        name: '', email: '', phone: '', address: '', guardian_phone: '',
+        status: 'Ativo', notes: '',
+        plan_type: 'Avulso', plan_frequency: null, payment_method: null, monthly_fee: 0,
+        enrollment_type: 'Particular',
+        date_of_birth: null, validity_date: null,
+        preferred_days: [], preferred_time: null,
+        has_promotional_value: false, discount_description: null,
+        register_payment: false, payment_due_date: null,
+      });
     }
   }, [isOpen, selectedStudent, reset]);
 

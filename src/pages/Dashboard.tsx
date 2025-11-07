@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { formatCurrency } from "@/utils/formatters";
 import PaymentDueAlert from "@/components/PaymentDueAlert";
 import { useSession } from "@/contexts/SessionProvider";
+import UpcomingPaymentsCard from "@/components/UpcomingPaymentsCard"; // Importando o novo card
 
 const fetchDashboardStats = async () => {
   const now = new Date();
@@ -134,9 +135,10 @@ const Dashboard = () => {
       
       <ColoredSeparator color="primary" className="my-8" />
       
-      <Card className="shadow-impressionist shadow-subtle-glow">
+      <div className="grid lg:grid-cols-2 gap-6">
+        <UpcomingPaymentsCard />
         <BirthdayCard />
-      </Card>
+      </div>
       
       <ColoredSeparator color="accent" className="my-8" />
     </div>
