@@ -1,112 +1,132 @@
+import React from "react";
 import StatCard from "../components/StatCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { Users, DollarSign, AlertCircle, Calendar, UserX } from "lucide-react";
-import { startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
-import { zonedTimeToUtc } from 'date-fns-tz'; // Importando zonedTimeToUtc
+import { Users, DollarSign, Calendar, UserX } from "lucide-react";
+import { startOfMonth, endOfMonth, startOfDay, endOfDay, parseISO } from "date-fns";
+import { fromZonedTime } from "date-fns-tz";
 import BirthdayCard from "@/components/BirthdayCard";
 import ColoredSeparator from "@/components/ColoredSeparator";
-import { Card } from "@/components/ui/card";
 import { formatCurrency } from "@/utils/formatters";
 import PaymentDueAlert from "@/components/PaymentDueAlert";
 import { useSession } from "@/contexts/SessionProvider";
-import UpcomingPaymentsCard from "@/components/UpcomingPaymentsCard"; // Importando o novo card
+import UpcomingPaymentsCard from "@/components/UpcomingPaymentsCard";
 
-// Obtém o fuso horário local
 const TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 const fetchDashboardStats = async () => {
   const now = new Date();
+
+  // Month totals
   const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
-  
-  // Calcula o início e fim do dia atual no fuso horário local, e converte para UTC para a consulta
+
+  // Compute "today" start/end in local timezone, then convert to UTC ISO strings for querying the DB
   const todayStartLocal = startOfDay(now);
   const todayEndLocal = endOfDay(now);
-  
-  const todayStartUtc = zonedTimeToUtc(todayStartLocal, TIME_ZONE).toISOString();
-  const todayEndUtc = zonedTimeToUtc(todayEndLocal, TIME_ZONE).toISOString();
 
-  // 1. Busca transações em atraso para calcular o valor total
-  const overdueQuery = supabase
-    .from('financial_transactions')
-    .select('amount, student_id')
-    .eq('type', 'revenue')
-    .or(`status.eq.Atrasado,and(status.eq.Pendente,due_date.lt.${now.toISOString()})`);
+  const todayStartUtc = fromZonedTime(todayStartLocal, TIME_ZONE).toISOString();
+  const todayEndUtc = fromZonedTime(todayEndLocal, TIME_ZONE).toISOString();
 
-  // 2. Alunos ativos
-  const activeQuery = supabase.from('students').select('id', { count: 'exact', head: true }).eq('status', 'Ativo');
+  // 1) Inadimplência: fetch revenues where status in ('Atrasado','Pendente') and evaluate in JS
+  const { data: overdueRaw = [], error: overdueError } = await supabase
+    .from("financial_transactions")
+    .select("amount, student_id, status, due_date")
+    .eq("type", "revenue")
+    .in("status", ["Atrasado", "Pendente"]);
 
-  // 3. Receita paga no mês
-  const revenueQuery = supabase.from('financial_transactions')
-    .select('amount')
-    .eq('type', 'revenue')
-    .eq('status', 'Pago')
-    .gte('paid_at', monthStart.toISOString())
-    .lte('paid_at', monthEnd.toISOString());
+  if (overdueError) {
+    throw overdueError;
+  }
 
-  // 4. Aulas hoje (Usando limites de UTC ajustados pelo fuso horário local)
-  const classesTodayQuery = supabase.from('classes')
-    .select('id', { count: 'exact', head: true })
-    .gte('start_time', todayStartUtc)
-    .lte('start_time', todayEndUtc);
+  // Compute total overdue amount and number of distinct overdue students (considering Pendente with due_date < now)
+  const totalOverdue = (overdueRaw || []).reduce((sum: number, item: any) => {
+    const status = item?.status;
+    const amount = Number(item?.amount ?? 0);
+    if (status === "Atrasado") return sum + amount;
+    if (status === "Pendente" && item?.due_date) {
+      const due = parseISO(item.due_date);
+      if (due < now) return sum + amount;
+    }
+    return sum;
+  }, 0);
 
-  const [overdueRes, activeRes, revenueRes, classesRes] = await Promise.all([
-    overdueQuery, activeQuery, revenueQuery, classesTodayQuery
-  ]) as any[];
+  const overdueStudentSet = new Set<string>();
+  (overdueRaw || []).forEach((item: any) => {
+    const status = item?.status;
+    if (!item?.student_id) return;
+    if (status === "Atrasado") overdueStudentSet.add(item.student_id);
+    if (status === "Pendente" && item?.due_date) {
+      const due = parseISO(item.due_date);
+      if (due < now) overdueStudentSet.add(item.student_id);
+    }
+  });
+  const overdueStudentCount = overdueStudentSet.size;
 
-  // --- Processamento de Resultados ---
+  // 2) Active students count
+  const { count: activeCount = 0 } = await supabase
+    .from("students")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "Ativo");
 
-  // Inadimplência
-  const overdueData = overdueRes?.data ?? [];
-  const totalOverdue = overdueData.reduce((sum: number, t: any) => sum + (t.amount ?? 0), 0);
-  const overdueStudentCount = new Set((overdueData.map((t: any) => t.student_id)).filter((id: any) => id != null)).size;
+  // 3) Monthly revenue (paid_at within current month)
+  const { data: revenueData = [], error: revenueError } = await supabase
+    .from("financial_transactions")
+    .select("amount")
+    .eq("type", "revenue")
+    .eq("status", "Pago")
+    .gte("paid_at", monthStart.toISOString())
+    .lte("paid_at", monthEnd.toISOString());
 
-  // Alunos Ativos
-  const activeStudents = activeRes?.count ?? 0;
+  if (revenueError) {
+    throw revenueError;
+  }
 
-  // Receita Mensal
-  const revenueData = revenueRes?.data ?? [];
-  const monthlyRevenueValue = revenueData?.reduce((sum: number, t: any) => sum + (t.amount ?? 0), 0) ?? 0;
+  const monthlyRevenueValue = (revenueData || []).reduce((sum: number, r: any) => sum + Number(r?.amount ?? 0), 0);
 
-  // Aulas Hoje
-  const todayClasses = classesRes?.count ?? 0;
+  // 4) Classes today: use the UTC bounds computed from local day range
+  const { count: todayClassesCount = 0, error: classesError } = await supabase
+    .from("classes")
+    .select("id", { count: "exact", head: true })
+    .gte("start_time", todayStartUtc)
+    .lte("start_time", todayEndUtc);
+
+  if (classesError) {
+    throw classesError;
+  }
 
   return {
-    activeStudents,
+    activeStudents: activeCount ?? 0,
     monthlyRevenue: formatCurrency(monthlyRevenueValue),
     totalOverdue: formatCurrency(totalOverdue),
     overdueStudentCount,
-    todayClasses
+    todayClasses: todayClassesCount ?? 0,
   };
 };
 
-const Dashboard = () => {
+const Dashboard: React.FC = () => {
   const { data: stats, isLoading } = useQuery({
-    queryKey: ['dashboardStats'],
+    queryKey: ["dashboardStats"],
     queryFn: fetchDashboardStats,
     staleTime: 1000 * 60 * 10,
   });
-  
-  const { profile } = useSession();
-  const isRecepcao = profile?.role === 'recepcao';
 
-  const logoUrl = "https://nkwsvsmmzvukdghlyxpm.supabase.co/storage/v1/object/public/app-assets/atocalogo.png";
+  const { profile } = useSession();
+  const isRecepcao = profile?.role === "recepcao";
+
+  const logoUrl =
+    "https://nkwsvsmmzvukdghlyxpm.supabase.co/storage/v1/object/public/app-assets/atocalogo.png";
 
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <img src={logoUrl} alt="A Toca Pilates Logo" className="w-10 h-10 object-contain" />
-          <h1 className="text-4xl font-bold text-foreground">
-            Dashboard
-          </h1>
+          <h1 className="text-4xl font-bold text-foreground">Dashboard</h1>
         </div>
-        <div className="text-sm text-muted-foreground">
-          Bem-vindo de volta! 👋
-        </div>
+        <div className="text-sm text-muted-foreground">Bem-vindo de volta! 👋</div>
       </div>
-      
+
       <PaymentDueAlert />
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -141,14 +161,14 @@ const Dashboard = () => {
           variant="bordered-yellow"
         />
       </div>
-      
+
       <ColoredSeparator color="primary" className="my-8" />
-      
+
       <div className="grid lg:grid-cols-2 gap-6">
         <UpcomingPaymentsCard />
         <BirthdayCard />
       </div>
-      
+
       <ColoredSeparator color="accent" className="my-8" />
     </div>
   );
