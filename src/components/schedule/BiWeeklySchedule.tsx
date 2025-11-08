@@ -93,46 +93,57 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
     return names;
   }, [classEvent]);
 
+  if (!hasClass) {
+    return (
+      <div
+        className={cn(
+          "p-1 border-r border-b relative transition-colors",
+          isToday(day) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30",
+          "hover:bg-primary/10"
+        )}
+        style={{ height: '100px' }}
+        onClick={() => onCellClick(day, hour)}
+      >
+        <div className="h-full flex items-center justify-center text-xs text-muted-foreground opacity-50">
+          <div className="text-center"><div className="text-sm">+</div></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
         "p-1 border-r border-b relative transition-colors",
         isToday(day) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30",
-        !hasClass && "hover:bg-primary/10",
-        hasClass ? "z-10" : "z-0"
+        "z-10"
       )}
       style={{ height: '100px' }}
       onClick={() => onCellClick(day, hour)}
     >
-      {hasClass ? (
-        <div
-          onClick={(e) => { e.stopPropagation(); onClassClick(classEvent); }}
-          className={cn(
-            "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-md h-full flex flex-col absolute inset-0",
-            colorClass, textColorClass
-          )}
-        >
-          <div className="flex items-center justify-between mb-1">
-            <span className="font-semibold truncate">Alunos ({studentNames.length})</span>
-            <div className="text-[10px] opacity-90">{attendeeCount}/{classCapacity}</div>
-          </div>
-          
-          {/* Lista de Nomes Rolável */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
-            {studentNames.map((name, index) => (
-              <div key={index} className="truncate leading-tight">
-                {name}
-              </div>
-            ))}
-          </div>
-          
-          <div className="text-[10px] opacity-90 mt-1">60 min</div>
+      <div
+        onClick={(e) => { e.stopPropagation(); onClassClick(classEvent); }}
+        className={cn(
+          "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-md h-full flex flex-col absolute inset-0",
+          colorClass, textColorClass
+        )}
+      >
+        <div className="flex items-center justify-between mb-1">
+          <span className="font-semibold truncate">Alunos ({studentNames.length})</span>
+          <div className="text-[10px] opacity-90">{attendeeCount}/{classCapacity}</div>
         </div>
-      ) : (
-        <div className="h-full flex items-center justify-center text-xs text-muted-foreground opacity-50">
-          <div className="text-center"><div className="text-sm">+</div></div>
+        
+        {/* Lista de Nomes Rolável */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+          {studentNames.map((name, index) => (
+            <div key={index} className="truncate leading-tight">
+              {name}
+            </div>
+          ))}
         </div>
-      )}
+        
+        <div className="text-[10px] opacity-90 mt-1">60 min</div>
+      </div>
     </div>
   );
 });
