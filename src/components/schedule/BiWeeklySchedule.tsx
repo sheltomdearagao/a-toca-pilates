@@ -79,14 +79,17 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
   const studentNames = useMemo(() => {
     if (!classEvent || !classEvent.class_attendees) return [];
     
-    // A consulta retorna class_attendees como um array de objetos, onde cada objeto pode ter um array 'students'
-    const attendeesData = (classEvent.class_attendees as any[]).flatMap(a => 
-      Array.isArray(a.students) ? a.students : (a.students ? [a.students] : [])
-    );
+    // Acessa o array de students dentro do primeiro (e único) objeto de class_attendees
+    const studentsData = (classEvent.class_attendees as any[])[0]?.students;
     
-    const names = attendeesData.map(s => {
-      const fullName = s.name as string;
-      return fullName.split(' ')[0]; // Pega apenas o primeiro nome
+    if (!studentsData) return [];
+
+    // Garante que studentsData é um array (mesmo que seja um único objeto, o Supabase pode retornar um array se for um join)
+    const attendees = Array.isArray(studentsData) ? studentsData : [studentsData];
+    
+    const names = attendees.map(s => {
+      const fullName = s?.name as string;
+      return fullName ? fullName.split(' ')[0] : null; // Pega apenas o primeiro nome
     }).filter(name => name).sort((a, b) => a.localeCompare(b));
     
     return names;
