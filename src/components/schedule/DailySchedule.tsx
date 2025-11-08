@@ -18,6 +18,26 @@ const END_HOUR = 20;
 const HOURS = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
 const MAX_CLASSES_PER_LOAD = 50;
 
+// Componente para gerar o texto dinâmico do card
+const getCardText = (classEvent: ClassEvent) => {
+  const attendeeCount = classEvent?.class_attendees?.[0]?.count ?? 0;
+  const attendeeNames = classEvent?.attendee_names ?? [];
+  
+  if (attendeeCount === 0) {
+    return classEvent?.title || 'Aula';
+  }
+  
+  if (attendeeCount === 1) {
+    return attendeeNames[0] || classEvent?.title || 'Aula';
+  }
+  
+  if (attendeeCount <= 3) {
+    return attendeeNames.join(', ');
+  }
+  
+  return `${attendeeCount} alunos`;
+};
+
 const fetchClassesForDay = async (day: Date): Promise<ClassEvent[]> => {
   const start = startOfDay(day).toISOString();
   const end = endOfDay(day).toISOString();
@@ -27,7 +47,7 @@ const fetchClassesForDay = async (day: Date): Promise<ClassEvent[]> => {
     .select(`
       id, title, start_time, duration_minutes, student_id, recurring_class_template_id,
       students(name, enrollment_type),
-      class_attendees(count)
+      class_attendees(count, students(name))
     `)
     .gte('start_time', start)
     .lte('start_time', end)
@@ -35,7 +55,21 @@ const fetchClassesForDay = async (day: Date): Promise<ClassEvent[]> => {
     .limit(MAX_CLASSES_PER_LOAD);
   
   if (error) throw new Error(error.message);
-  return data as unknown as ClassEvent[];
+  
+  // Mapeia os dados para incluir a lista de nomes dos participantes
+  return (data as any[] || []).map(cls => {
+    const attendeeCount = cls.class_attendees?.[0]?.count ?? 0;
+    const attendeeNames = (cls.class_attendees as any[] || [])
+      .filter(a => a.students?.name)
+      .map(a => a.students.name)
+      .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })); // Ordenação alfabética
+
+    return {
+      ...cls,
+      attendee_names: attendeeNames,
+      class_attendees: [{ count: attendeeCount }], // Mantém a contagem para compatibilidade
+    } as ClassEvent;
+  });
 };
 
 interface DailyScheduleProps {
@@ -117,7 +151,7 @@ const DailySchedule = ({ onClassClick, onQuickAdd }: DailyScheduleProps) => {
                     <div className="space-y-1">
                       {classesInSlot.map(cls => {
                         const attendeeCount = cls.class_attendees?.[0]?.count ?? 0;
-                        const displayText = cls.students?.name || cls.title || 'Aula';
+                        const displayText = getCardText(cls);
                         
                         let colorClass = 'bg-primary';
                         if (attendeeCount >= 1 && attendeeCount <= 5) {

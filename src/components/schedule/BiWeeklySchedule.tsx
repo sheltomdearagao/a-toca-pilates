@@ -18,13 +18,33 @@ const HOURS = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_
 const DAYS_IN_PERIOD = 14;
 const MAX_CLASSES_PER_LOAD = 300;
 
+// Componente para gerar o texto dinâmico do card
+const getCardText = (classEvent: ClassEvent) => {
+  const attendeeCount = classEvent?.class_attendees?.[0]?.count ?? 0;
+  const attendeeNames = classEvent?.attendee_names ?? [];
+  
+  if (attendeeCount === 0) {
+    return classEvent?.title || 'Aula';
+  }
+  
+  if (attendeeCount === 1) {
+    return attendeeNames[0] || classEvent?.title || 'Aula';
+  }
+  
+  if (attendeeCount <= 3) {
+    return attendeeNames.join(', ');
+  }
+  
+  return `${attendeeCount} alunos`;
+};
+
 const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> => {
   const { data, error } = await supabase
     .from('classes')
     .select(`
       id, title, start_time, duration_minutes, student_id, recurring_class_template_id,
       students(name, enrollment_type),
-      class_attendees(count)
+      class_attendees(count, students(name))
     `)
     .gte('start_time', start)
     .lte('start_time', end)
@@ -32,7 +52,21 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
     .limit(MAX_CLASSES_PER_LOAD);
   
   if (error) throw new Error(error.message);
-  return data as unknown as ClassEvent[];
+  
+  // Mapeia os dados para incluir a lista de nomes dos participantes
+  return (data as any[] || []).map(cls => {
+    const attendeeCount = cls.class_attendees?.[0]?.count ?? 0;
+    const attendeeNames = (cls.class_attendees as any[] || [])
+      .filter(a => a.students?.name)
+      .map(a => a.students.name)
+      .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })); // Ordenação alfabética
+
+    return {
+      ...cls,
+      attendee_names: attendeeNames,
+      class_attendees: [{ count: attendeeCount }], // Mantém a contagem para compatibilidade
+    } as ClassEvent;
+  });
 };
 
 // Função auxiliar para agrupar aulas por dia e hora
@@ -56,6 +90,7 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
   const hasClass = classesInSlot.length > 0;
   const classEvent = classesInSlot[0]; // Lógica de UMA aula por slot
   const attendeeCount = classEvent?.class_attendees?.[0]?.count ?? 0;
+  const attendeeNames = classEvent?.attendee_names ?? [];
 
   let colorClass = 'bg-primary';
   const textColorClass = 'text-white';
@@ -68,7 +103,8 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
     colorClass = 'bg-red-600';
   }
   
-  const displayText = classEvent?.students?.name || classEvent?.title || 'Aula';
+  // Gera o texto dinâmico do card
+  const displayText = getCardText(classEvent);
 
   return (
     <div
