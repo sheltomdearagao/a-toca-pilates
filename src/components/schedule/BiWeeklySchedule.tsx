@@ -19,44 +19,20 @@ const DAYS_IN_PERIOD = 14;
 const MAX_CLASSES_PER_LOAD = 300;
 
 const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> => {
-  console.log('🔍 Fetching classes from', start, 'to', end);
-  
   const { data, error } = await supabase
     .from('classes')
     .select(`
       id, title, start_time, duration_minutes, student_id, recurring_class_template_id,
-      students(name),
-      class_attendees(count, students(name))
+      students(name, enrollment_type),
+      class_attendees(count)
     `)
     .gte('start_time', start)
     .lte('start_time', end)
     .order('start_time', { ascending: true })
     .limit(MAX_CLASSES_PER_LOAD);
   
-  if (error) {
-    console.error('❌ Error fetching classes:', error);
-    throw new Error(error.message);
-  }
-  
-  console.log('📊 Raw data received:', data?.length || 0, 'classes');
-  
-  // Mapeia os dados para incluir a lista de nomes dos participantes ordenados
-  const mappedData = (data as any[] || []).map(cls => {
-    const attendeeCount = cls.class_attendees?.[0]?.count ?? 0;
-    const attendeeNames = (cls.class_attendees as any[] || [])
-      .filter(a => a.students?.name)
-      .map(a => a.students.name)
-      .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })); // Ordenação alfabética
-
-    return {
-      ...cls,
-      attendee_names: attendeeNames,
-      class_attendees: [{ count: attendeeCount }], // Mantém a contagem para compatibilidade
-    } as ClassEvent;
-  });
-  
-  console.log('✅ Mapped data:', mappedData.length, 'classes with attendees');
-  return mappedData;
+  if (error) throw new Error(error.message);
+  return data as unknown as ClassEvent[];
 };
 
 // Função auxiliar para agrupar aulas por dia e hora
@@ -77,17 +53,9 @@ const groupClassesBySlot = (classes: ClassEvent[]) => {
 };
 
 const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick, classCapacity }: { day: Date; hour: number; classesInSlot: ClassEvent[]; onCellClick: (day: Date, hour: number) => void; onClassClick: (classEvent: ClassEvent) => void; classCapacity: number; }) => {
-  const dayKey = format(startOfDay(day), 'yyyy-MM-dd');
-  const hourKey = hour.toString().padStart(2, '0');
-  const slotKey = `${dayKey}-${hourKey}`;
-  
-  // DEBUG: Log para cada slot
-  console.log(`📍 Slot ${slotKey}:`, classesInSlot?.length || 0, 'classes');
-  
-  const hasClass = classesInSlot && classesInSlot.length > 0;
-  const classEvent = hasClass ? classesInSlot[0] : null;
+  const hasClass = classesInSlot.length > 0;
+  const classEvent = classesInSlot[0]; // Lógica de UMA aula por slot
   const attendeeCount = classEvent?.class_attendees?.[0]?.count ?? 0;
-  const attendeeNames = classEvent?.attendee_names ?? [];
 
   let colorClass = 'bg-primary';
   const textColorClass = 'text-white';
@@ -100,10 +68,7 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
     colorClass = 'bg-red-600';
   }
   
-  // Gera o texto dinâmico do card
-  const displayText = classEvent?.title || 'Aula';
-  
-  console.log(`🎨 Rendering slot ${slotKey}:`, { hasClass, attendeeCount, displayText });
+  const displayText = classEvent?.students?.name || classEvent?.title || 'Aula';
 
   return (
     <div
@@ -118,7 +83,7 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
     >
       {hasClass ? (
         <div
-          onClick={(e) => { e.stopPropagation(); onClassClick(classEvent!); }}
+          onClick={(e) => { e.stopPropagation(); onClassClick(classEvent); }}
           className={cn(
             "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-md h-full flex flex-col justify-between absolute inset-0 cursor-pointer",
             colorClass, textColorClass
@@ -128,15 +93,8 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
             {displayText}
           </div>
           <div className="text-[10px] opacity-90 pt-1 border-t border-white/20">
-            {attendeeCount}/{classCapacity} alunos
+            {attendeeCount}/{classCapacity} alunos (60 min)
           </div>
-          {/* NOVO: Lista de nomes visível no card */}
-          {attendeeNames.length > 0 && (
-            <div className="text-[9px] opacity-80 mt-1 truncate">
-              {attendeeNames.slice(0, 2).join(', ')}
-              {attendeeNames.length > 2 && '...'}
-            </div>
-          )}
         </div>
       ) : (
         <div className="h-full flex items-center justify-center text-xs text-muted-foreground opacity-50">
@@ -167,10 +125,7 @@ const BiWeeklySchedule = ({ onClassClick, onQuickAdd }: BiWeeklyScheduleProps) =
   });
 
   const groupedClasses = useMemo(() => {
-    console.log('🔄 Grouping classes...');
-    const grouped = classes ? groupClassesBySlot(classes) : {};
-    console.log('📋 Grouped slots:', Object.keys(grouped).length);
-    return grouped;
+    return classes ? groupClassesBySlot(classes) : {};
   }, [classes]);
 
   const daysInPeriod = useMemo(() => {
@@ -181,15 +136,12 @@ const BiWeeklySchedule = ({ onClassClick, onQuickAdd }: BiWeeklyScheduleProps) =
   const handleNext = () => setCurrentStart(addDays(currentStart, DAYS_IN_PERIOD));
 
   const handleCellClick = useCallback((date: Date, hour: number) => {
-    console.log('🎯 Quick add clicked:', date, hour);
     onQuickAdd({ date, hour });
   }, [onQuickAdd]);
 
   if (isLoadingSettings) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
-
-  console.log('🗓️ Rendering BiWeeklySchedule with', daysInPeriod.length, 'days');
 
   return (
     <Card className="p-4 shadow-impressionist shadow-subtle-glow">
