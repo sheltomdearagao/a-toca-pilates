@@ -10,7 +10,7 @@ import { ptBR } from 'date-fns/locale/pt-BR';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tooltip, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 // Horários reduzidos: 7h às 20h (14 horas, apenas horas cheias)
 const START_HOUR = 7;
@@ -83,60 +83,64 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
   } else if (attendeeCount >= 10) {
     colorClass = 'bg-red-600';
   }
-
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div
-            className={cn(
-              "p-1 border-r border-b relative transition-colors",
-              isToday(day) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30",
-              !hasClass && "hover:bg-primary/10",
-              hasClass ? "z-10" : "z-0"
-            )}
-            style={{ height: '100px' }}
-            onClick={() => onCellClick(day, hour)}
-          >
-            {hasClass ? (
-              <div
-                onClick={(e) => { e.stopPropagation(); onClassClick(classEvent); }}
-                className={cn(
-                  "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-md h-full flex flex-col justify-between absolute inset-0 cursor-pointer",
-                  colorClass, textColorClass
-                )}
-              >
-                <div className="font-semibold truncate leading-tight flex-1 flex items-center">
-                  {attendeeCount}/{classCapacity} alunos
-                </div>
-                <div className="text-[10px] opacity-90 pt-1 border-t border-white/20">
-                  60 min
-                </div>
-              </div>
-            ) : (
-              <div className="h-full flex items-center justify-center text-xs text-muted-foreground opacity-50">
-                <div className="text-center"><div className="text-sm">+</div></div>
-              </div>
-            )}
+  
+  const cellContent = (
+    <div
+      className={cn(
+        "p-1 border-r border-b relative transition-colors",
+        isToday(day) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30",
+        !hasClass && "hover:bg-primary/10",
+        hasClass ? "z-10" : "z-0"
+      )}
+      style={{ height: '100px' }}
+      onClick={() => onCellClick(day, hour)}
+    >
+      {hasClass ? (
+        <div
+          onClick={(e) => { e.stopPropagation(); onClassClick(classEvent); }}
+          className={cn(
+            "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-md h-full flex flex-col justify-between absolute inset-0 cursor-pointer",
+            colorClass, textColorClass
+          )}
+        >
+          <div className="font-semibold truncate leading-tight flex-1 flex items-center justify-center text-base">
+            {attendeeCount}/{classCapacity}
           </div>
-        </TooltipTrigger>
-        <TooltipContent>
-          <div className="p-2 max-w-xs">
-            <p className="font-semibold text-sm mb-1">Alunos inscritos:</p>
-            {attendeeNames.length > 0 ? (
-              <div className="space-y-1">
+          <div className="text-[10px] opacity-90 pt-1 border-t border-white/20 text-center">
+            60 min
+          </div>
+        </div>
+      ) : (
+        <div className="h-full flex items-center justify-center text-xs text-muted-foreground opacity-50">
+          <div className="text-center"><div className="text-sm">+</div></div>
+        </div>
+      )}
+    </div>
+  );
+
+  if (hasClass && attendeeNames.length > 0) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            {cellContent}
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">
+            <div className="p-1">
+              <p className="font-semibold text-sm mb-1">Alunos ({attendeeCount}):</p>
+              <div className="space-y-0.5 max-h-40 overflow-y-auto custom-scrollbar">
                 {attendeeNames.map((name, index) => (
-                  <div key={index} className="text-sm">{name}</div>
+                  <div key={index} className="text-xs">{name}</div>
                 ))}
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Nenhum aluno inscrito</p>
-            )}
-          </div>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  return cellContent;
 });
 ScheduleCell.displayName = 'ScheduleCell';
 

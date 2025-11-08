@@ -11,7 +11,7 @@ import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tooltip, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 // Horários reduzidos: 7h às 20h (14 horas, apenas horas cheias)
 const START_HOUR = 7;
@@ -143,43 +143,47 @@ const DailySchedule = ({ onClassClick, onQuickAdd }: DailyScheduleProps) => {
                           colorClass = 'bg-red-600';
                         }
 
-                        return (
-                          <TooltipProvider key={cls.id}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div
-                                  onClick={(e) => { e.stopPropagation(); onClassClick(cls); }}
-                                  className={cn(
-                                    "p-2 rounded text-xs text-white transition-all hover:scale-[1.01] shadow-md flex flex-col justify-between cursor-pointer",
-                                    colorClass
-                                  )}
-                                  style={{ height: '100px' }}
-                                >
-                                  <div className="font-semibold truncate leading-tight flex-1 flex items-center">
-                                    {attendeeCount}/{classCapacity} alunos
-                                  </div>
-                                  <div className="text-[10px] opacity-90 pt-1 border-t border-white/20 flex justify-between items-center">
-                                    <span>60 min</span>
-                                  </div>
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <div className="p-2 max-w-xs">
-                                  <p className="font-semibold text-sm mb-1">Alunos inscritos:</p>
-                                  {attendeeNames.length > 0 ? (
-                                    <div className="space-y-1">
+                        const classCard = (
+                          <div
+                            key={cls.id}
+                            onClick={(e) => { e.stopPropagation(); onClassClick(cls); }}
+                            className={cn(
+                              "p-2 rounded text-xs text-white transition-all hover:scale-[1.01] shadow-md flex flex-col justify-between cursor-pointer",
+                              colorClass
+                            )}
+                            style={{ height: '100px' }}
+                          >
+                            <div className="font-semibold truncate leading-tight flex-1 flex items-center justify-center text-base">
+                              {attendeeCount}/{classCapacity}
+                            </div>
+                            <div className="text-[10px] opacity-90 pt-1 border-t border-white/20 flex justify-between items-center text-center">
+                              <span>60 min</span>
+                            </div>
+                          </div>
+                        );
+
+                        if (attendeeNames.length > 0) {
+                          return (
+                            <TooltipProvider key={cls.id}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  {classCard}
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs">
+                                  <div className="p-1">
+                                    <p className="font-semibold text-sm mb-1">Alunos ({attendeeCount}):</p>
+                                    <div className="space-y-0.5 max-h-40 overflow-y-auto custom-scrollbar">
                                       {attendeeNames.map((name, index) => (
-                                        <div key={index} className="text-sm">{name}</div>
+                                        <div key={index} className="text-xs">{name}</div>
                                       ))}
                                     </div>
-                                  ) : (
-                                    <p className="text-sm text-muted-foreground">Nenhum aluno inscrito</p>
-                                  )}
-                                </div>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        );
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          );
+                        }
+                        return classCard;
                       })}
                     </div>
                   ) : (
