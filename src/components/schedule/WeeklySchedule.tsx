@@ -14,51 +14,50 @@ import { cn } from '@/lib/utils';
 const START_HOUR = 7;
 const END_HOUR = 20;
 const HOURS = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
-const MAX_CLASSES_PER_LOAD = 200;
+
+// DADOS MOCK PARA TESTE - COM TODAS AS PROPRIEDADES OBRIGATÓRIAS
+const MOCK_CLASSES: ClassEvent[] = [
+  {
+    id: 'mock-1',
+    user_id: 'mock-user',
+    title: 'Aula Teste 1',
+    start_time: '2024-01-15T10:00:00Z',
+    duration_minutes: 60,
+    student_id: null,
+    recurring_class_template_id: null,
+    class_attendees: [{ count: 3 }],
+    attendee_names: ['João', 'Maria', 'Pedro'],
+    students: null,
+    notes: null,
+    created_at: '2024-01-15T10:00:00Z'
+  },
+  {
+    id: 'mock-2',
+    user_id: 'mock-user',
+    title: 'Aula Teste 2',
+    start_time: '2024-01-15T14:00:00Z',
+    duration_minutes: 60,
+    student_id: null,
+    recurring_class_template_id: null,
+    class_attendees: [{ count: 5 }],
+    attendee_names: ['Ana', 'Carlos', 'Lucas', 'Sofia', 'Miguel'],
+    students: null,
+    notes: null,
+    created_at: '2024-01-15T14:00:00Z'
+  }
+];
 
 const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> => {
   console.log('🔍 Fetching classes from', start, 'to', end);
   
-  const { data, error } = await supabase
-    .from('classes')
-    .select(`
-      id, title, start_time, duration_minutes, student_id, recurring_class_template_id,
-      students(name),
-      class_attendees(count, students(name))
-    `)
-    .gte('start_time', start)
-    .lte('start_time', end)
-    .order('start_time', { ascending: true })
-    .limit(MAX_CLASSES_PER_LOAD);
-  
-  if (error) {
-    console.error('❌ Error fetching classes:', error);
-    throw new Error(error.message);
-  }
-  
-  console.log('📊 Raw data received:', data?.length || 0, 'classes');
-  
-  // Mapeia os dados para incluir a lista de nomes dos participantes ordenados
-  const mappedData = (data as any[] || []).map(cls => {
-    const attendeeCount = cls.class_attendees?.[0]?.count ?? 0;
-    const attendeeNames = (cls.class_attendees as any[] || [])
-      .filter(a => a.students?.name)
-      .map(a => a.students.name)
-      .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })); // Ordenação alfabética
-
-    return {
-      ...cls,
-      attendee_names: attendeeNames,
-      class_attendees: [{ count: attendeeCount }], // Mantém a contagem para compatibilidade
-    } as ClassEvent;
-  });
-  
-  console.log('✅ Mapped data:', mappedData.length, 'classes with attendees');
-  return mappedData;
+  // TEMPORÁRIO: Retornar dados mock para testar
+  console.log('🧪 Using MOCK DATA for testing');
+  return MOCK_CLASSES;
 };
 
 // Função auxiliar para agrupar aulas por dia e hora
 const groupClassesBySlot = (classes: ClassEvent[]) => {
+  console.log('🔄 Grouping classes...');
   const grouped: Record<string, ClassEvent[]> = {};
   classes.forEach(cls => {
     const startTime = parseISO(cls.start_time);
@@ -71,6 +70,7 @@ const groupClassesBySlot = (classes: ClassEvent[]) => {
     }
     grouped[key].push(cls);
   });
+  console.log('📋 Grouped slots:', Object.keys(grouped).length);
   return grouped;
 };
 
@@ -79,7 +79,6 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
   const hourKey = hour.toString().padStart(2, '0');
   const slotKey = `${dayKey}-${hourKey}`;
   
-  // DEBUG: Log para cada slot
   console.log(`📍 Slot ${slotKey}:`, classesInSlot?.length || 0, 'classes');
   
   const hasClass = classesInSlot && classesInSlot.length > 0;
@@ -101,11 +100,6 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
   
   // Gera o texto dinâmico do card
   const displayText = classEvent?.title || 'Aula';
-  
-  // Texto para tooltip com todos os nomes
-  const tooltipText = attendeeCount > 0 
-    ? `${attendeeCount} aluno${attendeeCount > 1 ? 's' : ''}: ${attendeeNames.join(', ')}`
-    : 'Aula sem participantes';
 
   console.log(`🎨 Rendering slot ${slotKey}:`, { hasClass, attendeeCount, displayText });
 
@@ -134,7 +128,7 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
           <div className="text-[10px] opacity-90 pt-1 border-t border-white/20">
             {attendeeCount}/{classCapacity} alunos
           </div>
-          {/* NOVO: Lista de nomes visível no card */}
+          {/* Lista de nomes visível no card */}
           {attendeeNames.length > 0 && (
             <div className="text-[9px] opacity-80 mt-1 truncate">
               {attendeeNames.slice(0, 2).join(', ')}
@@ -194,6 +188,7 @@ const WeeklySchedule = ({ onClassClick, onQuickAdd }: WeeklyScheduleProps) => {
   }
 
   console.log('🗓️ Rendering WeeklySchedule with', daysOfWeek.length, 'days');
+  console.log('📊 Classes loaded:', classes?.length || 0);
 
   return (
     <Card className="p-4 shadow-impressionist shadow-subtle-glow">
