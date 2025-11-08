@@ -56,7 +56,13 @@ const groupClassesBySlot = (classes: ClassEvent[]) => {
 const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick, classCapacity }: { day: Date; hour: number; classesInSlot: ClassEvent[]; onCellClick: (day: Date, hour: number) => void; onClassClick: (classEvent: ClassEvent) => void; classCapacity: number; }) => {
   const hasClass = classesInSlot.length > 0;
   const classEvent = classesInSlot[0]; // Lógica de UMA aula por slot
-  const attendeeCount = classEvent?.class_attendees?.[0]?.count ?? 0;
+  
+  // Acesso seguro à contagem de participantes
+  const attendeeCount = useMemo(() => {
+    if (!classEvent || !classEvent.class_attendees || classEvent.class_attendees.length === 0) return 0;
+    // Supabase retorna a contagem no primeiro elemento do array se 'count' for usado
+    return (classEvent.class_attendees as any[])[0]?.count ?? 0;
+  }, [classEvent]);
 
   let colorClass = 'bg-primary';
   const textColorClass = 'text-white';
@@ -73,13 +79,15 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
   const studentNames = useMemo(() => {
     if (!classEvent || !classEvent.class_attendees) return [];
     
-    // A consulta agora retorna class_attendees com students(name)
-    const attendees = (classEvent.class_attendees as any[]).filter(a => a.students && a.students.name);
+    // A consulta retorna class_attendees como um array de objetos, onde cada objeto pode ter um array 'students'
+    const attendees = (classEvent.class_attendees as any[]).flatMap(a => 
+      Array.isArray(a.students) ? a.students : (a.students ? [a.students] : [])
+    );
     
-    const names = attendees.map(a => {
-      const fullName = a.students.name as string;
+    const names = attendees.map(s => {
+      const fullName = s.name as string;
       return fullName.split(' ')[0]; // Pega apenas o primeiro nome
-    }).sort((a, b) => a.localeCompare(b));
+    }).filter(name => name).sort((a, b) => a.localeCompare(b));
     
     return names;
   }, [classEvent]);

@@ -116,7 +116,11 @@ const DailySchedule = ({ onClassClick, onQuickAdd }: DailyScheduleProps) => {
                   {hasClass ? (
                     <div className="space-y-2">
                       {classesInSlot.map(cls => {
-                        const attendeeCount = cls.class_attendees?.[0]?.count ?? 0;
+                        // Acesso seguro à contagem de participantes
+                        const attendeeCount = useMemo(() => {
+                          if (!cls || !cls.class_attendees || cls.class_attendees.length === 0) return 0;
+                          return (cls.class_attendees as any[])[0]?.count ?? 0;
+                        }, [cls]);
                         
                         let colorClass = 'bg-primary';
                         if (attendeeCount >= 1 && attendeeCount <= 5) {
@@ -131,12 +135,14 @@ const DailySchedule = ({ onClassClick, onQuickAdd }: DailyScheduleProps) => {
                         const studentNames = useMemo(() => {
                           if (!cls.class_attendees) return [];
                           
-                          const attendees = (cls.class_attendees as any[]).filter(a => a.students && a.students.name);
+                          const attendees = (cls.class_attendees as any[]).flatMap(a => 
+                            Array.isArray(a.students) ? a.students : (a.students ? [a.students] : [])
+                          );
                           
-                          const names = attendees.map(a => {
-                            const fullName = a.students.name as string;
+                          const names = attendees.map(s => {
+                            const fullName = s.name as string;
                             return fullName.split(' ')[0]; // Pega apenas o primeiro nome
-                          }).sort((a, b) => a.localeCompare(b));
+                          }).filter(name => name).sort((a, b) => a.localeCompare(b));
                           
                           return names;
                         }, [cls.class_attendees]);
