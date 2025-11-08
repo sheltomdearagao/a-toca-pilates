@@ -15,44 +15,54 @@ type BirthdayStudent = {
 };
 
 const fetchBirthdayStudents = async (): Promise<BirthdayStudent[]> => {
-  console.log('🎂 Buscando aniversariantes do mês...');
+  console.log('🎂 [BIRTHDAY] Iniciando busca de aniversariantes...');
   
-  // Busca alunos ativos com data de nascimento definida
-  const { data, error } = await supabase
+  // Busca TODOS os alunos ativos
+  const { data: allStudents, error } = await supabase
     .from("students")
     .select("id, name, date_of_birth, phone, status")
-    .eq("status", "Ativo")
-    .not("date_of_birth", "is", null);
+    .eq("status", "Ativo");
 
-  console.log('📊 Resultado bruto de alunos:', { data, error });
+  console.log('📊 [BIRTHDAY] Total de alunos ativos:', allStudents?.length || 0);
 
   if (error) {
-    console.error('❌ Erro na consulta de alunos:', error);
+    console.error('❌ [BIRTHDAY] Erro na consulta:', error);
     throw new Error(error.message);
   }
 
-  // Filtra pelo mês atual no cliente (mais confiável que EXTRACT no servidor com RLS/RPC)
+  // Filtra no cliente
   const currentMonth = new Date().getMonth(); // 0-11
-  console.log('📅 Mês atual:', currentMonth);
+  const currentYear = new Date().getFullYear();
   
-  const list = (data || []).filter((s: any) => {
+  console.log('📅 [BIRTHDAY] Mês/Ano atual:', { currentMonth: currentMonth + 1, currentYear });
+  
+  const list = (allStudents || []).filter((s: any) => {
+    // Ignora alunos sem data de nascimento
+    if (!s.date_of_birth) {
+      console.log(`⚠️ [BIRTHDAY] ${s.name} não tem data de nascimento`);
+      return false;
+    }
+    
     try {
-      const dob = parseISO(s.date_of_birth as string);
+      const dob = parseISO(s.date_of_birth);
       const studentMonth = dob.getMonth();
       const matches = studentMonth === currentMonth;
       
-      if (matches) {
-        console.log(`✅ ${s.name} faz aniversário este mês (${studentMonth + 1}/${currentMonth + 1})`);
-      }
+      console.log(`${matches ? '✅' : '❌'} [BIRTHDAY] ${s.name}:`, {
+        date_of_birth: s.date_of_birth,
+        studentMonth: studentMonth + 1,
+        currentMonth: currentMonth + 1,
+        matches
+      });
       
       return matches;
-    } catch {
-      console.error(`❌ Erro ao processar data de nascimento de ${s.name}:`, s.date_of_birth);
+    } catch (err) {
+      console.error(`❌ [BIRTHDAY] Erro ao processar ${s.name}:`, err);
       return false;
     }
   });
 
-  console.log('✅ Aniversariantes encontrados:', list.length);
+  console.log('✅ [BIRTHDAY] Total de aniversariantes encontrados:', list.length);
 
   return list as BirthdayStudent[];
 };
@@ -64,7 +74,7 @@ const BirthdayCard = () => {
     staleTime: 1000 * 60 * 5,
   });
 
-  console.log('🔄 Estado da query de aniversariantes:', {
+  console.log('🔄 [BIRTHDAY] Estado da query:', {
     data: students,
     isLoading,
     error,
