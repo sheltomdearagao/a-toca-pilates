@@ -11,7 +11,6 @@ import { formatCurrency } from "@/utils/formatters";
 import PaymentDueAlert from "@/components/PaymentDueAlert";
 import { useSession } from "@/contexts/SessionProvider";
 import UpcomingPaymentsCard from "@/components/UpcomingPaymentsCard";
-import TestDataCreator from "@/components/TestDataCreator";
 import DataMigrationTool from "@/components/DataMigrationTool";
 import { Link } from "react-router-dom";
 
@@ -130,12 +129,7 @@ const Dashboard: React.FC = () => {
         <div className="text-sm text-muted-foreground">Bem-vindo de volta! 👋</div>
       </div>
 
-      {isAdmin && (
-        <>
-          <DataMigrationTool />
-          <TestDataCreator />
-        </>
-      )}
+      {isAdmin && <DataMigrationTool />}
 
       <PaymentDueAlert />
 

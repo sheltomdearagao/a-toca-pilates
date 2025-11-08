@@ -6,7 +6,7 @@ import { RecurringClassTemplate } from '@/types/schedule';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/contexts/SessionProvider';
 import { useState } from 'react';
-import { TransactionFormData } from '@/components/financial/AddEditTransactionDialog.schema'; // Importar o tipo de dados do formulário
+import { TransactionFormData } from '@/components/financial/AddEditTransactionDialog.schema';
 
 type ClassAttendance = {
   id: string;
@@ -59,7 +59,7 @@ const fetchStudentProfile = async (studentId: string, transactionLimit: number, 
 export const useStudentProfileData = (studentId: string | undefined) => {
   const queryClient = useQueryClient();
   const { profile } = useSession();
-  const isAdmin = profile?.role === 'admin';
+  const isAdminOrRecepcao = profile?.role === 'admin' || profile?.role === 'recepcao'; // Alterado
   
   const [transactionLimit, setTransactionLimit] = useState(PAGE_SIZE);
   const [attendanceLimit, setAttendanceLimit] = useState(PAGE_SIZE);
@@ -105,7 +105,7 @@ export const useStudentProfileData = (studentId: string | undefined) => {
     queryClient.invalidateQueries({ queryKey: ['transactions'] });
     queryClient.invalidateQueries({ queryKey: ['financialStats'] });
     queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
-    queryClient.invalidateQueries({ queryKey: ['upcomingPayments'] }); // ensure upcoming payments refresh after financial changes
+    queryClient.invalidateQueries({ queryKey: ['upcomingPayments'] });
   };
 
   const updateStudentMutation = useMutation({
@@ -121,7 +121,6 @@ export const useStudentProfileData = (studentId: string | undefined) => {
       delete dataToSubmit.register_payment;
       delete dataToSubmit.payment_due_date;
       
-      // Limpeza de campos opcionais/condicionais
       if (dataToSubmit.plan_type === 'Avulso') {
         dataToSubmit.plan_frequency = null;
         dataToSubmit.payment_method = null;
@@ -133,38 +132,22 @@ export const useStudentProfileData = (studentId: string | undefined) => {
       if (!dataToSubmit.has_promotional_value) {
         dataToSubmit.discount_description = null;
       }
-      delete dataToSubmit.has_promotional_value; // Remover campo temporário do formulário
+      delete dataToSubmit.has_promotional_value;
 
-      if (dataToSubmit.date_of_birth === "") {
-        dataToSubmit.date_of_birth = null;
-      }
-      if (dataToSubmit.validity_date === "") {
-        dataToSubmit.validity_date = null;
-      }
-      if (dataToSubmit.email === "") {
-        dataToSubmit.email = null;
-      }
-      if (dataToSubmit.phone === "") {
-        dataToSubmit.phone = null;
-      }
-      if (dataToSubmit.address === "") {
-        dataToSubmit.address = null;
-      }
-      if (dataToSubmit.guardian_phone === "") {
-        dataToSubmit.guardian_phone = null;
-      }
-      if (dataToSubmit.notes === "") {
-        dataToSubmit.notes = null;
-      }
+      if (dataToSubmit.date_of_birth === "") dataToSubmit.date_of_birth = null;
+      if (dataToSubmit.validity_date === "") dataToSubmit.validity_date = null;
+      if (dataToSubmit.email === "") dataToSubmit.email = null;
+      if (dataToSubmit.phone === "") dataToSubmit.phone = null;
+      if (dataToSubmit.address === "") dataToSubmit.address = null;
+      if (dataToSubmit.guardian_phone === "") dataToSubmit.guardian_phone = null;
+      if (dataToSubmit.notes === "") dataToSubmit.notes = null;
 
-      // 1. Atualiza aluno
       const { error } = await supabase
         .from("students")
         .update(dataToSubmit)
         .eq("id", studentId!);
       if (error) throw error;
       
-      // 2. Registrar Pagamento se marcado
       if (registerPayment && studentId && dataToSubmit.monthly_fee > 0) {
         const transaction = {
           user_id: user.id,
@@ -174,8 +157,8 @@ export const useStudentProfileData = (studentId: string | undefined) => {
           amount: dataToSubmit.monthly_fee,
           type: 'revenue',
           status: 'Pago',
-          due_date: paymentDueDate, // Data de vencimento para o próximo mês
-          paid_at: new Date().toISOString(), // Data de pagamento é agora
+          due_date: paymentDueDate,
+          paid_at: new Date().toISOString(),
         };
         
         const { error: transactionError } = await supabase.from('financial_transactions').insert([transaction]);
@@ -186,7 +169,7 @@ export const useStudentProfileData = (studentId: string | undefined) => {
       queryClient.invalidateQueries({ queryKey: ['studentProfileData', studentId] });
       queryClient.invalidateQueries({ queryKey: ["studentPaymentStatus"] });
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      queryClient.invalidateQueries({ queryKey: ['birthdayStudents'] }); // ensure birthday card updates
+      queryClient.invalidateQueries({ queryKey: ['birthdayStudents'] });
       showSuccess(`Aluno atualizado com sucesso!`);
     },
     onError: (error: any) => { showError(error.message); },
@@ -214,7 +197,7 @@ export const useStudentProfileData = (studentId: string | undefined) => {
     },
     onSuccess: () => {
       invalidateFinancialQueries();
-      queryClient.invalidateQueries({ queryKey: ['birthdayStudents'] }); // in case transaction affects displayed student info
+      queryClient.invalidateQueries({ queryKey: ['birthdayStudents'] });
       showSuccess('Lançamento financeiro registrado com sucesso!');
     },
     onError: (error) => { showError(error.message); },
@@ -222,7 +205,7 @@ export const useStudentProfileData = (studentId: string | undefined) => {
 
   const markAsPaidMutation = useMutation({
     mutationFn: async (transactionId: string) => {
-      if (!isAdmin) throw new Error("Você não tem permissão para marcar transações como pagas.");
+      if (!isAdminOrRecepcao) throw new Error("Você não tem permissão para marcar transações como pagas.");
       const { error } = await supabase.from('financial_transactions').update({ status: 'Pago', paid_at: new Date().toISOString() }).eq('id', transactionId);
       if (error) throw error;
     },
@@ -235,7 +218,7 @@ export const useStudentProfileData = (studentId: string | undefined) => {
 
   const deleteTransactionMutation = useMutation({
     mutationFn: async (transactionId: string) => {
-      if (!isAdmin) throw new Error("Você não tem permissão para excluir transações.");
+      if (!isAdminOrRecepcao) throw new Error("Você não tem permissão para excluir transações.");
       const { error } = await supabase.from("financial_transactions").delete().eq("id", transactionId);
       if (error) throw error;
     },
@@ -266,7 +249,7 @@ export const useStudentProfileData = (studentId: string | undefined) => {
     isLoading,
     isFetchingHistory,
     error,
-    isAdmin,
+    isAdminOrRecepcao, // Alterado
     loadMoreTransactions,
     loadMoreAttendance,
     mutations: {

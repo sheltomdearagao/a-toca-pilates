@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { FinancialTransaction } from '@/types/financial';
-import { Loader2, DollarSign } from 'lucide-react'; // Importar DollarSign
+import { Loader2, DollarSign } from 'lucide-react';
 import ProRataCalculator from '@/components/students/ProRataCalculator';
 import AddClassDialog from '@/components/schedule/AddClassDialog';
 import AddEditStudentDialog from '@/components/students/AddEditStudentDialog';
@@ -25,9 +25,7 @@ const StudentProfile = () => {
   const [isDeleteTransactionAlertOpen, setDeleteTransactionAlertOpen] = useState(false);
   const [transactionToDelete, setTransactionToDelete] = useState<FinancialTransaction | null>(null);
 
-  // Novos estados para transação avulsa
   const [isTransactionDialogOpen, setTransactionDialogOpen] = useState(false);
-  // Removendo transactionDialogType, pois será sempre 'revenue' e status 'Pago'
   const [transactionToEdit, setTransactionToEdit] = useState<FinancialTransaction | undefined>(undefined);
 
 
@@ -36,7 +34,7 @@ const StudentProfile = () => {
     isLoading, 
     isFetchingHistory, 
     error, 
-    isAdmin, 
+    isAdminOrRecepcao, // Alterado
     mutations, 
     loadMoreTransactions, 
     loadMoreAttendance 
@@ -50,7 +48,7 @@ const StudentProfile = () => {
   const hasMoreAttendance = data?.hasMoreAttendance ?? false;
 
   const handleRegisterPayment = () => {
-    setTransactionToEdit(undefined); // Garantir que é um novo registro
+    setTransactionToEdit(undefined);
     setTransactionDialogOpen(true);
   };
 
@@ -91,13 +89,12 @@ const StudentProfile = () => {
       <StudentHeaderActions
         student={student}
         isLoading={isLoading}
-        isAdmin={isAdmin}
+        isAdmin={isAdminOrRecepcao} // Passando a flag correta
         onEdit={() => setEditFormOpen(true)}
         onProRata={() => setProRataOpen(true)}
         onAddClass={() => setAddClassOpen(true)}
       />
 
-      {/* NOVO BOTÃO DE REGISTRO DE PAGAMENTO */}
       <div className="flex gap-2">
         <Button
           className="bg-primary hover:bg-primary/90 text-white"
@@ -111,8 +108,7 @@ const StudentProfile = () => {
 
       <div className="grid lg:grid-cols-4 gap-6">
         <StudentDetailsCard student={student} isLoading={isLoading} />
-        {/* NOVO CARD DE CRÉDITOS */}
-        <StudentRepositionCreditsCard studentId={studentId} isAdmin={isAdmin} />
+        <StudentRepositionCreditsCard studentId={studentId} isAdmin={isAdminOrRecepcao} />
         <StudentRecurringScheduleCard student={student} recurringTemplate={recurringTemplate} isLoading={isLoading} />
       </div>
 
@@ -120,7 +116,7 @@ const StudentProfile = () => {
         <StudentFinancialHistory
           transactions={transactions}
           isLoading={isLoading}
-          isAdmin={isAdmin}
+          isAdminOrRecepcao={isAdminOrRecepcao} // Alterado
           onMarkAsPaid={(id) => mutations.markAsPaid.mutate(id)}
           onDeleteTransaction={handleDeleteTransaction}
           hasMore={hasMoreTransactions}
@@ -136,7 +132,6 @@ const StudentProfile = () => {
         />
       </div>
 
-      {/* Diálogos */}
       <AddEditStudentDialog
         isOpen={isEditFormOpen}
         onOpenChange={setEditFormOpen}
@@ -163,8 +158,8 @@ const StudentProfile = () => {
         isOpen={isTransactionDialogOpen}
         onOpenChange={setTransactionDialogOpen}
         initialStudentId={studentId}
-        defaultType={'revenue'} // Sempre Receita
-        defaultStatus={'Pago'} // Novo: Status padrão como Pago
+        defaultType={'revenue'}
+        defaultStatus={'Pago'}
         onSubmit={onSubmitTransaction}
         isSubmitting={mutations.createTransaction.isPending}
         students={[]}

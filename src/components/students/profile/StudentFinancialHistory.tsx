@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 interface StudentFinancialHistoryProps {
   transactions: FinancialTransaction[];
   isLoading: boolean;
-  isAdmin: boolean;
+  isAdminOrRecepcao: boolean; // Alterado de isAdmin para isAdminOrRecepcao
   onMarkAsPaid: (transactionId: string) => void;
   onDeleteTransaction: (transaction: FinancialTransaction) => void;
   hasMore: boolean;
@@ -25,7 +25,7 @@ interface StudentFinancialHistoryProps {
 const StudentFinancialHistory = ({
   transactions,
   isLoading,
-  isAdmin,
+  isAdminOrRecepcao, // Alterado
   onMarkAsPaid,
   onDeleteTransaction,
   hasMore,
@@ -74,7 +74,7 @@ const StudentFinancialHistory = ({
                     <TableCell>{t.due_date ? format(parseISO(t.due_date), 'dd/MM/yyyy') : '-'}</TableCell>
                     <TableCell className="text-right font-semibold">{formatCurrency(t.amount)}</TableCell>
                     <TableCell className="text-right">
-                      {isAdmin && (
+                      {isAdminOrRecepcao && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="h-8 w-8 p-0">
