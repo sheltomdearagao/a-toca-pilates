@@ -12,6 +12,7 @@ import PaymentDueAlert from "@/components/PaymentDueAlert";
 import { useSession } from "@/contexts/SessionProvider";
 import UpcomingPaymentsCard from "@/components/UpcomingPaymentsCard";
 import TestDataCreator from "@/components/TestDataCreator";
+import DataMigrationTool from "@/components/DataMigrationTool";
 import { Link } from "react-router-dom";
 
 const TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -119,9 +120,6 @@ const Dashboard: React.FC = () => {
   const logoUrl =
     "https://nkwsvsmmzvukdghlyxpm.supabase.co/storage/v1/object/public/app-assets/atocalogo.png";
 
-  console.log('📊 Dashboard - Stats:', stats);
-  console.log('📊 Dashboard - Loading:', isLoading);
-
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -132,7 +130,12 @@ const Dashboard: React.FC = () => {
         <div className="text-sm text-muted-foreground">Bem-vindo de volta! 👋</div>
       </div>
 
-      {isAdmin && <TestDataCreator />}
+      {isAdmin && (
+        <>
+          <DataMigrationTool />
+          <TestDataCreator />
+        </>
+      )}
 
       <PaymentDueAlert />
 
