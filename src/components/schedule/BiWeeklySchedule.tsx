@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, memo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Loader2, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { ClassEvent } from '@/types/schedule';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { parseISO, format, addDays, startOfDay, endOfDay, subDays, isToday, isWeekend } from 'date-fns';
@@ -18,26 +18,6 @@ const END_HOUR = 20;
 const HOURS = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
 const DAYS_IN_PERIOD = 14;
 const MAX_CLASSES_PER_LOAD = 300;
-
-// Componente para gerar o texto dinâmico do card
-const getCardText = (classEvent: ClassEvent) => {
-  const attendeeCount = classEvent?.class_attendees?.[0]?.count ?? 0;
-  const attendeeNames = classEvent?.attendee_names ?? [];
-  
-  if (attendeeCount === 0) {
-    return classEvent?.title || 'Aula';
-  }
-  
-  if (attendeeCount === 1) {
-    return attendeeNames[0] || classEvent?.title || 'Aula';
-  }
-  
-  if (attendeeCount <= 3) {
-    return attendeeNames.join(', ');
-  }
-  
-  return `${attendeeCount} alunos`;
-};
 
 const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> => {
   const { data, error } = await supabase
@@ -104,9 +84,9 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
     colorClass = 'bg-red-600';
   }
   
-  // Gera o texto dinâmico do card
-  const displayText = getCardText(classEvent);
-
+  // Texto do card
+  const displayText = classEvent?.title || 'Aula';
+  
   // Texto para tooltip com todos os nomes
   const tooltipText = attendeeCount > 0 
     ? `${attendeeCount} aluno${attendeeCount > 1 ? 's' : ''}: ${attendeeNames.join(', ')}`
@@ -137,9 +117,8 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
                 <div className="font-semibold truncate leading-tight flex-1 flex items-center">
                   {displayText}
                 </div>
-                <div className="text-[10px] opacity-90 pt-1 border-t border-white/20 flex justify-between items-center">
-                  <span>{attendeeCount}/{classCapacity} alunos</span>
-                  {attendeeCount > 0 && <Users className="w-3 h-3" />}
+                <div className="text-[10px] opacity-90 pt-1 border-t border-white/20">
+                  {attendeeCount}/{classCapacity} alunos
                 </div>
               </div>
             </TooltipTrigger>

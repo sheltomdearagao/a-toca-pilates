@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, memo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Loader2, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { ClassEvent } from '@/types/schedule';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { parseISO, format, addDays, startOfDay, endOfDay, subDays, isToday, isPast } from 'date-fns';
@@ -17,26 +17,6 @@ const START_HOUR = 7;
 const END_HOUR = 20;
 const HOURS = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
 const MAX_CLASSES_PER_LOAD = 100;
-
-// Componente para gerar o texto dinâmico do card
-const getCardText = (classEvent: ClassEvent) => {
-  const attendeeCount = classEvent?.class_attendees?.[0]?.count ?? 0;
-  const attendeeNames = classEvent?.attendee_names ?? [];
-  
-  if (attendeeCount === 0) {
-    return classEvent?.title || 'Aula';
-  }
-  
-  if (attendeeCount === 1) {
-    return attendeeNames[0] || classEvent?.title || 'Aula';
-  }
-  
-  if (attendeeCount <= 3) {
-    return attendeeNames.join(', ');
-  }
-  
-  return `${attendeeCount} alunos`;
-};
 
 const fetchClassesForDay = async (day: Date): Promise<ClassEvent[]> => {
   const start = startOfDay(day).toISOString();
@@ -151,7 +131,7 @@ const DailySchedule = ({ onClassClick, onQuickAdd }: DailyScheduleProps) => {
                     <div className="space-y-1">
                       {classesInSlot.map(cls => {
                         const attendeeCount = cls.class_attendees?.[0]?.count ?? 0;
-                        const displayText = getCardText(cls);
+                        const displayText = cls?.title || 'Aula';
                         const attendeeNames = cls?.attendee_names ?? [];
                         
                         let colorClass = 'bg-primary';
@@ -183,9 +163,8 @@ const DailySchedule = ({ onClassClick, onQuickAdd }: DailyScheduleProps) => {
                                   <div className="font-semibold truncate leading-tight flex-1 flex items-center">
                                     {displayText}
                                   </div>
-                                  <div className="text-[10px] opacity-90 pt-1 border-t border-white/20 flex justify-between items-center">
-                                    <span>{attendeeCount}/{classCapacity} alunos</span>
-                                    {attendeeCount > 0 && <Users className="w-3 h-3" />}
+                                  <div className="text-[10px] opacity-90 pt-1 border-t border-white/20">
+                                    {attendeeCount}/{classCapacity} alunos
                                   </div>
                                 </div>
                               </TooltipTrigger>
