@@ -24,7 +24,7 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
     .select(`
       id, title, start_time, duration_minutes, student_id, recurring_class_template_id,
       students(name, enrollment_type),
-      class_attendees(count)
+      class_attendees(count, students(name))
     `)
     .gte('start_time', start)
     .lte('start_time', end)
@@ -32,7 +32,21 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
     .limit(MAX_CLASSES_PER_LOAD);
   
   if (error) throw new Error(error.message);
-  return data as unknown as ClassEvent[];
+  
+  // Mapeia os dados para incluir a lista de nomes dos participantes
+  return (data as any[] || []).map(cls => {
+    const attendeeCount = cls.class_attendees?.[0]?.count ?? 0;
+    const attendeeNames = (cls.class_attendees as any[] || [])
+      .filter(a => a.students?.name)
+      .map(a => a.students.name)
+      .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })); // Ordenação alfabética
+
+    return {
+      ...cls,
+      attendee_names: attendeeNames,
+      class_attendees: [{ count: attendeeCount }], // Mantém a contagem para compatibilidade
+    } as ClassEvent;
+  });
 };
 
 // Função auxiliar para agrupar aulas por dia e hora
@@ -56,6 +70,7 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
   const hasClass = classesInSlot.length > 0;
   const classEvent = classesInSlot[0]; // Lógica de UMA aula por slot
   const attendeeCount = classEvent?.class_attendees?.[0]?.count ?? 0;
+  const attendeeNames = classEvent?.attendee_names ?? [];
 
   let colorClass = 'bg-primary';
   const textColorClass = 'text-white';
@@ -68,7 +83,7 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
     colorClass = 'bg-red-600';
   }
   
-  const displayText = classEvent?.students?.name || classEvent?.title || 'Aula';
+  const defaultTitle = classEvent?.title ?? 'Aula';
 
   return (
     <div
@@ -89,8 +104,18 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
             colorClass, textColorClass
           )}
         >
-          <div className="font-semibold truncate leading-tight flex-1 flex items-center">
-            {displayText}
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+            {attendeeNames.length > 0 ? (
+              <div className="space-y-0.5">
+                {attendeeNames.map((name, index) => (
+                  <div key={index} className="font-semibold truncate leading-tight">
+                    {name}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="font-semibold truncate leading-tight">{defaultTitle}</div>
+            )}
           </div>
           <div className="text-[10px] opacity-90 pt-1 border-t border-white/20">
             {attendeeCount}/{classCapacity} alunos (60 min)
