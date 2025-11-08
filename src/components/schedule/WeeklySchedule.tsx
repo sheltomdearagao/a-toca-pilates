@@ -67,9 +67,6 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
   } else if (attendeeCount >= 10) {
     colorClass = 'bg-red-600';
   }
-  
-  // Se for aula com aluno, usa o nome do aluno; senão, o título
-  const displayText = classEvent?.students?.name || classEvent?.title || 'Aula';
 
   return (
     <div
@@ -91,10 +88,10 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
           )}
         >
           <div className="font-semibold truncate leading-tight flex-1 flex items-center">
-            {displayText}
+            {attendeeCount}/{classCapacity} alunos
           </div>
           <div className="text-[10px] opacity-90 pt-1 border-t border-white/20">
-            {attendeeCount}/{classCapacity} alunos (60 min)
+            60 min
           </div>
         </div>
       ) : (

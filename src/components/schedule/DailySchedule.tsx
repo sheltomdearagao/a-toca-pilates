@@ -117,7 +117,6 @@ const DailySchedule = ({ onClassClick, onQuickAdd }: DailyScheduleProps) => {
                     <div className="space-y-1">
                       {classesInSlot.map(cls => {
                         const attendeeCount = cls.class_attendees?.[0]?.count ?? 0;
-                        const displayText = cls.students?.name || cls.title || 'Aula';
                         
                         let colorClass = 'bg-primary';
                         if (attendeeCount >= 1 && attendeeCount <= 5) {
@@ -139,10 +138,10 @@ const DailySchedule = ({ onClassClick, onQuickAdd }: DailyScheduleProps) => {
                             style={{ height: '100px' }}
                           >
                             <div className="font-semibold truncate leading-tight flex-1 flex items-center">
-                              {displayText}
+                              {attendeeCount}/{classCapacity} alunos
                             </div>
                             <div className="text-[10px] opacity-90 pt-1 border-t border-white/20 flex justify-between items-center">
-                              <span>{attendeeCount}/{classCapacity} alunos (60 min)</span>
+                              <span>60 min</span>
                             </div>
                           </div>
                         );
