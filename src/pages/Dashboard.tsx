@@ -11,6 +11,7 @@ import { formatCurrency } from "@/utils/formatters";
 import PaymentDueAlert from "@/components/PaymentDueAlert";
 import { useSession } from "@/contexts/SessionProvider";
 import UpcomingPaymentsCard from "@/components/UpcomingPaymentsCard";
+import TestDataCreator from "@/components/TestDataCreator";
 import { Link } from "react-router-dom";
 
 const TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -113,7 +114,7 @@ const Dashboard: React.FC = () => {
   });
 
   const { profile } = useSession();
-  const isRecepcao = profile?.role === "recepcao";
+  const isAdmin = profile?.role === "admin";
 
   const logoUrl =
     "https://nkwsvsmmzvukdghlyxpm.supabase.co/storage/v1/object/public/app-assets/atocalogo.png";
@@ -130,6 +131,8 @@ const Dashboard: React.FC = () => {
         </div>
         <div className="text-sm text-muted-foreground">Bem-vindo de volta! 👋</div>
       </div>
+
+      {isAdmin && <TestDataCreator />}
 
       <PaymentDueAlert />
 
