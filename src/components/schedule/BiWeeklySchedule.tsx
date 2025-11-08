@@ -10,6 +10,7 @@ import { ptBR } from 'date-fns/locale/pt-BR';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 
 // Horários reduzidos: 7h às 20h (14 horas, apenas horas cheias)
 const START_HOUR = 7;
@@ -24,7 +25,7 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
     .select(`
       id, title, start_time, duration_minutes, student_id, recurring_class_template_id,
       students(name, enrollment_type),
-      class_attendees(count)
+      class_attendees(count, students(name))
     `)
     .gte('start_time', start)
     .lte('start_time', end)
@@ -68,7 +69,20 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
     colorClass = 'bg-red-600';
   }
   
-  const eventTitle = classEvent?.students?.name ?? classEvent?.title ?? '';
+  // 1. Extrair e ordenar nomes dos alunos
+  const studentNames = useMemo(() => {
+    if (!classEvent || !classEvent.class_attendees) return [];
+    
+    // A consulta agora retorna class_attendees com students(name)
+    const attendees = (classEvent.class_attendees as any[]).filter(a => a.students && a.students.name);
+    
+    const names = attendees.map(a => {
+      const fullName = a.students.name as string;
+      return fullName.split(' ')[0]; // Pega apenas o primeiro nome
+    }).sort((a, b) => a.localeCompare(b));
+    
+    return names;
+  }, [classEvent]);
 
   return (
     <div
@@ -85,14 +99,25 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
         <div
           onClick={(e) => { e.stopPropagation(); onClassClick(classEvent); }}
           className={cn(
-            "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-md h-full flex flex-col justify-center absolute inset-0",
+            "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-md h-full flex flex-col absolute inset-0",
             colorClass, textColorClass
           )}
         >
-          <div className="flex items-center justify-between">
-            <span className="font-semibold truncate">{eventTitle}</span>
+          <div className="flex items-center justify-between mb-1">
+            <span className="font-semibold truncate">Alunos ({studentNames.length})</span>
+            <div className="text-[10px] opacity-90">{attendeeCount}/{classCapacity}</div>
           </div>
-          <div className="text-[10px] opacity-90">{attendeeCount}/{classCapacity} alunos (60 min)</div>
+          
+          {/* Lista de Nomes Rolável */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+            {studentNames.map((name, index) => (
+              <div key={index} className="truncate leading-tight">
+                {name}
+              </div>
+            ))}
+          </div>
+          
+          <div className="text-[10px] opacity-90 mt-1">60 min</div>
         </div>
       ) : (
         <div className="h-full flex items-center justify-center text-xs text-muted-foreground opacity-50">

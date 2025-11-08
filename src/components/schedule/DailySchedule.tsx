@@ -27,7 +27,7 @@ const fetchClassesForDay = async (day: Date): Promise<ClassEvent[]> => {
     .select(`
       id, title, start_time, duration_minutes, student_id, recurring_class_template_id,
       students(name, enrollment_type),
-      class_attendees(count)
+      class_attendees(count, students(name))
     `)
     .gte('start_time', start)
     .lte('start_time', end)
@@ -114,10 +114,9 @@ const DailySchedule = ({ onClassClick, onQuickAdd }: DailyScheduleProps) => {
                   onClick={() => handleCellClick(hour)}
                 >
                   {hasClass ? (
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                       {classesInSlot.map(cls => {
                         const attendeeCount = cls.class_attendees?.[0]?.count ?? 0;
-                        const eventTitle = cls.students?.name ?? cls.title ?? 'Aula';
                         
                         let colorClass = 'bg-primary';
                         if (attendeeCount >= 1 && attendeeCount <= 5) {
@@ -128,19 +127,44 @@ const DailySchedule = ({ onClassClick, onQuickAdd }: DailyScheduleProps) => {
                           colorClass = 'bg-red-600';
                         }
 
+                        // 1. Extrair e ordenar nomes dos alunos
+                        const studentNames = useMemo(() => {
+                          if (!cls.class_attendees) return [];
+                          
+                          const attendees = (cls.class_attendees as any[]).filter(a => a.students && a.students.name);
+                          
+                          const names = attendees.map(a => {
+                            const fullName = a.students.name as string;
+                            return fullName.split(' ')[0]; // Pega apenas o primeiro nome
+                          }).sort((a, b) => a.localeCompare(b));
+                          
+                          return names;
+                        }, [cls.class_attendees]);
+
                         return (
                           <div
                             key={cls.id}
                             onClick={(e) => { e.stopPropagation(); onClassClick(cls); }}
                             className={cn(
-                              "p-2 rounded text-xs text-white transition-all hover:scale-[1.01] shadow-md flex justify-between items-center",
+                              "p-2 rounded text-xs text-white transition-all hover:scale-[1.01] shadow-md flex flex-col",
                               colorClass
                             )}
                           >
-                            <span className="font-semibold truncate">{eventTitle}</span>
-                            <Badge variant="secondary" className="text-[10px] font-normal bg-white/20 text-white">
-                              {attendeeCount}/{classCapacity}
-                            </Badge>
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="font-semibold truncate">Alunos ({studentNames.length})</span>
+                              <Badge variant="secondary" className="text-[10px] font-normal bg-white/20 text-white">
+                                {attendeeCount}/{classCapacity}
+                              </Badge>
+                            </div>
+                            
+                            {/* Lista de Nomes Rolável */}
+                            <div className="max-h-12 overflow-y-auto custom-scrollbar">
+                              {studentNames.map((name, index) => (
+                                <div key={index} className="truncate leading-tight">
+                                  {name}
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         );
                       })}
