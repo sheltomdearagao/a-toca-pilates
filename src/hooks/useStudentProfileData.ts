@@ -105,6 +105,7 @@ export const useStudentProfileData = (studentId: string | undefined) => {
     queryClient.invalidateQueries({ queryKey: ['transactions'] });
     queryClient.invalidateQueries({ queryKey: ['financialStats'] });
     queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+    queryClient.invalidateQueries({ queryKey: ['upcomingPayments'] }); // ensure upcoming payments refresh after financial changes
   };
 
   const updateStudentMutation = useMutation({
@@ -185,6 +186,7 @@ export const useStudentProfileData = (studentId: string | undefined) => {
       queryClient.invalidateQueries({ queryKey: ['studentProfileData', studentId] });
       queryClient.invalidateQueries({ queryKey: ["studentPaymentStatus"] });
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ['birthdayStudents'] }); // ensure birthday card updates
       showSuccess(`Aluno atualizado com sucesso!`);
     },
     onError: (error: any) => { showError(error.message); },
@@ -212,6 +214,7 @@ export const useStudentProfileData = (studentId: string | undefined) => {
     },
     onSuccess: () => {
       invalidateFinancialQueries();
+      queryClient.invalidateQueries({ queryKey: ['birthdayStudents'] }); // in case transaction affects displayed student info
       showSuccess('Lançamento financeiro registrado com sucesso!');
     },
     onError: (error) => { showError(error.message); },

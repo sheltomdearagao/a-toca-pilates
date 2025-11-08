@@ -183,6 +183,7 @@ const Students = () => {
       queryClient.invalidateQueries({ queryKey: ["studentPaymentStatus"] });
       queryClient.invalidateQueries({ queryKey: ["studentStats"] });
       queryClient.invalidateQueries({ queryKey: ["transactions"] }); // Invalida transações para refletir o novo pagamento
+      queryClient.invalidateQueries({ queryKey: ['birthdayStudents'] }); // Ensure birthday card updates
       showSuccess(`Aluno ${selectedStudent ? "atualizado" : "adicionado"} com sucesso!`);
       setFormOpen(false);
       setSelectedStudent(null);
@@ -202,6 +203,7 @@ const Students = () => {
       queryClient.invalidateQueries({ queryKey: ["dashboardStats"] });
       queryClient.invalidateQueries({ queryKey: ["studentPaymentStatus"] });
       queryClient.invalidateQueries({ queryKey: ["studentStats"] });
+      queryClient.invalidateQueries({ queryKey: ['birthdayStudents'] }); // Ensure birthday card updates after deletion
       showSuccess("Aluno removido com sucesso!");
       setDeleteAlertOpen(false);
       setSelectedStudent(null);
