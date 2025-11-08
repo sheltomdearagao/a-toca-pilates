@@ -23,7 +23,7 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
     .select(`
       id, title, start_time, duration_minutes, student_id, recurring_class_template_id,
       students(name, enrollment_type),
-      class_attendees(count, students(name))
+      class_attendees(count)
     `)
     .gte('start_time', start)
     .lte('start_time', end)
@@ -54,13 +54,7 @@ const groupClassesBySlot = (classes: ClassEvent[]) => {
 const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick, classCapacity }: { day: Date; hour: number; classesInSlot: ClassEvent[]; onCellClick: (day: Date, hour: number) => void; onClassClick: (classEvent: ClassEvent) => void; classCapacity: number; }) => {
   const hasClass = classesInSlot.length > 0;
   const classEvent = classesInSlot[0]; // Lógica de UMA aula por slot
-  
-  // Acesso seguro à contagem de participantes
-  const attendeeCount = useMemo(() => {
-    if (!classEvent || !classEvent.class_attendees || classEvent.class_attendees.length === 0) return 0;
-    // A contagem é retornada no primeiro elemento do array de class_attendees
-    return (classEvent.class_attendees as any[])[0]?.count ?? 0;
-  }, [classEvent]);
+  const attendeeCount = classEvent?.class_attendees?.[0]?.count ?? 0;
 
   // Nova lógica de cores baseada na lotação
   let colorClass = 'bg-primary'; // Cor padrão
@@ -74,75 +68,37 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
     colorClass = 'bg-red-600';
   }
   
-  // 1. Extrair e ordenar nomes dos alunos
-  const studentNames = useMemo(() => {
-    if (!classEvent || !classEvent.class_attendees) return [];
-    
-    // Acessa o array de students dentro do primeiro (e único) objeto de class_attendees
-    const studentsData = (classEvent.class_attendees as any[])[0]?.students;
-    
-    // Garante que studentsData é um array (pode ser um objeto único ou um array)
-    const attendees = Array.isArray(studentsData) ? studentsData : (studentsData ? [studentsData] : []);
-    
-    const names = attendees.map(s => {
-      const fullName = s?.name as string;
-      return fullName ? fullName.split(' ')[0] : null; // Pega apenas o primeiro nome
-    }).filter(name => name).sort((a, b) => a.localeCompare(b));
-    
-    return names;
-  }, [classEvent]);
-
-  if (!hasClass) {
-    return (
-      <div
-        className={cn(
-          "p-1 border-r border-b relative transition-colors",
-          isToday(day) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30",
-          "hover:bg-primary/10"
-        )}
-        style={{ height: '100px' }}
-        onClick={() => onCellClick(day, hour)}
-      >
-        <div className="h-full flex items-center justify-center text-xs text-muted-foreground opacity-50">
-          <div className="text-center"><div className="text-sm">+</div></div>
-        </div>
-      </div>
-    );
-  }
+  const eventTitle = classEvent?.students?.name ?? classEvent?.title ?? '';
 
   return (
     <div
       className={cn(
         "p-1 border-r border-b relative transition-colors",
         isToday(day) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30",
-        "z-10"
+        !hasClass && "hover:bg-primary/10",
+        hasClass ? "z-10" : "z-0"
       )}
       style={{ height: '100px' }}
       onClick={() => onCellClick(day, hour)}
     >
-      <div
-        onClick={(e) => { e.stopPropagation(); onClassClick(classEvent); }}
-        className={cn(
-          "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-md h-full flex flex-col absolute inset-0",
-          colorClass, textColorClass
-        )}
-      >
-        <div className="flex items-center justify-between mb-1">
-          <span className="font-semibold truncate">Alunos ({studentNames.length})</span>
-          <div className="text-[10px] opacity-90">{attendeeCount}/{classCapacity}</div>
+      {hasClass ? (
+        <div
+          onClick={(e) => { e.stopPropagation(); onClassClick(classEvent); }}
+          className={cn(
+            "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-md h-full flex flex-col justify-center absolute inset-0",
+            colorClass, textColorClass
+          )}
+        >
+          <div className="flex items-center justify-between">
+            <span className="font-semibold truncate">{eventTitle}</span>
+          </div>
+          <div className="text-[10px] opacity-90">{attendeeCount}/{classCapacity} alunos (60 min)</div>
         </div>
-        
-        {/* Lista de Nomes Rolável */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-          {studentNames.map((name, index) => (
-            <div key={index} className="truncate leading-tight">
-              {name}
-            </div>
-          ))}
+      ) : (
+        <div className="h-full flex items-center justify-center text-xs text-muted-foreground opacity-50">
+          <div className="text-center"><div className="text-sm">+</div></div>
         </div>
-        
-        <div className="text-[10px] opacity-90 mt-1">60 min</div>
-      </div>
+      )}
     </div>
   );
 });
