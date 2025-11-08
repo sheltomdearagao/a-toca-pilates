@@ -9,7 +9,6 @@ import { parseISO, format, addDays, startOfDay, endOfDay, startOfWeek, isToday, 
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 // Horários reduzidos: 7h às 20h (14 horas, apenas horas cheias)
 const START_HOUR = 7;
@@ -18,6 +17,8 @@ const HOURS = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_
 const MAX_CLASSES_PER_LOAD = 200;
 
 const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> => {
+  console.log('🔍 Fetching classes from', start, 'to', end);
+  
   const { data, error } = await supabase
     .from('classes')
     .select(`
@@ -30,10 +31,15 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
     .order('start_time', { ascending: true })
     .limit(MAX_CLASSES_PER_LOAD);
   
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error('❌ Error fetching classes:', error);
+    throw new Error(error.message);
+  }
+  
+  console.log('📊 Raw data received:', data?.length || 0, 'classes');
   
   // Mapeia os dados para incluir a lista de nomes dos participantes ordenados
-  return (data as any[] || []).map(cls => {
+  const mappedData = (data as any[] || []).map(cls => {
     const attendeeCount = cls.class_attendees?.[0]?.count ?? 0;
     const attendeeNames = (cls.class_attendees as any[] || [])
       .filter(a => a.students?.name)
@@ -46,6 +52,9 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
       class_attendees: [{ count: attendeeCount }], // Mantém a contagem para compatibilidade
     } as ClassEvent;
   });
+  
+  console.log('✅ Mapped data:', mappedData.length, 'classes with attendees');
+  return mappedData;
 };
 
 // Função auxiliar para agrupar aulas por dia e hora
@@ -66,8 +75,15 @@ const groupClassesBySlot = (classes: ClassEvent[]) => {
 };
 
 const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick, classCapacity }: { day: Date; hour: number; classesInSlot: ClassEvent[]; onCellClick: (day: Date, hour: number) => void; onClassClick: (classEvent: ClassEvent) => void; classCapacity: number; }) => {
-  const hasClass = classesInSlot.length > 0;
-  const classEvent = classesInSlot[0]; // Lógica de UMA aula por slot
+  const dayKey = format(startOfDay(day), 'yyyy-MM-dd');
+  const hourKey = hour.toString().padStart(2, '0');
+  const slotKey = `${dayKey}-${hourKey}`;
+  
+  // DEBUG: Log para cada slot
+  console.log(`📍 Slot ${slotKey}:`, classesInSlot?.length || 0, 'classes');
+  
+  const hasClass = classesInSlot && classesInSlot.length > 0;
+  const classEvent = hasClass ? classesInSlot[0] : null;
   const attendeeCount = classEvent?.class_attendees?.[0]?.count ?? 0;
   const attendeeNames = classEvent?.attendee_names ?? [];
 
@@ -83,13 +99,15 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
     colorClass = 'bg-red-600';
   }
   
-  // Texto do card
+  // Gera o texto dinâmico do card
   const displayText = classEvent?.title || 'Aula';
   
   // Texto para tooltip com todos os nomes
   const tooltipText = attendeeCount > 0 
     ? `${attendeeCount} aluno${attendeeCount > 1 ? 's' : ''}: ${attendeeNames.join(', ')}`
     : 'Aula sem participantes';
+
+  console.log(`🎨 Rendering slot ${slotKey}:`, { hasClass, attendeeCount, displayText });
 
   return (
     <div
@@ -103,29 +121,27 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
       onClick={() => onCellClick(day, hour)}
     >
       {hasClass ? (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div
-                onClick={(e) => { e.stopPropagation(); onClassClick(classEvent); }}
-                className={cn(
-                  "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-md h-full flex flex-col justify-between absolute inset-0 cursor-pointer",
-                  colorClass, textColorClass
-                )}
-              >
-                <div className="font-semibold truncate leading-tight flex-1 flex items-center">
-                  {displayText}
-                </div>
-                <div className="text-[10px] opacity-90 pt-1 border-t border-white/20">
-                  {attendeeCount}/{classCapacity} alunos
-                </div>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-xs">
-              <p className="font-medium">{tooltipText}</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <div
+          onClick={(e) => { e.stopPropagation(); onClassClick(classEvent!); }}
+          className={cn(
+            "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-md h-full flex flex-col justify-between absolute inset-0 cursor-pointer",
+            colorClass, textColorClass
+          )}
+        >
+          <div className="font-semibold truncate leading-tight flex-1 flex items-center">
+            {displayText}
+          </div>
+          <div className="text-[10px] opacity-90 pt-1 border-t border-white/20">
+            {attendeeCount}/{classCapacity} alunos
+          </div>
+          {/* NOVO: Lista de nomes visível no card */}
+          {attendeeNames.length > 0 && (
+            <div className="text-[9px] opacity-80 mt-1 truncate">
+              {attendeeNames.slice(0, 2).join(', ')}
+              {attendeeNames.length > 2 && '...'}
+            </div>
+          )}
+        </div>
       ) : (
         <div className="h-full flex items-center justify-center text-xs text-muted-foreground opacity-50">
           <div className="text-center"><div className="text-sm">+</div></div>
@@ -155,7 +171,10 @@ const WeeklySchedule = ({ onClassClick, onQuickAdd }: WeeklyScheduleProps) => {
   });
 
   const groupedClasses = useMemo(() => {
-    return classes ? groupClassesBySlot(classes) : {};
+    console.log('🔄 Grouping classes...');
+    const grouped = classes ? groupClassesBySlot(classes) : {};
+    console.log('📋 Grouped slots:', Object.keys(grouped).length);
+    return grouped;
   }, [classes]);
 
   const daysOfWeek = useMemo(() => {
@@ -166,12 +185,15 @@ const WeeklySchedule = ({ onClassClick, onQuickAdd }: WeeklyScheduleProps) => {
   const handleNextWeek = () => setCurrentWeekStart(addWeeks(currentWeekStart, 1));
 
   const handleCellClick = useCallback((date: Date, hour: number) => {
+    console.log('🎯 Quick add clicked:', date, hour);
     onQuickAdd({ date, hour });
   }, [onQuickAdd]);
 
   if (isLoadingSettings) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
+
+  console.log('🗓️ Rendering WeeklySchedule with', daysOfWeek.length, 'days');
 
   return (
     <Card className="p-4 shadow-impressionist shadow-subtle-glow">
