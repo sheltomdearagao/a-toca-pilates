@@ -79,11 +79,11 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
     if (!classEvent || !classEvent.class_attendees) return [];
     
     // A consulta retorna class_attendees como um array de objetos, onde cada objeto pode ter um array 'students'
-    const attendees = (classEvent.class_attendees as any[]).flatMap(a => 
+    const attendeesData = (classEvent.class_attendees as any[]).flatMap(a => 
       Array.isArray(a.students) ? a.students : (a.students ? [a.students] : [])
     );
     
-    const names = attendees.map(s => {
+    const names = attendeesData.map(s => {
       const fullName = s.name as string;
       return fullName.split(' ')[0]; // Pega apenas o primeiro nome
     }).filter(name => name).sort((a, b) => a.localeCompare(b));

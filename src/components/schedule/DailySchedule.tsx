@@ -135,11 +135,11 @@ const DailySchedule = ({ onClassClick, onQuickAdd }: DailyScheduleProps) => {
                         const studentNames = useMemo(() => {
                           if (!cls.class_attendees) return [];
                           
-                          const attendees = (cls.class_attendees as any[]).flatMap(a => 
+                          const attendeesData = (cls.class_attendees as any[]).flatMap(a => 
                             Array.isArray(a.students) ? a.students : (a.students ? [a.students] : [])
                           );
                           
-                          const names = attendees.map(s => {
+                          const names = attendeesData.map(s => {
                             const fullName = s.name as string;
                             return fullName.split(' ')[0]; // Pega apenas o primeiro nome
                           }).filter(name => name).sort((a, b) => a.localeCompare(b));
