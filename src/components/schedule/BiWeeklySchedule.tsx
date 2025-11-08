@@ -82,10 +82,8 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
     // Acessa o array de students dentro do primeiro (e único) objeto de class_attendees
     const studentsData = (classEvent.class_attendees as any[])[0]?.students;
     
-    if (!studentsData) return [];
-
-    // Garante que studentsData é um array (mesmo que seja um único objeto, o Supabase pode retornar um array se for um join)
-    const attendees = Array.isArray(studentsData) ? studentsData : [studentsData];
+    // Garante que studentsData é um array (pode ser um objeto único ou um array)
+    const attendees = Array.isArray(studentsData) ? studentsData : (studentsData ? [studentsData] : []);
     
     const names = attendees.map(s => {
       const fullName = s?.name as string;

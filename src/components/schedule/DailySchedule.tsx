@@ -137,9 +137,8 @@ const DailySchedule = ({ onClassClick, onQuickAdd }: DailyScheduleProps) => {
                           
                           const studentsData = (cls.class_attendees as any[])[0]?.students;
                           
-                          if (!studentsData) return [];
-
-                          const attendees = Array.isArray(studentsData) ? studentsData : [studentsData];
+                          // Garante que studentsData é um array (pode ser um objeto único ou um array)
+                          const attendees = Array.isArray(studentsData) ? studentsData : (studentsData ? [studentsData] : []);
                           
                           const names = attendees.map(s => {
                             const fullName = s?.name as string;
