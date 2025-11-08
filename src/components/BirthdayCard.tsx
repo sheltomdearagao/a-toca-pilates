@@ -15,19 +15,34 @@ type BirthdayStudent = {
 };
 
 const fetchBirthdayStudents = async (): Promise<BirthdayStudent[]> => {
-  const currentMonth = new Date().getMonth() + 1;
-  const { data, error } = await supabase.rpc("get_birthday_students_for_month", {
-    p_month: currentMonth,
-  });
+  // Busca alunos ativos com data de nascimento definida
+  const { data, error } = await supabase
+    .from("students")
+    .select("id, name, date_of_birth, phone, status")
+    .eq("status", "Ativo")
+    .not("date_of_birth", "is", null);
+
   if (error) throw new Error(error.message);
-  return (data as BirthdayStudent[]) ?? [];
+
+  // Filtra pelo mês atual no cliente (mais confiável que EXTRACT no servidor com RLS/RPC)
+  const currentMonth = new Date().getMonth(); // 0-11
+  const list = (data || []).filter((s: any) => {
+    try {
+      const dob = parseISO(s.date_of_birth as string);
+      return dob.getMonth() === currentMonth;
+    } catch {
+      return false;
+    }
+  });
+
+  return list as BirthdayStudent[];
 };
 
 const BirthdayCard = () => {
   const { data: students, isLoading } = useQuery<BirthdayStudent[]>({
     queryKey: ["birthdayStudents"],
     queryFn: fetchBirthdayStudents,
-    staleTime: 1000 * 60 * 10,
+    staleTime: 1000 * 60 * 5,
   });
 
   const birthdaysThisMonth = (students ?? [])
