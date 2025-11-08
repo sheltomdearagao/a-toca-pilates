@@ -10,11 +10,18 @@ import { cn } from '@/lib/utils';
 const PaymentDueAlert = () => {
   const { data: upcomingPayments, isLoading } = usePaymentAlerts();
 
+  console.log('🚨 PaymentDueAlert - Estado:', {
+    upcomingPayments,
+    isLoading,
+    dataLength: upcomingPayments?.length
+  });
+
   if (isLoading) {
     return <Loader2 className="w-4 h-4 animate-spin text-primary" />;
   }
 
   if (!upcomingPayments || upcomingPayments.length === 0) {
+    console.log('🚨 PaymentDueAlert - Nenhum pagamento encontrado');
     return null;
   }
 
@@ -22,6 +29,8 @@ const PaymentDueAlert = () => {
   const title = count === 1 
     ? `1 Pagamento Vence Hoje ou em Breve!` 
     : `${count} Pagamentos Vencem nos Próximos Dias!`;
+
+  console.log('🚨 PaymentDueAlert - Mostrando alerta com', count, 'pagamentos');
 
   return (
     <Alert 

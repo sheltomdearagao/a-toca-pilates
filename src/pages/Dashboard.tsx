@@ -118,6 +118,9 @@ const Dashboard: React.FC = () => {
   const logoUrl =
     "https://nkwsvsmmzvukdghlyxpm.supabase.co/storage/v1/object/public/app-assets/atocalogo.png";
 
+  console.log('📊 Dashboard - Stats:', stats);
+  console.log('📊 Dashboard - Loading:', isLoading);
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
