@@ -27,7 +27,7 @@ const fetchClassesForDay = async (day: Date): Promise<ClassEvent[]> => {
     .select(`
       id, title, start_time, duration_minutes, student_id, recurring_class_template_id,
       students(name, enrollment_type),
-      class_attendees(count)
+      class_attendees(count, students(name))
     `)
     .gte('start_time', start)
     .lte('start_time', end)
@@ -35,7 +35,20 @@ const fetchClassesForDay = async (day: Date): Promise<ClassEvent[]> => {
     .limit(MAX_CLASSES_PER_LOAD);
   
   if (error) throw new Error(error.message);
-  return (data as any[] || []);
+  
+  // Mapeia os dados para incluir a lista de nomes dos participantes
+  return (data as any[] || []).map(cls => {
+    const attendeeCount = cls.class_attendees?.[0]?.count ?? 0;
+    const attendeeNames = (cls.class_attendees as any[] || [])
+      .filter(a => a.students?.name)
+      .map(a => a.students.name);
+
+    return {
+      ...cls,
+      attendee_names: attendeeNames,
+      class_attendees: [{ count: attendeeCount }], // Mantém a contagem para compatibilidade
+    } as ClassEvent;
+  });
 };
 
 interface DailyScheduleProps {
@@ -117,7 +130,8 @@ const DailySchedule = ({ onClassClick, onQuickAdd }: DailyScheduleProps) => {
                     <div className="space-y-1">
                       {classesInSlot.map(cls => {
                         const attendeeCount = cls.class_attendees?.[0]?.count ?? 0;
-                        const eventTitle = cls.students?.name ?? cls.title ?? 'Aula';
+                        const attendeeNames = cls.attendee_names ?? [];
+                        const defaultTitle = cls.title ?? 'Aula';
                         
                         let colorClass = 'bg-primary';
                         if (attendeeCount >= 1 && attendeeCount <= 5) {
@@ -133,14 +147,27 @@ const DailySchedule = ({ onClassClick, onQuickAdd }: DailyScheduleProps) => {
                             key={cls.id}
                             onClick={(e) => { e.stopPropagation(); onClassClick(cls); }}
                             className={cn(
-                              "p-2 rounded text-xs text-white transition-all hover:scale-[1.01] shadow-md flex justify-between items-center",
+                              "p-2 rounded text-xs text-white transition-all hover:scale-[1.01] shadow-md flex flex-col justify-between cursor-pointer",
                               colorClass
                             )}
+                            style={{ height: '100px' }}
                           >
-                            <span className="font-semibold truncate">{eventTitle}</span>
-                            <Badge variant="secondary" className="text-[10px] font-normal bg-white/20 text-white">
-                              {attendeeCount}/{classCapacity}
-                            </Badge>
+                            <div className="flex-1 overflow-y-auto custom-scrollbar">
+                              {attendeeNames.length > 0 ? (
+                                <div className="space-y-0.5">
+                                  {attendeeNames.map((name, index) => (
+                                    <div key={index} className="font-semibold truncate leading-tight">
+                                      {name}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="font-semibold truncate leading-tight">{defaultTitle}</div>
+                              )}
+                            </div>
+                            <div className="text-[10px] opacity-90 pt-1 border-t border-white/20 flex justify-between items-center">
+                              <span>{attendeeCount}/{classCapacity} alunos (60 min)</span>
+                            </div>
                           </div>
                         );
                       })}
