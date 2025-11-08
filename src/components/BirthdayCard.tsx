@@ -15,6 +15,8 @@ type BirthdayStudent = {
 };
 
 const fetchBirthdayStudents = async (): Promise<BirthdayStudent[]> => {
+  console.log('🎂 Buscando aniversariantes do mês...');
+  
   // Busca alunos ativos com data de nascimento definida
   const { data, error } = await supabase
     .from("students")
@@ -22,27 +24,51 @@ const fetchBirthdayStudents = async (): Promise<BirthdayStudent[]> => {
     .eq("status", "Ativo")
     .not("date_of_birth", "is", null);
 
-  if (error) throw new Error(error.message);
+  console.log('📊 Resultado bruto de alunos:', { data, error });
+
+  if (error) {
+    console.error('❌ Erro na consulta de alunos:', error);
+    throw new Error(error.message);
+  }
 
   // Filtra pelo mês atual no cliente (mais confiável que EXTRACT no servidor com RLS/RPC)
   const currentMonth = new Date().getMonth(); // 0-11
+  console.log('📅 Mês atual:', currentMonth);
+  
   const list = (data || []).filter((s: any) => {
     try {
       const dob = parseISO(s.date_of_birth as string);
-      return dob.getMonth() === currentMonth;
+      const studentMonth = dob.getMonth();
+      const matches = studentMonth === currentMonth;
+      
+      if (matches) {
+        console.log(`✅ ${s.name} faz aniversário este mês (${studentMonth + 1}/${currentMonth + 1})`);
+      }
+      
+      return matches;
     } catch {
+      console.error(`❌ Erro ao processar data de nascimento de ${s.name}:`, s.date_of_birth);
       return false;
     }
   });
+
+  console.log('✅ Aniversariantes encontrados:', list.length);
 
   return list as BirthdayStudent[];
 };
 
 const BirthdayCard = () => {
-  const { data: students, isLoading } = useQuery<BirthdayStudent[]>({
+  const { data: students, isLoading, error } = useQuery<BirthdayStudent[]>({
     queryKey: ["birthdayStudents"],
     queryFn: fetchBirthdayStudents,
     staleTime: 1000 * 60 * 5,
+  });
+
+  console.log('🔄 Estado da query de aniversariantes:', {
+    data: students,
+    isLoading,
+    error,
+    dataLength: students?.length
   });
 
   const birthdaysThisMonth = (students ?? [])

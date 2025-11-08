@@ -11,7 +11,14 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 const UpcomingPaymentsCard = () => {
-  const { data: upcomingPayments, isLoading } = usePaymentAlerts();
+  const { data: upcomingPayments, isLoading, error } = usePaymentAlerts();
+
+  console.log('💳 UpcomingPaymentsCard - Estado:', {
+    upcomingPayments,
+    isLoading,
+    error,
+    dataLength: upcomingPayments?.length
+  });
 
   const payments = upcomingPayments ?? [];
 
