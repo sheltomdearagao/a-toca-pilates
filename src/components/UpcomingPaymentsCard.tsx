@@ -34,6 +34,7 @@ const UpcomingPaymentsCard = () => {
           <div className="space-y-3">
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-3/4" />
+            <Skeleton className="h-12 w-1/2" />
           </div>
         ) : payments.length > 0 ? (
           <div className="space-y-3">
