@@ -53,7 +53,7 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
   
   if (error) throw new Error(error.message);
   
-  // Mapeia os dados para incluir a lista de nomes dos participantes
+  // Mapeia os dados para incluir a lista de nomes dos participantes ordenados
   return (data as any[] || []).map(cls => {
     const attendeeCount = cls.class_attendees?.[0]?.count ?? 0;
     const attendeeNames = (cls.class_attendees as any[] || [])
@@ -90,7 +90,6 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
   const hasClass = classesInSlot.length > 0;
   const classEvent = classesInSlot[0]; // Lógica de UMA aula por slot
   const attendeeCount = classEvent?.class_attendees?.[0]?.count ?? 0;
-  const attendeeNames = classEvent?.attendee_names ?? [];
 
   let colorClass = 'bg-primary';
   const textColorClass = 'text-white';

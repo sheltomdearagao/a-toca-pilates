@@ -2,14 +2,13 @@ import React, { useState, useMemo, useCallback, memo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Loader2, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { ClassEvent } from '@/types/schedule';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { parseISO, format, addDays, startOfDay, endOfDay, subDays, isToday, isPast } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 // Horários reduzidos: 7h às 20h (14 horas, apenas horas cheias)
@@ -56,7 +55,7 @@ const fetchClassesForDay = async (day: Date): Promise<ClassEvent[]> => {
   
   if (error) throw new Error(error.message);
   
-  // Mapeia os dados para incluir a lista de nomes dos participantes
+  // Mapeia os dados para incluir a lista de nomes dos participantes ordenados
   return (data as any[] || []).map(cls => {
     const attendeeCount = cls.class_attendees?.[0]?.count ?? 0;
     const attendeeNames = (cls.class_attendees as any[] || [])
