@@ -11,6 +11,7 @@ import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tooltip, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 
 // Horários reduzidos: 7h às 20h (14 horas, apenas horas cheias)
 const START_HOUR = 7;
@@ -27,7 +28,7 @@ const fetchClassesForDay = async (day: Date): Promise<ClassEvent[]> => {
     .select(`
       id, title, start_time, duration_minutes, student_id, recurring_class_template_id,
       students(name, enrollment_type),
-      class_attendees(count)
+      class_attendees(count, students(name))
     `)
     .gte('start_time', start)
     .lte('start_time', end)
@@ -35,7 +36,21 @@ const fetchClassesForDay = async (day: Date): Promise<ClassEvent[]> => {
     .limit(MAX_CLASSES_PER_LOAD);
   
   if (error) throw new Error(error.message);
-  return data as unknown as ClassEvent[];
+  
+  // Mapeia os dados para incluir a lista de nomes dos participantes
+  return (data as any[] || []).map(cls => {
+    const attendeeCount = cls.class_attendees?.[0]?.count ?? 0;
+    const attendeeNames = (cls.class_attendees as any[] || [])
+      .filter(a => a.students?.name)
+      .map(a => a.students.name)
+      .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })); // Ordenação alfabética
+
+    return {
+      ...cls,
+      attendee_names: attendeeNames,
+      class_attendees: [{ count: attendeeCount }], // Mantém a contagem para compatibilidade
+    } as ClassEvent;
+  });
 };
 
 interface DailyScheduleProps {
@@ -117,6 +132,7 @@ const DailySchedule = ({ onClassClick, onQuickAdd }: DailyScheduleProps) => {
                     <div className="space-y-1">
                       {classesInSlot.map(cls => {
                         const attendeeCount = cls.class_attendees?.[0]?.count ?? 0;
+                        const attendeeNames = cls.attendee_names ?? [];
                         
                         let colorClass = 'bg-primary';
                         if (attendeeCount >= 1 && attendeeCount <= 5) {
@@ -128,22 +144,41 @@ const DailySchedule = ({ onClassClick, onQuickAdd }: DailyScheduleProps) => {
                         }
 
                         return (
-                          <div
-                            key={cls.id}
-                            onClick={(e) => { e.stopPropagation(); onClassClick(cls); }}
-                            className={cn(
-                              "p-2 rounded text-xs text-white transition-all hover:scale-[1.01] shadow-md flex flex-col justify-between cursor-pointer",
-                              colorClass
-                            )}
-                            style={{ height: '100px' }}
-                          >
-                            <div className="font-semibold truncate leading-tight flex-1 flex items-center">
-                              {attendeeCount}/{classCapacity} alunos
-                            </div>
-                            <div className="text-[10px] opacity-90 pt-1 border-t border-white/20 flex justify-between items-center">
-                              <span>60 min</span>
-                            </div>
-                          </div>
+                          <TooltipProvider key={cls.id}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div
+                                  onClick={(e) => { e.stopPropagation(); onClassClick(cls); }}
+                                  className={cn(
+                                    "p-2 rounded text-xs text-white transition-all hover:scale-[1.01] shadow-md flex flex-col justify-between cursor-pointer",
+                                    colorClass
+                                  )}
+                                  style={{ height: '100px' }}
+                                >
+                                  <div className="font-semibold truncate leading-tight flex-1 flex items-center">
+                                    {attendeeCount}/{classCapacity} alunos
+                                  </div>
+                                  <div className="text-[10px] opacity-90 pt-1 border-t border-white/20 flex justify-between items-center">
+                                    <span>60 min</span>
+                                  </div>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <div className="p-2 max-w-xs">
+                                  <p className="font-semibold text-sm mb-1">Alunos inscritos:</p>
+                                  {attendeeNames.length > 0 ? (
+                                    <div className="space-y-1">
+                                      {attendeeNames.map((name, index) => (
+                                        <div key={index} className="text-sm">{name}</div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="text-sm text-muted-foreground">Nenhum aluno inscrito</p>
+                                  )}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         );
                       })}
                     </div>

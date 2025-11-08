@@ -10,6 +10,7 @@ import { ptBR } from 'date-fns/locale/pt-BR';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tooltip, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 
 // Horários reduzidos: 7h às 20h (14 horas, apenas horas cheias)
 const START_HOUR = 7;
@@ -24,7 +25,7 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
     .select(`
       id, title, start_time, duration_minutes, student_id, recurring_class_template_id,
       students(name, enrollment_type),
-      class_attendees(count)
+      class_attendees(count, students(name))
     `)
     .gte('start_time', start)
     .lte('start_time', end)
@@ -32,7 +33,21 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
     .limit(MAX_CLASSES_PER_LOAD);
   
   if (error) throw new Error(error.message);
-  return data as unknown as ClassEvent[];
+  
+  // Mapeia os dados para incluir a lista de nomes dos participantes
+  return (data as any[] || []).map(cls => {
+    const attendeeCount = cls.class_attendees?.[0]?.count ?? 0;
+    const attendeeNames = (cls.class_attendees as any[] || [])
+      .filter(a => a.students?.name)
+      .map(a => a.students.name)
+      .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })); // Ordenação alfabética
+
+    return {
+      ...cls,
+      attendee_names: attendeeNames,
+      class_attendees: [{ count: attendeeCount }], // Mantém a contagem para compatibilidade
+    } as ClassEvent;
+  });
 };
 
 // Função auxiliar para agrupar aulas por dia e hora
@@ -56,6 +71,7 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
   const hasClass = classesInSlot.length > 0;
   const classEvent = classesInSlot[0]; // Lógica de UMA aula por slot
   const attendeeCount = classEvent?.class_attendees?.[0]?.count ?? 0;
+  const attendeeNames = classEvent?.attendee_names ?? [];
 
   let colorClass = 'bg-primary';
   const textColorClass = 'text-white';
@@ -69,37 +85,57 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
   }
 
   return (
-    <div
-      className={cn(
-        "p-1 border-r border-b relative transition-colors",
-        isToday(day) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30",
-        !hasClass && "hover:bg-primary/10",
-        hasClass ? "z-10" : "z-0"
-      )}
-      style={{ height: '100px' }}
-      onClick={() => onCellClick(day, hour)}
-    >
-      {hasClass ? (
-        <div
-          onClick={(e) => { e.stopPropagation(); onClassClick(classEvent); }}
-          className={cn(
-            "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-md h-full flex flex-col justify-between absolute inset-0 cursor-pointer",
-            colorClass, textColorClass
-          )}
-        >
-          <div className="font-semibold truncate leading-tight flex-1 flex items-center">
-            {attendeeCount}/{classCapacity} alunos
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            className={cn(
+              "p-1 border-r border-b relative transition-colors",
+              isToday(day) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30",
+              !hasClass && "hover:bg-primary/10",
+              hasClass ? "z-10" : "z-0"
+            )}
+            style={{ height: '100px' }}
+            onClick={() => onCellClick(day, hour)}
+          >
+            {hasClass ? (
+              <div
+                onClick={(e) => { e.stopPropagation(); onClassClick(classEvent); }}
+                className={cn(
+                  "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-md h-full flex flex-col justify-between absolute inset-0 cursor-pointer",
+                  colorClass, textColorClass
+                )}
+              >
+                <div className="font-semibold truncate leading-tight flex-1 flex items-center">
+                  {attendeeCount}/{classCapacity} alunos
+                </div>
+                <div className="text-[10px] opacity-90 pt-1 border-t border-white/20">
+                  60 min
+                </div>
+              </div>
+            ) : (
+              <div className="h-full flex items-center justify-center text-xs text-muted-foreground opacity-50">
+                <div className="text-center"><div className="text-sm">+</div></div>
+              </div>
+            )}
           </div>
-          <div className="text-[10px] opacity-90 pt-1 border-t border-white/20">
-            60 min
+        </TooltipTrigger>
+        <TooltipContent>
+          <div className="p-2 max-w-xs">
+            <p className="font-semibold text-sm mb-1">Alunos inscritos:</p>
+            {attendeeNames.length > 0 ? (
+              <div className="space-y-1">
+                {attendeeNames.map((name, index) => (
+                  <div key={index} className="text-sm">{name}</div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Nenhum aluno inscrito</p>
+            )}
           </div>
-        </div>
-      ) : (
-        <div className="h-full flex items-center justify-center text-xs text-muted-foreground opacity-50">
-          <div className="text-center"><div className="text-sm">+</div></div>
-        </div>
-      )}
-    </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 });
 ScheduleCell.displayName = 'ScheduleCell';
