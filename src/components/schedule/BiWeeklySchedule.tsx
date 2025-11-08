@@ -2,13 +2,14 @@ import React, { useState, useMemo, useCallback, memo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Users } from 'lucide-react';
 import { ClassEvent } from '@/types/schedule';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { parseISO, format, addDays, startOfDay, endOfDay, subDays, isToday, isWeekend } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 // Horários reduzidos: 7h às 20h (14 horas, apenas horas cheias)
@@ -43,7 +44,7 @@ const fetchClasses = async (start: string, end: string): Promise<ClassEvent[]> =
     .from('classes')
     .select(`
       id, title, start_time, duration_minutes, student_id, recurring_class_template_id,
-      students(name, enrollment_type),
+      students(name),
       class_attendees(count, students(name))
     `)
     .gte('start_time', start)
@@ -90,6 +91,7 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
   const hasClass = classesInSlot.length > 0;
   const classEvent = classesInSlot[0]; // Lógica de UMA aula por slot
   const attendeeCount = classEvent?.class_attendees?.[0]?.count ?? 0;
+  const attendeeNames = classEvent?.attendee_names ?? [];
 
   let colorClass = 'bg-primary';
   const textColorClass = 'text-white';
@@ -105,6 +107,11 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
   // Gera o texto dinâmico do card
   const displayText = getCardText(classEvent);
 
+  // Texto para tooltip com todos os nomes
+  const tooltipText = attendeeCount > 0 
+    ? `${attendeeCount} aluno${attendeeCount > 1 ? 's' : ''}: ${attendeeNames.join(', ')}`
+    : 'Aula sem participantes';
+
   return (
     <div
       className={cn(
@@ -117,20 +124,30 @@ const ScheduleCell = memo(({ day, hour, classesInSlot, onCellClick, onClassClick
       onClick={() => onCellClick(day, hour)}
     >
       {hasClass ? (
-        <div
-          onClick={(e) => { e.stopPropagation(); onClassClick(classEvent); }}
-          className={cn(
-            "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-md h-full flex flex-col justify-between absolute inset-0 cursor-pointer",
-            colorClass, textColorClass
-          )}
-        >
-          <div className="font-semibold truncate leading-tight flex-1 flex items-center">
-            {displayText}
-          </div>
-          <div className="text-[10px] opacity-90 pt-1 border-t border-white/20">
-            {attendeeCount}/{classCapacity} alunos (60 min)
-          </div>
-        </div>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div
+                onClick={(e) => { e.stopPropagation(); onClassClick(classEvent); }}
+                className={cn(
+                  "p-2 rounded text-xs transition-all hover:scale-[1.02] shadow-md h-full flex flex-col justify-between absolute inset-0 cursor-pointer",
+                  colorClass, textColorClass
+                )}
+              >
+                <div className="font-semibold truncate leading-tight flex-1 flex items-center">
+                  {displayText}
+                </div>
+                <div className="text-[10px] opacity-90 pt-1 border-t border-white/20 flex justify-between items-center">
+                  <span>{attendeeCount}/{classCapacity} alunos</span>
+                  {attendeeCount > 0 && <Users className="w-3 h-3" />}
+                </div>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-xs">
+              <p className="font-medium">{tooltipText}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       ) : (
         <div className="h-full flex items-center justify-center text-xs text-muted-foreground opacity-50">
           <div className="text-center"><div className="text-sm">+</div></div>

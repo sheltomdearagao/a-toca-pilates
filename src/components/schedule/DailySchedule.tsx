@@ -2,20 +2,21 @@ import React, { useState, useMemo, useCallback, memo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Users } from 'lucide-react';
 import { ClassEvent } from '@/types/schedule';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { parseISO, format, addDays, startOfDay, endOfDay, subDays, isToday, isPast } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 // Horários reduzidos: 7h às 20h (14 horas, apenas horas cheias)
 const START_HOUR = 7;
 const END_HOUR = 20;
 const HOURS = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
-const MAX_CLASSES_PER_LOAD = 50;
+const MAX_CLASSES_PER_LOAD = 100;
 
 // Componente para gerar o texto dinâmico do card
 const getCardText = (classEvent: ClassEvent) => {
@@ -45,7 +46,7 @@ const fetchClassesForDay = async (day: Date): Promise<ClassEvent[]> => {
     .from('classes')
     .select(`
       id, title, start_time, duration_minutes, student_id, recurring_class_template_id,
-      students(name, enrollment_type),
+      students(name),
       class_attendees(count, students(name))
     `)
     .gte('start_time', start)
@@ -151,6 +152,7 @@ const DailySchedule = ({ onClassClick, onQuickAdd }: DailyScheduleProps) => {
                       {classesInSlot.map(cls => {
                         const attendeeCount = cls.class_attendees?.[0]?.count ?? 0;
                         const displayText = getCardText(cls);
+                        const attendeeNames = cls?.attendee_names ?? [];
                         
                         let colorClass = 'bg-primary';
                         if (attendeeCount >= 1 && attendeeCount <= 5) {
@@ -161,23 +163,37 @@ const DailySchedule = ({ onClassClick, onQuickAdd }: DailyScheduleProps) => {
                           colorClass = 'bg-red-600';
                         }
 
+                        // Texto para tooltip com todos os nomes
+                        const tooltipText = attendeeCount > 0 
+                          ? `${attendeeCount} aluno${attendeeCount > 1 ? 's' : ''}: ${attendeeNames.join(', ')}`
+                          : 'Aula sem participantes';
+
                         return (
-                          <div
-                            key={cls.id}
-                            onClick={(e) => { e.stopPropagation(); onClassClick(cls); }}
-                            className={cn(
-                              "p-2 rounded text-xs text-white transition-all hover:scale-[1.01] shadow-md flex flex-col justify-between cursor-pointer",
-                              colorClass
-                            )}
-                            style={{ height: '100px' }}
-                          >
-                            <div className="font-semibold truncate leading-tight flex-1 flex items-center">
-                              {displayText}
-                            </div>
-                            <div className="text-[10px] opacity-90 pt-1 border-t border-white/20 flex justify-between items-center">
-                              <span>{attendeeCount}/{classCapacity} alunos (60 min)</span>
-                            </div>
-                          </div>
+                          <TooltipProvider key={cls.id}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div
+                                  onClick={(e) => { e.stopPropagation(); onClassClick(cls); }}
+                                  className={cn(
+                                    "p-2 rounded text-xs text-white transition-all hover:scale-[1.01] shadow-md flex flex-col justify-between cursor-pointer",
+                                    colorClass
+                                  )}
+                                  style={{ height: '100px' }}
+                                >
+                                  <div className="font-semibold truncate leading-tight flex-1 flex items-center">
+                                    {displayText}
+                                  </div>
+                                  <div className="text-[10px] opacity-90 pt-1 border-t border-white/20 flex justify-between items-center">
+                                    <span>{attendeeCount}/{classCapacity} alunos</span>
+                                    {attendeeCount > 0 && <Users className="w-3 h-3" />}
+                                  </div>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs">
+                                <p className="font-medium">{tooltipText}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         );
                       })}
                     </div>
