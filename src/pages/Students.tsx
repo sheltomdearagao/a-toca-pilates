@@ -104,31 +104,28 @@ const Students = () => {
       
       const dataToSubmit = { ...formData };
       
-      const registerPayment = dataToSubmit.register_payment;
       const paymentDate = dataToSubmit.payment_date;
       const validityDuration = dataToSubmit.validity_duration;
       
-      delete dataToSubmit.register_payment;
       delete dataToSubmit.payment_date;
       delete dataToSubmit.validity_duration;
       
-      // Lógica de cálculo da validade
-      if (registerPayment && paymentDate && validityDuration) {
+      const isParticularRecorrente = dataToSubmit.enrollment_type === 'Particular' && dataToSubmit.plan_type !== 'Avulso';
+
+      // Lógica de cálculo da validade e status
+      if (isParticularRecorrente && paymentDate && validityDuration) {
         const paymentDateObj = parseISO(paymentDate);
         const validityDate = addDays(paymentDateObj, validityDuration).toISOString();
         dataToSubmit.validity_date = validityDate;
         
-        // Se o pagamento foi registrado, o aluno deve estar Ativo (a menos que seja Bloqueado/Experimental)
-        if (dataToSubmit.status !== 'Bloqueado' && dataToSubmit.status !== 'Experimental') {
+        // Se a validade for no futuro, o aluno está Ativo (a menos que seja Bloqueado/Experimental)
+        if (!isPast(parseISO(validityDate)) && dataToSubmit.status !== 'Bloqueado' && dataToSubmit.status !== 'Experimental') {
           dataToSubmit.status = 'Ativo';
-        }
-      } else if (selectedStudent && selectedStudent.validity_date) {
-        // Se não registrou pagamento, verifica se a validade expirou
-        if (isPast(parseISO(selectedStudent.validity_date))) {
+        } else if (isPast(parseISO(validityDate))) {
           dataToSubmit.status = 'Inativo';
         }
-      } else if (!selectedStudent) {
-        // Novo aluno sem pagamento inicial
+      } else {
+        // Para Avulso, Wellhub, TotalPass ou se faltarem dados, a validade é nula
         dataToSubmit.validity_date = null;
       }
       
@@ -150,7 +147,6 @@ const Students = () => {
       if (dataToSubmit.date_of_birth === "") {
         dataToSubmit.date_of_birth = null;
       }
-      // Removido dataToSubmit.validity_date === "" pois ele é calculado ou null
       if (dataToSubmit.email === "") {
         dataToSubmit.email = null;
       }
@@ -180,8 +176,8 @@ const Students = () => {
         studentId = newStudent.id;
       }
       
-      // 2. Registrar Pagamento se marcado
-      if (registerPayment && studentId && dataToSubmit.monthly_fee > 0) {
+      // 2. Registrar Transação (Apenas se for novo aluno e tiver valor)
+      if (!selectedStudent && studentId && dataToSubmit.monthly_fee > 0 && isParticularRecorrente) {
         const transaction = {
           user_id: user.id,
           student_id: studentId,
@@ -190,7 +186,7 @@ const Students = () => {
           amount: dataToSubmit.monthly_fee,
           type: 'revenue',
           status: 'Pago',
-          due_date: dataToSubmit.validity_date, // Usar a data de validade como próximo vencimento (simplificado)
+          due_date: dataToSubmit.validity_date, // Próximo vencimento
           paid_at: paymentDate, // Data de pagamento é a data informada
         };
         

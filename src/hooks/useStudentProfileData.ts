@@ -116,29 +116,28 @@ export const useStudentProfileData = (studentId: string | undefined) => {
 
       const dataToSubmit = { ...formData };
       
-      const registerPayment = dataToSubmit.register_payment;
       const paymentDate = dataToSubmit.payment_date;
       const validityDuration = dataToSubmit.validity_duration;
       
-      delete dataToSubmit.register_payment;
       delete dataToSubmit.payment_date;
       delete dataToSubmit.validity_duration;
       
-      // Lógica de cálculo da validade (replicada de Students.tsx)
-      if (registerPayment && paymentDate && validityDuration) {
+      const isParticularRecorrente = dataToSubmit.enrollment_type === 'Particular' && dataToSubmit.plan_type !== 'Avulso';
+
+      // Lógica de cálculo da validade e status
+      if (isParticularRecorrente && paymentDate && validityDuration) {
         const paymentDateObj = parseISO(paymentDate);
         const validityDate = addDays(paymentDateObj, validityDuration).toISOString();
         dataToSubmit.validity_date = validityDate;
         
-        if (dataToSubmit.status !== 'Bloqueado' && dataToSubmit.status !== 'Experimental') {
+        // Se a validade for no futuro, o aluno está Ativo (a menos que seja Bloqueado/Experimental)
+        if (!isPast(parseISO(validityDate)) && dataToSubmit.status !== 'Bloqueado' && dataToSubmit.status !== 'Experimental') {
           dataToSubmit.status = 'Ativo';
-        }
-      } else if (profileData?.student?.validity_date) {
-        // Se não registrou pagamento, verifica se a validade expirou
-        if (isPast(parseISO(profileData.student.validity_date))) {
+        } else if (isPast(parseISO(validityDate))) {
           dataToSubmit.status = 'Inativo';
         }
       } else {
+        // Para Avulso, Wellhub, TotalPass ou se faltarem dados, a validade é nula
         dataToSubmit.validity_date = null;
       }
       
@@ -168,8 +167,8 @@ export const useStudentProfileData = (studentId: string | undefined) => {
         .eq("id", studentId!);
       if (error) throw error;
       
-      // Registrar Transação
-      if (registerPayment && studentId && dataToSubmit.monthly_fee > 0) {
+      // Registrar Transação (Apenas se for novo aluno e tiver valor)
+      if (!profileData?.student && studentId && dataToSubmit.monthly_fee > 0 && isParticularRecorrente) {
         const transaction = {
           user_id: user.id,
           student_id: studentId,
