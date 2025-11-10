@@ -7,6 +7,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/contexts/SessionProvider';
 import { useState } from 'react';
 import { TransactionFormData } from '@/components/financial/AddEditTransactionDialog.schema';
+import { addDays, parseISO, isPast } from 'date-fns'; // Importar addDays e isPast
 
 type ClassAttendance = {
   id: string;
@@ -116,10 +117,30 @@ export const useStudentProfileData = (studentId: string | undefined) => {
       const dataToSubmit = { ...formData };
       
       const registerPayment = dataToSubmit.register_payment;
-      const paymentDueDate = dataToSubmit.payment_due_date;
+      const paymentDate = dataToSubmit.payment_date;
+      const validityDuration = dataToSubmit.validity_duration;
       
       delete dataToSubmit.register_payment;
-      delete dataToSubmit.payment_due_date;
+      delete dataToSubmit.payment_date;
+      delete dataToSubmit.validity_duration;
+      
+      // Lógica de cálculo da validade (replicada de Students.tsx)
+      if (registerPayment && paymentDate && validityDuration) {
+        const paymentDateObj = parseISO(paymentDate);
+        const validityDate = addDays(paymentDateObj, validityDuration).toISOString();
+        dataToSubmit.validity_date = validityDate;
+        
+        if (dataToSubmit.status !== 'Bloqueado' && dataToSubmit.status !== 'Experimental') {
+          dataToSubmit.status = 'Ativo';
+        }
+      } else if (profileData?.student?.validity_date) {
+        // Se não registrou pagamento, verifica se a validade expirou
+        if (isPast(parseISO(profileData.student.validity_date))) {
+          dataToSubmit.status = 'Inativo';
+        }
+      } else {
+        dataToSubmit.validity_date = null;
+      }
       
       if (dataToSubmit.plan_type === 'Avulso') {
         dataToSubmit.plan_frequency = null;
@@ -135,7 +156,6 @@ export const useStudentProfileData = (studentId: string | undefined) => {
       delete dataToSubmit.has_promotional_value;
 
       if (dataToSubmit.date_of_birth === "") dataToSubmit.date_of_birth = null;
-      if (dataToSubmit.validity_date === "") dataToSubmit.validity_date = null;
       if (dataToSubmit.email === "") dataToSubmit.email = null;
       if (dataToSubmit.phone === "") dataToSubmit.phone = null;
       if (dataToSubmit.address === "") dataToSubmit.address = null;
@@ -148,6 +168,7 @@ export const useStudentProfileData = (studentId: string | undefined) => {
         .eq("id", studentId!);
       if (error) throw error;
       
+      // Registrar Transação
       if (registerPayment && studentId && dataToSubmit.monthly_fee > 0) {
         const transaction = {
           user_id: user.id,
@@ -157,8 +178,8 @@ export const useStudentProfileData = (studentId: string | undefined) => {
           amount: dataToSubmit.monthly_fee,
           type: 'revenue',
           status: 'Pago',
-          due_date: paymentDueDate,
-          paid_at: new Date().toISOString(),
+          due_date: dataToSubmit.validity_date, // Próximo vencimento
+          paid_at: paymentDate, // Data de pagamento
         };
         
         const { error: transactionError } = await supabase.from('financial_transactions').insert([transaction]);
@@ -206,12 +227,15 @@ export const useStudentProfileData = (studentId: string | undefined) => {
   const markAsPaidMutation = useMutation({
     mutationFn: async (transactionId: string) => {
       if (!isAdminOrRecepcao) throw new Error("Você não tem permissão para marcar transações como pagas.");
+      
+      // Apenas marca a transação como paga. A atualização da validade do aluno deve ser feita manualmente
+      // ou através do fluxo de edição do aluno, onde a duração da validade é conhecida.
       const { error } = await supabase.from('financial_transactions').update({ status: 'Pago', paid_at: new Date().toISOString() }).eq('id', transactionId);
       if (error) throw error;
     },
     onSuccess: () => {
       invalidateFinancialQueries();
-      showSuccess('Transação marcada como paga com sucesso!');
+      showSuccess('Transação marcada como paga com sucesso! Lembre-se de atualizar a validade do aluno, se necessário.');
     },
     onError: (error) => { showError(error.message); },
   });

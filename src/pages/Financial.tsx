@@ -176,6 +176,8 @@ const Financial = () => {
   // Mark as Paid Mutation
   const markAsPaidMutation = useMutation({
     mutationFn: async (transactionId: string) => {
+      // Apenas marca a transação como paga. A atualização da validade do aluno deve ser feita manualmente
+      // ou através do fluxo de edição do aluno, onde a duração da validade é conhecida.
       const { error } = await supabase
         .from('financial_transactions')
         .update({ status: 'Pago', paid_at: new Date().toISOString() })
@@ -186,7 +188,7 @@ const Financial = () => {
       queryClient.invalidateQueries({ queryKey: ['financialData'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
       queryClient.invalidateQueries({ queryKey: ['upcomingPayments'] });
-      showSuccess('Lançamento marcado como pago!');
+      showSuccess('Lançamento marcado como pago! Lembre-se de atualizar a validade do aluno, se necessário.');
     },
     onError: (err: any) => showError(err.message),
   });

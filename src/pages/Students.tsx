@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { Search } from 'lucide-react';
 import { Card } from '@/components/ui/card';
+import { addDays, parseISO, isPast } from 'date-fns'; // Importar addDays e isPast
 
 // Moved fetchStudents outside the component
 const fetchStudents = async (): Promise<Student[]> => {
@@ -104,10 +105,32 @@ const Students = () => {
       const dataToSubmit = { ...formData };
       
       const registerPayment = dataToSubmit.register_payment;
-      const paymentDueDate = dataToSubmit.payment_due_date;
+      const paymentDate = dataToSubmit.payment_date;
+      const validityDuration = dataToSubmit.validity_duration;
       
       delete dataToSubmit.register_payment;
-      delete dataToSubmit.payment_due_date;
+      delete dataToSubmit.payment_date;
+      delete dataToSubmit.validity_duration;
+      
+      // Lógica de cálculo da validade
+      if (registerPayment && paymentDate && validityDuration) {
+        const paymentDateObj = parseISO(paymentDate);
+        const validityDate = addDays(paymentDateObj, validityDuration).toISOString();
+        dataToSubmit.validity_date = validityDate;
+        
+        // Se o pagamento foi registrado, o aluno deve estar Ativo (a menos que seja Bloqueado/Experimental)
+        if (dataToSubmit.status !== 'Bloqueado' && dataToSubmit.status !== 'Experimental') {
+          dataToSubmit.status = 'Ativo';
+        }
+      } else if (selectedStudent && selectedStudent.validity_date) {
+        // Se não registrou pagamento, verifica se a validade expirou
+        if (isPast(parseISO(selectedStudent.validity_date))) {
+          dataToSubmit.status = 'Inativo';
+        }
+      } else if (!selectedStudent) {
+        // Novo aluno sem pagamento inicial
+        dataToSubmit.validity_date = null;
+      }
       
       // Limpeza de campos opcionais/condicionais
       if (dataToSubmit.plan_type === 'Avulso') {
@@ -126,9 +149,6 @@ const Students = () => {
       // Limpeza de strings vazias para NULL no banco de dados
       if (dataToSubmit.date_of_birth === "") {
         dataToSubmit.date_of_birth = null;
-      }
-      if (dataToSubmit.validity_date === "") {
-        dataToSubmit.validity_date = null;
       }
       if (dataToSubmit.email === "") {
         dataToSubmit.email = null;
@@ -169,8 +189,8 @@ const Students = () => {
           amount: dataToSubmit.monthly_fee,
           type: 'revenue',
           status: 'Pago',
-          due_date: paymentDueDate, // Data de vencimento para o próximo mês
-          paid_at: new Date().toISOString(), // Data de pagamento é agora
+          due_date: dataToSubmit.validity_date, // Usar a data de validade como próximo vencimento (simplificado)
+          paid_at: paymentDate, // Data de pagamento é a data informada
         };
         
         const { error: transactionError } = await supabase.from('financial_transactions').insert([transaction]);

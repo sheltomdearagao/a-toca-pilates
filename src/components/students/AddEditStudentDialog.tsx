@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, addDays } from 'date-fns';
 import {
   Dialog,
   DialogContent,
@@ -54,6 +54,14 @@ const AVAILABLE_HOURS = Array.from({ length: 16 }, (_, i) => {
   return `${h.toString().padStart(2, '0')}:00`;
 });
 
+const VALIDITY_DURATIONS = [
+  { value: 1, label: '1 Dia' },
+  { value: 7, label: '7 Dias' },
+  { value: 30, label: '30 Dias' },
+  { value: 60, label: '60 Dias' },
+  { value: 90, label: '90 Dias' },
+];
+
 const createStudentSchema = (appSettings: any) => {
   const planTypes = appSettings?.plan_types as [string, ...string[]] || ['Avulso'];
   const frequencies = appSettings?.plan_frequencies as [string, ...string[]] || ['2x'];
@@ -80,16 +88,22 @@ const createStudentSchema = (appSettings: any) => {
     enrollment_type: z.enum(enrollTypes),
 
     date_of_birth: z.string().optional().nullable(),
-    validity_date: z.string().optional().nullable(),
-
+    
+    // Removido validity_date como input de data
+    
     preferred_days: z.array(z.string()).optional().nullable(),
     preferred_time: z.string().optional().nullable(),
 
     has_promotional_value: z.boolean().optional(),
     discount_description: z.string().optional().nullable(),
 
+    // Campos para registro de pagamento inicial
     register_payment: z.boolean().optional(),
-    payment_due_date: z.string().optional().nullable(),
+    payment_date: z.string().optional().nullable(), // Data em que pagou
+    validity_duration: z.preprocess(
+      (val) => (typeof val === 'string' ? parseInt(val, 10) : val),
+      z.number().optional().nullable()
+    ),
   }).superRefine((data, ctx) => {
     if (data.plan_type !== 'Avulso') {
       if (!data.plan_frequency) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Frequência obrigatória', path: ['plan_frequency'] });
@@ -98,8 +112,14 @@ const createStudentSchema = (appSettings: any) => {
     if (data.has_promotional_value && (!data.discount_description || data.discount_description.trim() === '')) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Descrição do desconto obrigatória', path: ['discount_description'] });
     }
-    if (data.register_payment && data.plan_type !== 'Avulso' && (!data.payment_due_date || data.payment_due_date.trim() === '')) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Data de vencimento obrigatória', path: ['payment_due_date'] });
+    
+    if (data.register_payment) {
+      if (!data.payment_date || data.payment_date.trim() === '') {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Data de pagamento obrigatória', path: ['payment_date'] });
+      }
+      if (data.plan_type !== 'Avulso' && !data.validity_duration) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Duração da validade obrigatória', path: ['validity_duration'] });
+      }
     }
   });
 };
@@ -125,10 +145,11 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
       status: 'Ativo', notes: '',
       plan_type: 'Avulso', plan_frequency: null, payment_method: null, monthly_fee: 0,
       enrollment_type: 'Particular',
-      date_of_birth: null, validity_date: null,
+      date_of_birth: null,
       preferred_days: [], preferred_time: null,
       has_promotional_value: false, discount_description: null,
-      register_payment: false, payment_due_date: null,
+      register_payment: false, payment_date: format(new Date(), 'yyyy-MM-dd'), // Default para hoje
+      validity_duration: 30,
     },
   });
 
@@ -176,13 +197,14 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
         monthly_fee: selectedStudent.monthly_fee ?? 0,
         enrollment_type: selectedStudent.enrollment_type,
         date_of_birth: selectedStudent.date_of_birth ? format(parseISO(selectedStudent.date_of_birth), 'yyyy-MM-dd') : null,
-        validity_date: selectedStudent.validity_date ? format(parseISO(selectedStudent.validity_date), 'yyyy-MM-dd') : null,
+        // Removido validity_date do reset, pois será calculado
         preferred_days: selectedStudent.preferred_days || [],
         preferred_time: selectedStudent.preferred_time || null,
         has_promotional_value: !!selectedStudent.discount_description,
         discount_description: selectedStudent.discount_description || null,
-        register_payment: false,
-        payment_due_date: null,
+        register_payment: false, // Sempre false no modo edição
+        payment_date: format(new Date(), 'yyyy-MM-dd'),
+        validity_duration: 30,
       });
     } else {
       reset({
@@ -190,10 +212,11 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
         status: 'Ativo', notes: '',
         plan_type: 'Avulso', plan_frequency: null, payment_method: null, monthly_fee: 0,
         enrollment_type: 'Particular',
-        date_of_birth: null, validity_date: null,
+        date_of_birth: null,
         preferred_days: [], preferred_time: null,
         has_promotional_value: false, discount_description: null,
-        register_payment: false, payment_due_date: null,
+        register_payment: false, payment_date: format(new Date(), 'yyyy-MM-dd'),
+        validity_duration: 30,
       });
     }
   }, [isOpen, selectedStudent, reset]);
@@ -311,10 +334,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
                 <Label>Data Nasc.</Label>
                 <Controller name="date_of_birth" control={control} render={({ field }) => <Input type="date" {...field} />} />
               </div>
-              <div className="space-y-2">
-                <Label>Validade</Label>
-                <Controller name="validity_date" control={control} render={({ field }) => <Input type="date" {...field} />} />
-              </div>
+              {/* Removido o campo Validity Date */}
             </div>
 
             {/* Preferências de Dia/Horário */}
@@ -355,17 +375,36 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
                 <Controller name="discount_description" control={control} render={({ field }) => <Input {...field} />} />
               </div>
             )}
+            
+            {/* NOVO: Registro de 1º Pagamento */}
             <div className="flex items-center space-x-2">
               <Controller name="register_payment" control={control} render={({ field }) => (
                 <Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={enrollmentType !== 'Particular'} />
               )} />
               <Label>Registrar 1º Pagamento</Label>
             </div>
+            
             {watch('register_payment') && (
-              <div className="space-y-2">
-                <Label>Data Vencimento 1º</Label>
-                <Controller name="payment_due_date" control={control} render={({ field }) => <Input type="date" {...field} />} />
-                {errors.payment_due_date && <p className="text-sm text-destructive">{errors.payment_due_date.message}</p>}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Data do Pagamento</Label>
+                  <Controller name="payment_date" control={control} render={({ field }) => <Input type="date" {...field} />} />
+                  {errors.payment_date && <p className="text-sm text-destructive">{errors.payment_date.message}</p>}
+                </div>
+                {planType !== 'Avulso' && (
+                  <div className="space-y-2">
+                    <Label>Duração da Validade</Label>
+                    <Controller name="validity_duration" control={control} render={({ field }) => (
+                      <Select onValueChange={field.onChange} value={String(field.value || 30)}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {VALIDITY_DURATIONS.map(d => <SelectItem key={d.value} value={String(d.value)}>{d.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    )} />
+                    {errors.validity_duration && <p className="text-sm text-destructive">{errors.validity_duration.message}</p>}
+                  </div>
+                )}
               </div>
             )}
           </div>
