@@ -58,7 +58,7 @@ const createStudentSchema = (appSettings: any) => {
   const planTypes = appSettings?.plan_types as [string, ...string[]] || ['Avulso'];
   const frequencies = appSettings?.plan_frequencies as [string, ...string[]] || ['2x'];
   const methods = appSettings?.payment_methods as [string, ...string[]] || ['Espécie'];
-  const enrollTypes = appSettings?.enrollment_types as [string, ...string[]] || ['Particular'];
+  const enrollTypes = appSettings?.enrollment_types as [string, ...string[]] || ['Particular', 'Wellhub', 'TotalPass'];
 
   return z.object({
     name: z.string().min(3, 'Nome obrigatório'),
@@ -136,19 +136,28 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
   const planFrequency = watch('plan_frequency');
   const paymentMethod = watch('payment_method');
   const hasPromo = watch('has_promotional_value');
+  const enrollmentType = watch('enrollment_type'); // Novo watch
 
   useEffect(() => {
     if (!appSettings?.price_table) return;
+    
+    // Se for Wellhub ou TotalPass, a mensalidade é 0 (ou o valor que o appSettings definiria para eles, mas geralmente é 0 para o aluno)
+    if (enrollmentType !== 'Particular') {
+      setValue('monthly_fee', 0);
+      return;
+    }
+
     if (planType === 'Avulso') {
       setValue('monthly_fee', 0);
       return;
     }
     if (hasPromo) return;
+    
     const table: PriceTable = appSettings.price_table;
     const freqMap = table[planType]?.[planFrequency ?? ''];
     const price = freqMap?.[paymentMethod ?? ''];
     if (price != null) setValue('monthly_fee', price);
-  }, [planType, planFrequency, paymentMethod, hasPromo, appSettings, setValue]);
+  }, [planType, planFrequency, paymentMethod, hasPromo, enrollmentType, appSettings, setValue]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -239,6 +248,19 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
               <Controller name="guardian_phone" control={control} render={({ field }) => <Input {...field} />} />
             </div>
 
+            {/* Tipo de Matrícula */}
+            <div className="space-y-2">
+              <Label>Tipo de Matrícula</Label>
+              <Controller name="enrollment_type" control={control} render={({ field }) => (
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {appSettings.enrollment_types.map(et => <SelectItem key={et} value={et}>{et}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )} />
+            </div>
+
             {/* Plano e Mensalidade */}
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
@@ -255,7 +277,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
               <div className="space-y-2">
                 <Label>Frequência</Label>
                 <Controller name="plan_frequency" control={control} render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value || ''}>
+                  <Select onValueChange={field.onChange} value={field.value || ''} disabled={enrollmentType !== 'Particular'}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {appSettings.plan_frequencies.map(fq => <SelectItem key={fq} value={fq}>{fq}</SelectItem>)}
@@ -267,7 +289,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
               <div className="space-y-2">
                 <Label>Pagamento</Label>
                 <Controller name="payment_method" control={control} render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value || ''}>
+                  <Select onValueChange={field.onChange} value={field.value || ''} disabled={enrollmentType !== 'Particular'}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {appSettings.payment_methods.map(pm => <SelectItem key={pm} value={pm}>{pm}</SelectItem>)}
@@ -279,7 +301,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
             </div>
             <div className="space-y-2">
               <Label>Mensalidade (R$)</Label>
-              <Controller name="monthly_fee" control={control} render={({ field }) => <Input type="number" step="0.01" {...field} />} />
+              <Controller name="monthly_fee" control={control} render={({ field }) => <Input type="number" step="0.01" {...field} disabled={enrollmentType !== 'Particular'} />} />
               {errors.monthly_fee && <p className="text-sm text-destructive">{errors.monthly_fee.message}</p>}
             </div>
 
@@ -323,7 +345,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
             {/* Promoções e Pagamento Inicial */}
             <div className="flex items-center space-x-2">
               <Controller name="has_promotional_value" control={control} render={({ field }) => (
-                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                <Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={enrollmentType !== 'Particular'} />
               )} />
               <Label>Valor Promocional</Label>
             </div>
@@ -335,7 +357,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
             )}
             <div className="flex items-center space-x-2">
               <Controller name="register_payment" control={control} render={({ field }) => (
-                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                <Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={enrollmentType !== 'Particular'} />
               )} />
               <Label>Registrar 1º Pagamento</Label>
             </div>
