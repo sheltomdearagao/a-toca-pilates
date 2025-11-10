@@ -28,7 +28,7 @@ import { useAppSettings } from '@/hooks/useAppSettings';
 import { cn } from '@/lib/utils';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Student } from '@/types/student';
-import { showError } from '@/utils/toast'; // Importando showError
+import { showError } from '@/utils/toast';
 
 type PriceTable = {
   [planType: string]: {
@@ -57,6 +57,7 @@ const AVAILABLE_HOURS = Array.from({ length: 16 }, (_, i) => {
 const VALIDITY_DURATIONS = [
   { value: 1, label: '1 Dia' },
   { value: 7, label: '7 Dias' },
+  { value: 15, label: '15 Dias' },
   { value: 30, label: '30 Dias' },
   { value: 60, label: '60 Dias' },
   { value: 90, label: '90 Dias' },
@@ -136,7 +137,12 @@ interface Props {
 
 const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit, isSubmitting }: Props) => {
   const { data: appSettings, isLoading: settingsLoading } = useAppSettings();
-  const schema = createStudentSchema(appSettings);
+  
+  // Fix: Define schema after appSettings is available
+  const schema = React.useMemo(() => {
+    if (!appSettings) return z.object({});
+    return createStudentSchema(appSettings);
+  }, [appSettings]);
 
   const { control, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -206,8 +212,6 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
         discount_description: selectedStudent.discount_description || null,
         
         // Usamos a data de validade existente para preencher a data de pagamento no modo edição
-        // Isso é uma simplificação, o ideal seria buscar a última transação paga.
-        // Por enquanto, usamos a data de hoje como default se não houver validade.
         payment_date: selectedStudent.validity_date ? format(parseISO(selectedStudent.validity_date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
         validity_duration: 30, // Mantemos 30 como default para edição
       });
@@ -283,7 +287,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
                 <Select onValueChange={field.onChange} value={field.value}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {appSettings.enrollment_types.map(et => <SelectItem key={et} value={et}>{et}</SelectItem>)}
+                    {appSettings?.enrollment_types.map(et => <SelectItem key={et} value={et}>{et}</SelectItem>)}
                   </SelectContent>
                 </Select>
               )} />
@@ -297,7 +301,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
                   <Select onValueChange={field.onChange} value={field.value}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {appSettings.plan_types.map(pt => <SelectItem key={pt} value={pt}>{pt}</SelectItem>)}
+                      {appSettings?.plan_types.map(pt => <SelectItem key={pt} value={pt}>{pt}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 )} />
@@ -308,7 +312,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
                   <Select onValueChange={field.onChange} value={field.value || ''} disabled={enrollmentType !== 'Particular'}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {appSettings.plan_frequencies.map(fq => <SelectItem key={fq} value={fq}>{fq}</SelectItem>)}
+                      {appSettings?.plan_frequencies.map(fq => <SelectItem key={fq} value={fq}>{fq}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 )} />
@@ -320,7 +324,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
                   <Select onValueChange={field.onChange} value={field.value || ''} disabled={enrollmentType !== 'Particular'}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {appSettings.payment_methods.map(pm => <SelectItem key={pm} value={pm}>{pm}</SelectItem>)}
+                      {appSettings?.payment_methods.map(pm => <SelectItem key={pm} value={pm}>{pm}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 )} />
@@ -406,7 +410,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
 
           <DialogFooter className="flex justify-end gap-2">
             <DialogClose asChild>
-              <Button variant="secondary">Cancelar</Button>
+              <Button type="button" variant="secondary">Cancelar</Button>
             </DialogClose>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

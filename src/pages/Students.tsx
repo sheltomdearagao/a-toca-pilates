@@ -10,15 +10,15 @@ import StudentsHeader from '@/components/students/StudentsHeader';
 import StudentsTable from '@/components/students/StudentsTable';
 import AddEditStudentDialog from '@/components/students/AddEditStudentDialog';
 import DeleteStudentAlertDialog from '@/components/students/DeleteStudentAlertDialog';
-import StudentCSVUploader from '@/components/students/StudentCSVUploader'; // Importar o novo componente
-import AddClassDialog from '@/components/schedule/AddClassDialog'; // Importar o diálogo de agendamento
-import StudentStatsCards from '@/components/students/StudentStatsCards'; // NOVO COMPONENTE
+import StudentCSVUploader from '@/components/students/StudentCSVUploader';
+import AddClassDialog from '@/components/schedule/AddClassDialog';
+import StudentStatsCards from '@/components/students/StudentStatsCards';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { Search } from 'lucide-react';
 import { Card } from '@/components/ui/card';
-import { addDays, parseISO, isPast } from 'date-fns'; // Importar addDays e isPast
+import { addDays, parseISO, isPast } from 'date-fns';
 
 // Moved fetchStudents outside the component
 const fetchStudents = async (): Promise<Student[]> => {
@@ -58,17 +58,17 @@ const Students = () => {
 
   const [isFormOpen, setFormOpen] = useState(false);
   const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
-  const [isImportOpen, setImportOpen] = useState(false); // Estado para o diálogo de importação
-  const [isScheduleOpen, setScheduleOpen] = useState(false); // Novo estado para agendamento
+  const [isImportOpen, setImportOpen] = useState(false);
+  const [isScheduleOpen, setScheduleOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [studentToSchedule, setStudentToSchedule] = useState<Student | null>(null); // Novo estado para agendamento rápido
+  const [studentToSchedule, setStudentToSchedule] = useState<Student | null>(null);
 
   // Estados para os filtros
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<StudentStatus | 'all'>('all');
   const [filterPlanType, setFilterPlanType] = useState<PlanType | 'all'>('all');
   const [filterEnrollmentType, setFilterEnrollmentType] = useState<EnrollmentType | 'all'>('all');
-  const [filterPaymentStatus, setFilterPaymentStatus] = useState<'all' | 'Em Dia' | 'Atrasado'>('all'); // Novo filtro
+  const [filterPaymentStatus, setFilterPaymentStatus] = useState<'all' | 'Em Dia' | 'Atrasado'>('all');
 
   // Read initial filters from query params on mount
   useEffect(() => {
@@ -94,7 +94,7 @@ const Students = () => {
   const { data: paymentStatusMap, isLoading: isLoadingPaymentStatus } = useQuery({
     queryKey: ["studentPaymentStatus"],
     queryFn: fetchStudentPaymentStatus,
-    staleTime: 1000 * 60 * 5, // Cache por 5 minutos
+    staleTime: 1000 * 60 * 5,
   });
 
   const addEditMutation = useMutation({
@@ -141,7 +141,7 @@ const Students = () => {
       if (!dataToSubmit.has_promotional_value) {
         dataToSubmit.discount_description = null;
       }
-      delete dataToSubmit.has_promotional_value; // Remover campo temporário do formulário
+      delete dataToSubmit.has_promotional_value;
 
       // Limpeza de strings vazias para NULL no banco de dados
       if (dataToSubmit.date_of_birth === "") {
@@ -199,8 +199,8 @@ const Students = () => {
       queryClient.invalidateQueries({ queryKey: ["dashboardStats"] });
       queryClient.invalidateQueries({ queryKey: ["studentPaymentStatus"] });
       queryClient.invalidateQueries({ queryKey: ["studentStats"] });
-      queryClient.invalidateQueries({ queryKey: ["transactions"] }); // Invalida transações para refletir o novo pagamento
-      queryClient.invalidateQueries({ queryKey: ['birthdayStudents'] }); // Ensure birthday card updates
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ['birthdayStudents'] });
       showSuccess(`Aluno ${selectedStudent ? "atualizado" : "adicionado"} com sucesso!`);
       setFormOpen(false);
       setSelectedStudent(null);
@@ -220,7 +220,7 @@ const Students = () => {
       queryClient.invalidateQueries({ queryKey: ["dashboardStats"] });
       queryClient.invalidateQueries({ queryKey: ["studentPaymentStatus"] });
       queryClient.invalidateQueries({ queryKey: ["studentStats"] });
-      queryClient.invalidateQueries({ queryKey: ['birthdayStudents'] }); // Ensure birthday card updates after deletion
+      queryClient.invalidateQueries({ queryKey: ['birthdayStudents'] });
       showSuccess("Aluno removido com sucesso!");
       setDeleteAlertOpen(false);
       setSelectedStudent(null);
@@ -286,10 +286,10 @@ const Students = () => {
       <StudentsHeader
         studentCount={filteredStudents?.length}
         onAddNewStudent={handleAddNew}
-        onImportCSV={() => setImportOpen(true)} // Abrir o diálogo de importação
+        onImportCSV={() => setImportOpen(true)}
       />
       
-      <StudentStatsCards /> {/* NOVO: Cartões de Estatísticas */}
+      <StudentStatsCards />
 
       <Card className="p-4 shadow-impressionist shadow-subtle-glow">
         <div className="flex items-center mb-4">
@@ -303,7 +303,6 @@ const Students = () => {
         </div>
         
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {/* Filtro de Status do Aluno */}
           <Select value={filterStatus} onValueChange={(value: StudentStatus | 'all') => setFilterStatus(value)}>
             <SelectTrigger><SelectValue placeholder="Status do Aluno" /></SelectTrigger>
             <SelectContent>
@@ -315,7 +314,6 @@ const Students = () => {
             </SelectContent>
           </Select>
           
-          {/* Filtro de Tipo de Plano */}
           <Select value={filterPlanType} onValueChange={(value: PlanType | 'all') => setFilterPlanType(value)} disabled={isLoadingSettings}>
             <SelectTrigger><SelectValue placeholder="Tipo de Plano" /></SelectTrigger>
             <SelectContent>
@@ -326,7 +324,6 @@ const Students = () => {
             </SelectContent>
           </Select>
           
-          {/* Filtro de Tipo de Matrícula */}
           <Select value={filterEnrollmentType} onValueChange={(value: EnrollmentType | 'all') => setFilterEnrollmentType(value)} disabled={isLoadingSettings}>
             <SelectTrigger><SelectValue placeholder="Tipo de Matrícula" /></SelectTrigger>
             <SelectContent>
@@ -337,7 +334,6 @@ const Students = () => {
             </SelectContent>
           </Select>
           
-          {/* NOVO: Filtro de Status de Pagamento */}
           <Select value={filterPaymentStatus} onValueChange={(value: 'all' | 'Em Dia' | 'Atrasado') => setFilterPaymentStatus(value)} disabled={isLoadingPaymentStatus}>
             <SelectTrigger><SelectValue placeholder="Status de Pagamento" /></SelectTrigger>
             <SelectContent>
@@ -354,7 +350,7 @@ const Students = () => {
         isLoading={isLoading || isLoadingSettings || isLoadingPaymentStatus}
         onEdit={handleEdit}
         onDelete={handleDelete}
-        onScheduleClass={handleScheduleClass} // Passando a nova função
+        onScheduleClass={handleScheduleClass}
         paymentStatusMap={paymentStatusMap}
       />
 
@@ -379,11 +375,10 @@ const Students = () => {
         onOpenChange={setImportOpen}
       />
       
-      {/* Diálogo de Agendamento Rápido */}
       <AddClassDialog 
         isOpen={isScheduleOpen} 
         onOpenChange={setScheduleOpen} 
-        preSelectedStudentId={studentToSchedule?.id} // Passando o ID do aluno
+        preSelectedStudentId={studentToSchedule?.id}
       />
     </div>
   );

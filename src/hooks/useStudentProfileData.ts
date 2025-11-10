@@ -7,7 +7,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/contexts/SessionProvider';
 import { useState } from 'react';
 import { TransactionFormData } from '@/components/financial/AddEditTransactionDialog.schema';
-import { addDays, parseISO, isPast } from 'date-fns'; // Importar addDays e isPast
+import { addDays, parseISO, isPast } from 'date-fns';
 
 type ClassAttendance = {
   id: string;
@@ -60,7 +60,7 @@ const fetchStudentProfile = async (studentId: string, transactionLimit: number, 
 export const useStudentProfileData = (studentId: string | undefined) => {
   const queryClient = useQueryClient();
   const { profile } = useSession();
-  const isAdminOrRecepcao = profile?.role === 'admin' || profile?.role === 'recepcao'; // Alterado
+  const isAdminOrRecepcao = profile?.role === 'admin' || profile?.role === 'recepcao';
   
   const [transactionLimit, setTransactionLimit] = useState(PAGE_SIZE);
   const [attendanceLimit, setAttendanceLimit] = useState(PAGE_SIZE);
@@ -272,7 +272,7 @@ export const useStudentProfileData = (studentId: string | undefined) => {
     isLoading,
     isFetchingHistory,
     error,
-    isAdminOrRecepcao, // Alterado
+    isAdminOrRecepcao,
     loadMoreTransactions,
     loadMoreAttendance,
     mutations: {

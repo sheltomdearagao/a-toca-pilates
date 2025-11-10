@@ -1,83 +1,78 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { FinancialTransaction } from '@/types/financial';
-import { addDays, format, parseISO, isBefore, isAfter } from 'date-fns';
+import { addDays, format, parseISO, isBefore, isAfter, startOfDay, endOfDay } from 'date-fns';
 
 const DAYS_THRESHOLD = 10;
 
 const fetchUpcomingPayments = async (): Promise<FinancialTransaction[]> => {
-  console.log('🔍 [PAYMENT ALERTS] Iniciando busca...');
+  console.log('🔍 [PAYMENT ALERTS] Iniciando busca com novo sistema de validade...');
   
-  const today = new Date();
-  const tenDaysFromNow = addDays(today, DAYS_THRESHOLD);
+  const today = startOfDay(new Date());
+  const tenDaysFromNow = endOfDay(addDays(today, DAYS_THRESHOLD));
 
-  console.log('📅 [PAYMENT ALERTS] Período:', { 
-    today: format(today, 'yyyy-MM-dd'),
-    tenDaysFromNow: format(tenDaysFromNow, 'yyyy-MM-dd')
-  });
-
-  // Primeiro, busca TODAS as transações pendentes de receita
-  const { data: allTransactions, error: transError } = await supabase
-    .from('financial_transactions')
-    .select('*')
-    .eq('type', 'revenue')
-    .eq('status', 'Pendente')
-    .not('due_date', 'is', null);
-
-  console.log('📊 [PAYMENT ALERTS] Transações pendentes encontradas:', allTransactions?.length || 0);
-
-  if (transError) {
-    console.error('❌ [PAYMENT ALERTS] Erro ao buscar transações:', transError);
-    throw new Error(transError.message);
-  }
-
-  // Filtra no cliente as transações que vencem nos próximos 10 dias
-  const filtered = (allTransactions || []).filter(t => {
-    if (!t.due_date) return false;
-    const dueDate = parseISO(t.due_date);
-    const isInRange = !isBefore(dueDate, today) && !isAfter(dueDate, tenDaysFromNow);
-    
-    if (isInRange) {
-      console.log('✅ [PAYMENT ALERTS] Transação incluída:', {
-        description: t.description,
-        due_date: t.due_date,
-        student_id: t.student_id
-      });
-    }
-    
-    return isInRange;
-  });
-
-  console.log('📊 [PAYMENT ALERTS] Transações filtradas:', filtered.length);
-
-  // Agora busca os dados dos alunos separadamente
-  const studentIds = filtered.map(t => t.student_id).filter(Boolean) as string[];
-  
-  if (studentIds.length === 0) {
-    console.log('⚠️ [PAYMENT ALERTS] Nenhum student_id encontrado');
-    return filtered as FinancialTransaction[];
-  }
-
-  const { data: studentsData, error: studentsError } = await supabase
+  // Busca alunos com planos recorrentes que tenham validade vencendo em breve
+  const { data: studentsWithExpiringValidity, error: studentsError } = await supabase
     .from('students')
-    .select('id, name, phone, plan_type, plan_frequency, monthly_fee')
-    .in('id', studentIds);
-
-  console.log('📊 [PAYMENT ALERTS] Alunos encontrados:', studentsData?.length || 0);
+    .select('id, name, phone, plan_type, plan_frequency, monthly_fee, validity_date')
+    .eq('enrollment_type', 'Particular')
+    .neq('plan_type', 'Avulso')
+    .gte('validity_date', today.toISOString())
+    .lte('validity_date', tenDaysFromNow.toISOString())
+    .eq('status', 'Ativo');
 
   if (studentsError) {
     console.error('❌ [PAYMENT ALERTS] Erro ao buscar alunos:', studentsError);
+    throw new Error(studentsError.message);
   }
 
-  // Combina os dados manualmente
-  const result = filtered.map(t => ({
-    ...t,
-    students: studentsData?.find(s => s.id === t.student_id) || null
-  })) as unknown as FinancialTransaction[];
+  console.log('📊 [PAYMENT ALERTS] Alunos com validade vencendo:', studentsWithExpiringValidity?.length || 0);
 
-  console.log('✅ [PAYMENT ALERTS] Resultado final:', result.length);
+  // Busca também transações pendentes tradicionais
+  const { data: pendingTransactions, error: pendingError } = await supabase
+    .from('financial_transactions')
+    .select('*, students(name, phone, plan_type, plan_frequency)')
+    .eq('type', 'revenue')
+    .eq('status', 'Pendente')
+    .gte('due_date', today.toISOString())
+    .lte('due_date', tenDaysFromNow.toISOString());
 
-  return result;
+  if (pendingError) {
+    console.error('❌ [PAYMENT ALERTS] Erro ao buscar transações pendentes:', pendingError);
+  }
+
+  console.log('📊 [PAYMENT ALERTS] Transações pendentes encontradas:', pendingTransactions?.length || 0);
+
+  // Combina os resultados
+  const results: FinancialTransaction[] = [];
+
+  // Adiciona alunos com validade vencendo como "transações" de alerta
+  if (studentsWithExpiringValidity) {
+    studentsWithExpiringValidity.forEach(student => {
+      results.push({
+        id: `validity-${student.id}`,
+        user_id: '',
+        student_id: student.id,
+        description: `Mensalidade - ${student.plan_type} ${student.plan_frequency || ''} (Validade vencendo)`,
+        category: 'Mensalidade',
+        amount: student.monthly_fee || 0,
+        type: 'revenue',
+        status: 'Pendente',
+        due_date: student.validity_date,
+        paid_at: null,
+        students: student,
+        created_at: new Date().toISOString(),
+      } as FinancialTransaction);
+    });
+  }
+
+  // Adiciona transações pendentes tradicionais
+  if (pendingTransactions) {
+    results.push(...pendingTransactions);
+  }
+
+  console.log('✅ [PAYMENT ALERTS] Total de alertas:', results.length);
+  return results;
 };
 
 export const usePaymentAlerts = () => {
