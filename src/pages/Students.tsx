@@ -150,6 +150,7 @@ const Students = () => {
       if (dataToSubmit.date_of_birth === "") {
         dataToSubmit.date_of_birth = null;
       }
+      // Removido dataToSubmit.validity_date === "" pois ele é calculado ou null
       if (dataToSubmit.email === "") {
         dataToSubmit.email = null;
       }
