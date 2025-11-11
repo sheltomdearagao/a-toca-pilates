@@ -6,7 +6,7 @@ import { StudentOption } from '@/types/student';
 import { formatCurrency } from '@/utils/formatters';
 import { showError, showSuccess } from '@/utils/toast';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Settings, DollarSign, Search, ListChecks } from 'lucide-react';
+import { PlusCircle, Settings, DollarSign, Search, ListChecks, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AddEditTransactionDialog, { TransactionFormData } from '@/components/financial/AddEditTransactionDialog';
 import AllTransactionsTable from '@/components/financial/AllTransactionsTable';
@@ -198,6 +198,11 @@ const Financial = () => {
     setIsAddEditOpen(true);
   };
 
+  const handleAddRevenue = () => {
+    setSelectedTransaction(null);
+    setIsAddEditOpen(true);
+  };
+
   const handleEdit = (t: FinancialTransaction) => {
     setSelectedTransaction(t);
     setIsAddEditOpen(true);
@@ -245,7 +250,10 @@ const Financial = () => {
             <ListChecks className="w-4 h-4 mr-2" /> Gerenciar Categorias
           </Button>
           <Button onClick={handleAdd}>
-            <PlusCircle className="w-4 h-4 mr-2" /> Registrar Pagamento
+            <PlusCircle className="w-4 h-4 mr-2" /> Novo Lançamento
+          </Button>
+          <Button onClick={handleAddRevenue} className="bg-green-600 hover:bg-green-700">
+            <TrendingUp className="w-4 h-4 mr-2" /> Lançar Receita
           </Button>
         </div>
       </div>

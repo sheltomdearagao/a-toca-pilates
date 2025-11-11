@@ -1,6 +1,6 @@
 import { CalendarClock, DollarSign, Loader2, User } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, getDate } from "date-fns";
 import { ptBR } from "date-fns/locale/pt-BR";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -48,7 +48,7 @@ const UpcomingPaymentsCard = () => {
             {payments.slice(0, 5).map((t) => (
               <div
                 key={t.id}
-                className="flex items-center justify-between p-3 rounded-xl border bg-yellow-50/20 transition-colors duration-200 hover:bg-yellow-50/40 hover:shadow-subtle-glow"
+                className="flex items-center justify-between p-4 rounded-xl border bg-yellow-50/20 transition-colors duration-200 hover:bg-yellow-50/40 hover:shadow-subtle-glow"
               >
                 <div className="flex items-center space-x-3">
                   <div className="p-2 bg-yellow-600 rounded-lg">
@@ -68,7 +68,7 @@ const UpcomingPaymentsCard = () => {
                         {t.students?.plan_type} {t.students?.plan_frequency}
                       </Badge>
                       <span className="font-semibold text-yellow-800">
-                        {t.due_date ? format(parseISO(t.due_date), "dd/MM") : 'N/A'}
+                        {t.due_date ? format(parseISO(t.due_date), "dd/MM", { locale: ptBR }) : 'N/A'}
                       </span>
                     </div>
                   </div>
