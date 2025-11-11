@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { TransactionFormData } from './AddEditTransactionDialog.schema';
 import { transactionSchema } from './AddEditTransactionDialog.schema';
 import { Button } from '@/components/ui/button';
@@ -17,10 +15,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2 } from 'lucide-react';
+import { Loader2, DollarSign, Calendar } from 'lucide-react';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { FinancialTransaction, PaymentStatus } from '@/types/financial';
 import { format, parseISO } from 'date-fns';
+import { showError } from '@/utils/toast';
 
 export interface AddEditTransactionDialogProps {
   isOpen: boolean;
@@ -48,8 +47,9 @@ const AddEditTransactionDialog = ({
   isLoadingStudents = false,
 }: AddEditTransactionDialogProps) => {
   const { data: appSettings } = useAppSettings();
+  const [showDueDate, setShowDueDate] = useState(false);
 
-  const { control, handleSubmit, reset, watch } = useForm<TransactionFormData>({
+  const { control, reset, watch, setValue, formState: { errors } } = useForm<TransactionFormData>({
     resolver: zodResolver(transactionSchema),
     defaultValues: {
       type: defaultType,
@@ -62,10 +62,21 @@ const AddEditTransactionDialog = ({
     },
   });
 
+  const transactionType = watch('type');
+  const category = watch('category');
+  const isRevenue = transactionType === 'revenue';
+
+  // Controla a visibilidade do campo de data de vencimento
+  useEffect(() => {
+    setShowDueDate(isRevenue && category === 'Mensalidade');
+    if (!isRevenue || category !== 'Mensalidade') {
+      setValue('due_date', null);
+    }
+  }, [isRevenue, category, setValue]);
+
   useEffect(() => {
     if (isOpen) {
       if (selectedTransaction) {
-        // Modo Edição: Carrega dados da transação selecionada
         reset({
           type: selectedTransaction.type,
           student_id: selectedTransaction.student_id,
@@ -76,7 +87,6 @@ const AddEditTransactionDialog = ({
           due_date: selectedTransaction.due_date ? format(parseISO(selectedTransaction.due_date), 'yyyy-MM-dd') : null,
         });
       } else {
-        // Modo Adição: Reseta para os valores padrão
         reset({
           type: defaultType,
           student_id: initialStudentId ?? null,
@@ -88,23 +98,34 @@ const AddEditTransactionDialog = ({
         });
       }
     }
-  }, [isOpen, selectedTransaction, initialStudentId, defaultType, defaultStatus, reset]);
+  }, [isOpen, selectedTransaction, initialStudentId, defaultStatus, reset]);
 
-  const transactionType = watch('type');
-  const isRevenue = transactionType === 'revenue';
+  const handleFormSubmit = (data: TransactionFormData) => {
+    onSubmit(data);
+  };
 
-  const categories = isRevenue ? appSettings?.revenue_categories : appSettings?.expense_categories;
-  const dialogTitle = selectedTransaction
-    ? 'Editar Lançamento'
-    : transactionType === 'revenue' ? 'Registrar Receita' : 'Registrar Despesa';
+  const handleFormError = (validationErrors: any) => {
+    const firstErrorKey = Object.keys(validationErrors)[0];
+    if (firstErrorKey) {
+      const error = validationErrors[firstErrorKey];
+      const message = Array.isArray(error) ? error[0].message : error.message;
+      showError(`Preencha o campo: ${message}`);
+    }
+  };
+
+  const revenueCategories = appSettings?.revenue_categories || [];
+  const expenseCategories = appSettings?.expense_categories || [];
+  const currentCategories = isRevenue ? revenueCategories : expenseCategories;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{dialogTitle}</DialogTitle>
+          <DialogTitle>
+            {selectedTransaction ? 'Editar Lançamento' : defaultType === 'revenue' ? 'Registrar Receita' : 'Registrar Despesa'}
+          </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit(handleFormSubmit, handleFormError)}>
           <div className="grid gap-4 py-4">
             {!initialStudentId && (
               <Controller
@@ -157,6 +178,7 @@ const AddEditTransactionDialog = ({
             <div className="space-y-2">
               <Label>Descrição</Label>
               <Controller name="description" control={control} render={({ field }) => <Input {...field} />} />
+              {errors.description && <p className="text-sm text-destructive">{errors.description.message}</p>}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -176,6 +198,7 @@ const AddEditTransactionDialog = ({
                     />
                   )}
                 />
+                {errors.amount && <p className="text-sm text-destructive">{errors.amount.message}</p>}
               </div>
               <div className="space-y-2">
                 <Label>Categoria</Label>
@@ -186,13 +209,16 @@ const AddEditTransactionDialog = ({
                     <Select onValueChange={field.onChange} value={field.value}>
                       <SelectTrigger><SelectValue placeholder="Selecione a categoria" /></SelectTrigger>
                       <SelectContent>
-                        {categories?.map((c) => (
-                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        {currentCategories?.map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   )}
                 />
+                {errors.category && <p className="text-sm text-destructive">{errors.category.message}</p>}
               </div>
             </div>
 
@@ -214,24 +240,32 @@ const AddEditTransactionDialog = ({
                       </Select>
                     )}
                   />
+                  {errors.status && <p className="text-sm text-destructive">{errors.status.message}</p>}
                 </div>
-                <div className="space-y-2">
-                  <Label>Data de Vencimento (Opcional)</Label>
-                  <Controller
-                    name="due_date"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        type="date"
-                        {...field}
-                        value={field.value || ''}
-                        onChange={(e) => field.onChange(e.target.value || null)}
-                      />
-                    )}
-                  />
-                </div>
+                
+                {/* Campo de data de vencimento - apenas visível para Mensalidade */}
+                {showDueDate && (
+                  <div className="space-y-2">
+                    <Label>Data de Vencimento</Label>
+                    <Controller
+                      name="due_date"
+                      control={control}
+                      render={({ field }) => (
+                        <Input
+                          type="date"
+                          {...field}
+                          value={field.value || ''}
+                          onChange={(e) => field.onChange(e.target.value || null)}
+                        />
+                      )}
+                    />
+                    {errors.due_date && <p className="text-sm text-destructive">{errors.due_date.message}</p>}
+                  </div>
+                )}
               </div>
             )}
+
+            {mutation.isError && <p className="text-red-600 text-sm">{(mutation.error as any)?.message}</p>}
           </div>
 
           <DialogFooter>
@@ -241,8 +275,8 @@ const AddEditTransactionDialog = ({
               </Button>
             </DialogClose>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="animate-spin mr-2" />}
-              Salvar
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {selectedTransaction ? 'Atualizar' : 'Registrar'}
             </Button>
           </DialogFooter>
         </form>
@@ -252,4 +286,3 @@ const AddEditTransactionDialog = ({
 };
 
 export default AddEditTransactionDialog;
-export type { TransactionFormData } from './AddEditTransactionDialog.schema';
