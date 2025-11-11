@@ -18,7 +18,7 @@ import { ptBR } from 'date-fns/locale/pt-BR';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { Navigate } from 'react-router-dom';
 import { useSession } from '@/contexts/SessionProvider';
-import CategoryManagerDialog from '@/components/financial/CategoryManagerDialog'; // Importar o novo diálogo
+import CategoryManagerDialog from '@/components/financial/CategoryManagerDialog';
 
 type ChartData = {
   month: string;
@@ -133,7 +133,7 @@ const Financial = () => {
   }, [data, searchTerm, typeFilter, statusFilter, categoryFilter, studentFilter]);
 
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
-  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false); // Novo estado
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<FinancialTransaction | null>(null);
 
   // Create/Update
@@ -245,7 +245,7 @@ const Financial = () => {
             <ListChecks className="w-4 h-4 mr-2" /> Gerenciar Categorias
           </Button>
           <Button onClick={handleAdd}>
-            <PlusCircle className="w-4 h-4 mr-2" /> Novo Lançamento
+            <PlusCircle className="w-4 h-4 mr-2" /> Registrar Pagamento
           </Button>
         </div>
       </div>

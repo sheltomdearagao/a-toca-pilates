@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, DollarSign, Calendar } from 'lucide-react';
@@ -64,15 +64,15 @@ const AddEditTransactionDialog = ({
 
   const transactionType = watch('type');
   const category = watch('category');
-  const isRevenue = transactionType === 'revenue';
 
   // Controla a visibilidade do campo de data de vencimento
   useEffect(() => {
-    setShowDueDate(isRevenue && category === 'Mensalidade');
-    if (!isRevenue || category !== 'Mensalidade') {
+    const shouldShowDueDate = transactionType === 'revenue' && category === 'Mensalidade';
+    setShowDueDate(shouldShowDueDate);
+    if (!shouldShowDueDate) {
       setValue('due_date', null);
     }
-  }, [isRevenue, category, setValue]);
+  }, [transactionType, category, setValue]);
 
   useEffect(() => {
     if (isOpen) {
@@ -115,7 +115,7 @@ const AddEditTransactionDialog = ({
 
   const revenueCategories = appSettings?.revenue_categories || [];
   const expenseCategories = appSettings?.expense_categories || [];
-  const currentCategories = isRevenue ? revenueCategories : expenseCategories;
+  const currentCategories = transactionType === 'revenue' ? revenueCategories : expenseCategories;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -207,7 +207,9 @@ const AddEditTransactionDialog = ({
                   control={control}
                   render={({ field }) => (
                     <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger><SelectValue placeholder="Selecione a categoria" /></SelectTrigger>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a categoria" />
+                      </SelectTrigger>
                       <SelectContent>
                         {currentCategories?.map((c) => (
                           <SelectItem key={c} value={c}>
@@ -222,7 +224,7 @@ const AddEditTransactionDialog = ({
               </div>
             </div>
 
-            {isRevenue && (
+            {transactionType === 'revenue' && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Status</Label>
@@ -230,7 +232,7 @@ const AddEditTransactionDialog = ({
                     name="status"
                     control={control}
                     render={({ field }) => (
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={(value: PaymentStatus) => field.onChange(value)} value={field.value}>
                         <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Pago">Pago</SelectItem>
@@ -267,7 +269,6 @@ const AddEditTransactionDialog = ({
 
             {mutation.isError && <p className="text-red-600 text-sm">{(mutation.error as any)?.message}</p>}
           </div>
-
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="secondary">

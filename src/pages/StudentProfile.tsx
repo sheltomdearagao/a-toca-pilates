@@ -28,13 +28,12 @@ const StudentProfile = () => {
   const [isTransactionDialogOpen, setTransactionDialogOpen] = useState(false);
   const [transactionToEdit, setTransactionToEdit] = useState<FinancialTransaction | undefined>(undefined);
 
-
   const { 
     data, 
     isLoading, 
     isFetchingHistory, 
     error, 
-    isAdminOrRecepcao, // Alterado
+    isAdminOrRecepcao,
     mutations, 
     loadMoreTransactions, 
     loadMoreAttendance 
@@ -89,7 +88,7 @@ const StudentProfile = () => {
       <StudentHeaderActions
         student={student}
         isLoading={isLoading}
-        isAdmin={isAdminOrRecepcao} // Passando a flag correta
+        isAdmin={isAdminOrRecepcao}
         onEdit={() => setEditFormOpen(true)}
         onProRata={() => setProRataOpen(true)}
         onAddClass={() => setAddClassOpen(true)}
@@ -116,7 +115,7 @@ const StudentProfile = () => {
         <StudentFinancialHistory
           transactions={transactions}
           isLoading={isLoading}
-          isAdminOrRecepcao={isAdminOrRecepcao} // Alterado
+          isAdminOrRecepcao={isAdminOrRecepcao}
           onMarkAsPaid={(id) => mutations.markAsPaid.mutate(id)}
           onDeleteTransaction={handleDeleteTransaction}
           hasMore={hasMoreTransactions}
