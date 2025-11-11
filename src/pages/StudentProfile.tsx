@@ -12,7 +12,8 @@ import StudentDetailsCard from '@/components/students/profile/StudentDetailsCard
 import StudentRecurringScheduleCard from '@/components/students/profile/StudentRecurringScheduleCard';
 import StudentFinancialHistory from '@/components/students/profile/StudentFinancialHistory';
 import StudentAttendanceHistory from '@/components/students/profile/StudentAttendanceHistory';
-import AddEditTransactionDialog, { TransactionFormData } from '@/components/financial/AddEditTransactionDialog';
+import AddEditTransactionDialog from '@/components/financial/AddEditTransactionDialog';
+import { TransactionFormData } from '@/components/financial/AddEditTransactionDialog.schema';
 import { useStudentProfileData } from '@/hooks/useStudentProfileData';
 import { Button } from '@/components/ui/button';
 import StudentRepositionCreditsCard from '@/components/students/profile/StudentRepositionCreditsCard';
@@ -148,8 +149,8 @@ const StudentProfile = () => {
       )}
 
       <AddClassDialog
-        isOpen={isAddClassOpen}
-        onOpenChange={setAddClassOpen}
+        isOpen={isAddClassOpen} 
+        onOpenChange={setAddClassOpen} 
         preSelectedStudentId={studentId}
       />
 

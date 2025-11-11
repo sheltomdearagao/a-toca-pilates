@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import type { TransactionFormData } from './AddEditTransactionDialog.schema';
 import { transactionSchema } from './AddEditTransactionDialog.schema';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm, Controller } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -13,8 +15,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, DollarSign, Calendar } from 'lucide-react';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { FinancialTransaction, PaymentStatus } from '@/types/financial';
@@ -49,7 +49,7 @@ const AddEditTransactionDialog = ({
   const { data: appSettings } = useAppSettings();
   const [showDueDate, setShowDueDate] = useState(false);
 
-  const { control, reset, watch, setValue, formState: { errors } } = useForm<TransactionFormData>({
+  const { control, reset, watch, setValue, formState: { errors }, handleSubmit } = useForm<TransactionFormData>({
     resolver: zodResolver(transactionSchema),
     defaultValues: {
       type: defaultType,
@@ -267,7 +267,7 @@ const AddEditTransactionDialog = ({
               </div>
             )}
 
-            {mutation.isError && <p className="text-red-600 text-sm">{(mutation.error as any)?.message}</p>}
+            {errors.root && <p className="text-red-600 text-sm">{errors.root.message}</p>}
           </div>
           <DialogFooter>
             <DialogClose asChild>
