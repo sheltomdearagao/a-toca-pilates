@@ -13,6 +13,7 @@ type ClassAttendance = {
   id: string;
   status: string;
   classes: {
+    id: string;
     title: string;
     start_time: string;
   };
@@ -40,7 +41,7 @@ const fetchStudentProfile = async (studentId: string, transactionLimit: number, 
       .order('created_at', { ascending: false })
       .limit(transactionLimit),
     supabase.from('class_attendees')
-      .select('id, status, classes!inner(title, start_time)', { count: 'exact' })
+      .select('id, status, classes!inner(id, title, start_time)', { count: 'exact' })
       .eq('student_id', studentId)
       .order('start_time', { foreignTable: 'classes', ascending: false }) // ORDENAÇÃO: Mais recente primeiro
       .limit(attendanceLimit),
