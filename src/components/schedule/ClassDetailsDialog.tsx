@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -178,6 +177,9 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado.');
 
+      // Validação extra para garantir que o studentId não seja nulo ou vazio
+      if (!studentId) throw new Error('ID do aluno inválido.');
+
       const { error } = await supabase.from('class_attendees').insert({
         user_id: user.id,
         class_id: classEvent.id,
@@ -212,6 +214,11 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
     if (!selectedStudentId) {
       showError('Selecione um aluno para adicionar.');
       return;
+    }
+    // Adicionando validação de formato básico para UUID (embora o DB faça a validação final)
+    if (selectedStudentId.length !== 36) {
+        showError('ID do aluno selecionado é inválido.');
+        return;
     }
 
     setIsAddingAttendee(true);

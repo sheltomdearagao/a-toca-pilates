@@ -163,13 +163,20 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
         if (classError) throw classError;
         if (!newClass) throw new Error('Falha ao criar a aula.');
 
-        const attendees = formData.student_ids.map((sid) => ({
-          user_id: user.id,
-          class_id: newClass.id,
-          student_id: sid,
-          status: 'Agendado',
-          attendance_type: formData.attendance_type,
-        }));
+        const attendees = formData.student_ids.map((sid) => {
+          // Validação de ID antes de inserir na tabela de attendees
+          if (!sid || sid.length !== 36) {
+            throw new Error(`ID de aluno inválido encontrado: ${sid}`);
+          }
+          return {
+            user_id: user.id,
+            class_id: newClass.id,
+            student_id: sid,
+            status: 'Agendado',
+            attendance_type: formData.attendance_type,
+          };
+        });
+        
         const { error: attendeesError } = await supabase.from('class_attendees').insert(attendees);
         if (attendeesError) throw attendeesError;
 
