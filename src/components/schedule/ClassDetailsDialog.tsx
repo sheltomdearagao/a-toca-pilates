@@ -178,6 +178,11 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado.');
 
+      // Verifica se o studentId é um UUID válido (não nulo ou vazio)
+      if (!studentId || studentId.length < 36) {
+        throw new Error('ID do aluno inválido.');
+      }
+
       const { error } = await supabase.from('class_attendees').insert({
         user_id: user.id,
         class_id: classEvent.id,

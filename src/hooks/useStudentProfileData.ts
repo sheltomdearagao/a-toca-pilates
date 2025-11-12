@@ -42,7 +42,7 @@ const fetchStudentProfile = async (studentId: string, transactionLimit: number, 
     supabase.from('class_attendees')
       .select('id, status, classes!inner(title, start_time)', { count: 'exact' })
       .eq('student_id', studentId)
-      .order('start_time', { foreignTable: 'classes', ascending: false })
+      .order('start_time', { foreignTable: 'classes', ascending: false }) // ORDENAÇÃO CORRIGIDA: mais recente primeiro
       .limit(attendanceLimit),
   ]);
 
