@@ -63,19 +63,30 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
         const studentsToInsert = chunk.map(s => ({
           user_id: user.id,
           name: s.Nome,
+          email: s.Email || null,
+          phone: s.Telefone || null,
+          address: s.Endereco || null,
+          guardian_phone: s['Telefone Responsavel'] || null,
+          notes: s.Notas || null,
+          date_of_birth: s['Data Nascimento'] || null,
+          preferred_days: s['Dias Preferidos'] ? s['Dias Preferidos'].split(',').map((d: string) => d.trim().toLowerCase()) : null,
+          preferred_time: s['Horario Preferido'] || null,
+          discount_description: s['Descricao Desconto'] || null,
+          
+          // Campos de Plano e Status
           plan_type: s.plan_type,
           plan_frequency: s.plan_frequency,
           monthly_fee: s.monthly_fee,
-          payment_method: s.payment_method,
-          status: s.Status || 'Ativo', // Usar status do CSV ou 'Ativo'
-          enrollment_type: s.enrollment_type || 'Particular', // Usar tipo de matrícula do CSV ou 'Particular'
+          payment_method: s['Forma de pagamento'] || null,
+          status: s.Status || 'Ativo',
+          enrollment_type: s.enrollment_type || 'Particular',
           validity_date: s.validity_date,
         }));
 
         const { data: insertedStudents, error: studentError } = await supabase
           .from('students')
           .insert(studentsToInsert)
-          .select();
+          .select('id, name');
 
         if (studentError) throw new Error(`Erro ao inserir lote de alunos: ${studentError.message}`);
         if (!insertedStudents) throw new Error("Nenhum aluno foi inserido neste lote.");
@@ -94,7 +105,7 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
             amount: originalData.monthly_fee,
             type: 'revenue',
             status: transactionStatus,
-            due_date: originalData.due_date,
+            due_date: originalData['Data de vencimento'], // Usar a data de vencimento original
             paid_at: transactionStatus === 'Pago' ? new Date().toISOString() : null,
           };
         }).filter(Boolean);
@@ -115,6 +126,7 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+      queryClient.invalidateQueries({ queryKey: ['studentStats'] });
       showSuccess(`${totalSuccess} alunos importados com sucesso!`);
       onOpenChange(false);
 
@@ -180,22 +192,24 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
       header: true,
       skipEmptyLines: true,
       complete: (results) => {
-        const requiredColumns = ['Nome', 'Plano', 'Valor pago', 'Forma de pagamento', 'Status', 'Data de vencimento', 'Validade', 'Tipo Matrícula'];
+        // Apenas 'Nome' é estritamente obrigatório para o aluno.
+        const requiredColumns = ['Nome']; 
         const headers = results.meta.fields || [];
         const missingColumns = requiredColumns.filter(col => !headers.includes(col));
 
         if (missingColumns.length > 0) {
-          showError(`Arquivo CSV inválido. Colunas faltando: ${missingColumns.join(', ')}`);
+          showError(`Arquivo CSV inválido. Colunas obrigatórias faltando: ${missingColumns.join(', ')}`);
           return;
         }
 
         try {
           const processedData = results.data.map((row: any, index: number) => {
             try {
-              if (!row.Nome || !row.Plano) throw new Error(`As colunas 'Nome' e 'Plano' são obrigatórias.`);
+              if (!row.Nome) throw new Error(`A coluna 'Nome' é obrigatória.`);
               
               // Tenta extrair tipo e frequência do plano (ex: Mensal 3x)
-              const planParts = row.Plano.trim().split(/\s+/);
+              const planString = row.Plano || 'Avulso';
+              const planParts = planString.trim().split(/\s+/);
               const plan_type = planParts[0] || 'Avulso';
               const plan_frequency = planParts.find(p => p.toLowerCase().includes('x')) || null;
               
@@ -207,9 +221,14 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
                 plan_frequency,
                 monthly_fee,
                 enrollment_type: row['Tipo Matrícula'] || 'Particular',
-                due_date: parseDate(row['Data de vencimento']),
-                validity_date: parseDate(row['Validade']),
-                Status: row.Status || 'Pendente',
+                
+                // Datas
+                'Data de vencimento': row['Data de vencimento'] ? parseDate(row['Data de vencimento']) : null,
+                validity_date: row.Validade ? parseDate(row.Validade) : null,
+                'Data Nascimento': row['Data Nascimento'] ? parseDate(row['Data Nascimento']) : null,
+                
+                // Status
+                Status: row.Status || 'Ativo',
               };
             } catch (innerError: any) {
               throw new Error(`Erro na linha ${index + 2} do seu arquivo: ${innerError.message}`);
@@ -232,7 +251,7 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
         <DialogHeader>
           <DialogTitle>Importar Alunos via CSV</DialogTitle>
           <DialogDescription>
-            O arquivo deve conter as colunas: `Nome`, `Plano` (ex: Mensal 3x), `Valor pago`, `Forma de pagamento`, `Status` (Pago/Pendente), `Data de vencimento` (DD/MM/AAAA), `Validade` (DD/MM/AAAA), `Tipo Matrícula`.
+            O arquivo deve conter a coluna obrigatória `Nome`. Colunas opcionais suportadas: `Email`, `Telefone`, `Endereco`, `Telefone Responsavel`, `Notas`, `Data Nascimento`, `Dias Preferidos` (ex: monday,tuesday), `Horario Preferido` (ex: 08:00), `Descricao Desconto`, `Plano`, `Valor pago`, `Forma de pagamento`, `Status` (Pago/Pendente/Ativo/Inativo), `Data de vencimento` (DD/MM/AAAA), `Validade` (DD/MM/AAAA), `Tipo Matrícula`.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">

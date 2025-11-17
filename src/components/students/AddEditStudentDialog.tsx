@@ -71,7 +71,10 @@ const createStudentSchema = (appSettings: any) => {
 
   return z.object({
     name: z.string().min(3, 'Nome obrigatório'),
-    email: z.string().email('Email inválido').optional().nullable(),
+    // Permite string vazia ou nula, mas se não for vazia, deve ser um email válido
+    email: z.string().optional().nullable().transform(e => e?.trim() === '' ? null : e).refine(e => !e || z.string().email().safeParse(e).success, {
+      message: 'Email inválido',
+    }),
     phone: z.string().optional().nullable(),
     address: z.string().optional().nullable(),
     guardian_phone: z.string().optional().nullable(),
@@ -103,7 +106,7 @@ const createStudentSchema = (appSettings: any) => {
       z.number().optional().nullable()
     ),
   }).superRefine((data, ctx) => {
-    if (data.plan_type !== 'Avulso') {
+    if (data.plan_type !== 'Avulso' && data.enrollment_type === 'Particular') {
       if (!data.plan_frequency) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Frequência obrigatória', path: ['plan_frequency'] });
       if (!data.payment_method) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Método de pagamento obrigatório', path: ['payment_method'] });
     }
@@ -262,21 +265,21 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Email</Label>
+                <Label>Email (Opcional)</Label>
                 <Controller name="email" control={control} render={({ field }) => <Input {...field} />} />
                 {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
               </div>
               <div className="space-y-2">
-                <Label>Telefone</Label>
+                <Label>Telefone (Opcional)</Label>
                 <Controller name="phone" control={control} render={({ field }) => <Input {...field} />} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Endereço</Label>
+              <Label>Endereço (Opcional)</Label>
               <Controller name="address" control={control} render={({ field }) => <Input {...field} />} />
             </div>
             <div className="space-y-2">
-              <Label>Telefone Responsável</Label>
+              <Label>Telefone Responsável (Opcional)</Label>
               <Controller name="guardian_phone" control={control} render={({ field }) => <Input {...field} />} />
             </div>
 
@@ -309,7 +312,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
               <div className="space-y-2">
                 <Label>Frequência</Label>
                 <Controller name="plan_frequency" control={control} render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value || ''} disabled={enrollmentType !== 'Particular'}>
+                  <Select onValueChange={field.onChange} value={field.value || ''} disabled={enrollmentType !== 'Particular' || planType === 'Avulso'}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {appSettings?.plan_frequencies.map(fq => <SelectItem key={fq} value={fq}>{fq}</SelectItem>)}
@@ -321,7 +324,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
               <div className="space-y-2">
                 <Label>Pagamento</Label>
                 <Controller name="payment_method" control={control} render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value || ''} disabled={enrollmentType !== 'Particular'}>
+                  <Select onValueChange={field.onChange} value={field.value || ''} disabled={enrollmentType !== 'Particular' || planType === 'Avulso'}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {appSettings?.payment_methods.map(pm => <SelectItem key={pm} value={pm}>{pm}</SelectItem>)}
@@ -340,14 +343,14 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
             {/* Datas */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Data Nasc.</Label>
+                <Label>Data Nasc. (Opcional)</Label>
                 <Controller name="date_of_birth" control={control} render={({ field }) => <Input type="date" {...field} />} />
               </div>
             </div>
 
             {/* Preferências de Dia/Horário */}
             <div className="space-y-2">
-              <Label>Dias Preferidos</Label>
+              <Label>Dias Preferidos (Opcional)</Label>
               <Controller name="preferred_days" control={control} render={({ field }) => (
                 <ToggleGroup type="multiple" value={field.value || []} onValueChange={field.onChange} className="grid grid-cols-4 gap-2">
                   {DAYS_OF_WEEK.map(d => (
@@ -359,7 +362,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
               )} />
             </div>
             <div className="space-y-2">
-              <Label>Horário Preferido</Label>
+              <Label>Horário Preferido (Opcional)</Label>
               <Controller name="preferred_time" control={control} render={({ field }) => (
                 <Select onValueChange={field.onChange} value={field.value || ''}>
                   <SelectTrigger><SelectValue placeholder="Selecione o horário" /></SelectTrigger>
