@@ -129,7 +129,7 @@ const StudentProfile = () => {
           hasMore={hasMoreAttendance}
           onLoadMore={loadMoreAttendance}
           isFetching={isFetchingHistory}
-          studentId={studentId} {/* Propriedade adicionada */}
+          studentId={studentId}
         />
       </div>
 
