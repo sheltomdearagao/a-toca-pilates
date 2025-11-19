@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Progress } from '@/components/ui/progress'; // Importar o componente de progresso
+import { Progress } from '@/components/ui/progress';
 import { Loader2, Upload } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import Papa from 'papaparse';
@@ -23,7 +23,7 @@ interface StudentCSVUploaderProps {
   onOpenChange: (isOpen: boolean) => void;
 }
 
-const CHUNK_SIZE = 20; // Processar 20 alunos por vez
+const CHUNK_SIZE = 20;
 
 const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) => {
   const queryClient = useQueryClient();
@@ -93,19 +93,24 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
 
         const transactionsToInsert = insertedStudents.map(student => {
           const originalData = chunk.find(s => s.Nome === student.name);
-          if (!originalData || !originalData.monthly_fee || originalData.monthly_fee <= 0) return null;
+          
+          // Verifica se existe valor pago
+          if (!originalData || originalData.monthly_fee === undefined || originalData.monthly_fee <= 0) return null;
           
           const transactionStatus = originalData.Status === 'Pago' ? 'Pago' : 'Pendente';
+          
+          // CORREÇÃO: Se não houver data de vencimento (ex: Avulso), usa a data atual para evitar erro de banco de dados
+          const finalDueDate = originalData['Data de vencimento'] || new Date().toISOString();
 
           return {
             user_id: user.id,
             student_id: student.id,
-            description: `Mensalidade - ${originalData.Plano}`,
+            description: `Mensalidade - ${originalData.Plano || 'Avulso'}`,
             category: 'Mensalidade',
             amount: originalData.monthly_fee,
             type: 'revenue',
             status: transactionStatus,
-            due_date: originalData['Data de vencimento'], // Usar a data de vencimento original
+            due_date: finalDueDate, 
             paid_at: transactionStatus === 'Pago' ? new Date().toISOString() : null,
           };
         }).filter(Boolean);
@@ -131,6 +136,7 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
       onOpenChange(false);
 
     } catch (error: any) {
+      console.error("Erro detalhado de importação:", error);
       showError(error.message);
     } finally {
       resetState();
@@ -138,33 +144,38 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
   };
 
   const parseDate = (dateString: string) => {
-    if (!dateString) return null;
+    if (!dateString || typeof dateString !== 'string') return null;
     
-    // Tenta limpar e padronizar a string de data (DD/MM/YYYY ou DD-MM-YYYY)
-    const cleanedString = dateString.trim().replace(/[\/.-]/g, '-');
-    const dateParts = cleanedString.split('-');
-    
-    if (dateParts.length !== 3) {
-        // Se não tiver 3 partes, tenta o formato YYYY-MM-DD (ISO)
-        const isoDate = new Date(dateString);
-        if (!isNaN(isoDate.getTime())) return isoDate.toISOString();
-        throw new Error(`Formato de data inválido: "${dateString}"`);
-    }
-    
-    // Assume DD-MM-YYYY
-    const [day, month, year] = dateParts;
-    
-    // Verifica se o ano tem 2 dígitos (ex: 24) e tenta corrigir para 4 dígitos (ex: 2024)
-    const fullYear = year.length === 2 ? (parseInt(year) > 50 ? `19${year}` : `20${year}`) : year;
+    try {
+        // Tenta limpar e padronizar a string de data (DD/MM/YYYY ou DD-MM-YYYY)
+        const cleanedString = dateString.trim().replace(/[\/.-]/g, '-');
+        const dateParts = cleanedString.split('-');
+        
+        if (dateParts.length !== 3) {
+            // Se não tiver 3 partes, tenta o formato YYYY-MM-DD (ISO)
+            const isoDate = new Date(dateString);
+            if (!isNaN(isoDate.getTime())) return isoDate.toISOString();
+            return null; // Retorna null em vez de erro para não travar o loop inteiro
+        }
+        
+        // Assume DD-MM-YYYY
+        const [day, month, year] = dateParts;
+        
+        // Verifica se o ano tem 2 dígitos (ex: 24) e tenta corrigir para 4 dígitos (ex: 2024)
+        const fullYear = year.length === 2 ? (parseInt(year) > 50 ? `19${year}` : `20${year}`) : year;
 
-    const parsedDate = new Date(`${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T12:00:00Z`);
-    
-    if (isNaN(parsedDate.getTime())) throw new Error(`Data inválida: "${dateString}"`);
-    return parsedDate.toISOString();
+        const parsedDate = new Date(`${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T12:00:00Z`);
+        
+        if (isNaN(parsedDate.getTime())) return null;
+        return parsedDate.toISOString();
+    } catch (e) {
+        return null;
+    }
   };
 
   const parseCurrency = (currencyString: string) => {
     if (!currencyString) return 0;
+    if (typeof currencyString === 'number') return currencyString; // Caso o CSV já venha como número
     
     // 1. Remove todos os caracteres que não são dígitos, vírgulas ou pontos.
     let cleaned = currencyString.replace(/[^0-9,.]/g, '');
@@ -191,8 +202,12 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
     Papa.parse(csvFile, {
       header: true,
       skipEmptyLines: true,
+      encoding: 'UTF-8', // Garante codificação correta
+      transformHeader: (header) => {
+        // Limpa BOM e espaços extras dos headers
+        return header.trim().replace(/^\ufeff/, '');
+      },
       complete: (results) => {
-        // Apenas 'Nome' é estritamente obrigatório para o aluno.
         const requiredColumns = ['Nome']; 
         const headers = results.meta.fields || [];
         const missingColumns = requiredColumns.filter(col => !headers.includes(col));
@@ -205,7 +220,8 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
         try {
           const processedData = results.data.map((row: any, index: number) => {
             try {
-              if (!row.Nome) throw new Error(`A coluna 'Nome' é obrigatória.`);
+              // Ignora linhas vazias que podem ter passado
+              if (!row.Nome) return null;
               
               // Tenta extrair tipo e frequência do plano (ex: Mensal 3x)
               const planString = row.Plano || 'Avulso';
@@ -215,25 +231,30 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
               
               const monthly_fee = parseCurrency(row['Valor pago']);
               
+              // CORREÇÃO: Verifica as duas grafias possíveis para Matrícula
+              const enrollmentType = row['Tipo Matricula'] || row['Tipo Matrícula'] || 'Particular';
+
               return {
                 ...row,
                 plan_type,
                 plan_frequency,
                 monthly_fee,
-                enrollment_type: row['Tipo Matrícula'] || 'Particular',
+                enrollment_type: enrollmentType,
                 
                 // Datas
-                'Data de vencimento': row['Data de vencimento'] ? parseDate(row['Data de vencimento']) : null,
-                validity_date: row.Validade ? parseDate(row.Validade) : null,
-                'Data Nascimento': row['Data Nascimento'] ? parseDate(row['Data Nascimento']) : null,
+                'Data de vencimento': parseDate(row['Data de vencimento']),
+                validity_date: parseDate(row.Validade),
+                'Data Nascimento': parseDate(row['Data Nascimento']),
                 
                 // Status
                 Status: row.Status || 'Ativo',
               };
             } catch (innerError: any) {
+              console.error(`Erro processando linha ${index}:`, row);
               throw new Error(`Erro na linha ${index + 2} do seu arquivo: ${innerError.message}`);
             }
-          });
+          }).filter(Boolean); // Remove nulos
+          
           processAndImportData(processedData);
         } catch (error: any) {
           showError(error.message);
@@ -251,7 +272,7 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
         <DialogHeader>
           <DialogTitle>Importar Alunos via CSV</DialogTitle>
           <DialogDescription>
-            O arquivo deve conter a coluna obrigatória `Nome`. Colunas opcionais suportadas: `Email`, `Telefone`, `Endereco`, `Telefone Responsavel`, `Notas`, `Data Nascimento`, `Dias Preferidos` (ex: monday,tuesday), `Horario Preferido` (ex: 08:00), `Descricao Desconto`, `Plano`, `Valor pago`, `Forma de pagamento`, `Status` (Pago/Pendente/Ativo/Inativo), `Data de vencimento` (DD/MM/AAAA), `Validade` (DD/MM/AAAA), `Tipo Matrícula`.
+            O arquivo deve conter a coluna obrigatória `Nome`. Certifique-se de que as datas estão no formato DD/MM/AAAA e valores numéricos estão corretos.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
