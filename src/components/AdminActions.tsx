@@ -30,7 +30,7 @@ const AdminActions = ({ className }: AdminActionsProps) => {
   
   const queryClient = useQueryClient();
 
-  // Mutação para apagar todos os alunos
+  // Mutação para apagar todos os alunos (incluindo de outros usuários)
   const deleteAllStudentsMutation = useMutation({
     mutationFn: async () => {
       console.log('🚀 Iniciando processo de apagar todos os alunos...');
@@ -38,7 +38,7 @@ const AdminActions = ({ className }: AdminActionsProps) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado.');
 
-      // Apaga transações financeiras primeiro (sem filtro de student_id)
+      // 1. Apaga transações financeiras primeiro (sem filtro de student_id)
       console.log('💰 Apagando transações financeiras...');
       const { error: transactionsError } = await supabase
         .from('financial_transactions')
@@ -51,7 +51,7 @@ const AdminActions = ({ className }: AdminActionsProps) => {
       }
       console.log('✅ Transações financeiras apagadas');
 
-      // Apaga participantes das aulas
+      // 2. Apaga participantes das aulas
       console.log('👥 Apagando participantes das aulas...');
       const { error: attendeesError } = await supabase
         .from('class_attendees')
@@ -64,7 +64,7 @@ const AdminActions = ({ className }: AdminActionsProps) => {
       }
       console.log('✅ Participantes apagados');
 
-      // Apaga modelos recorrentes
+      // 3. Apaga modelos recorrentes
       console.log('🔄 Apagando modelos recorrentes...');
       const { error: templatesError } = await supabase
         .from('recurring_class_templates')
@@ -77,7 +77,7 @@ const AdminActions = ({ className }: AdminActionsProps) => {
       }
       console.log('✅ Modelos recorrentes apagados');
 
-      // Apaga todas as aulas
+      // 4. Apaga todas as aulas
       console.log('📅 Apagando todas as aulas...');
       const { error: classesError } = await supabase
         .from('classes')
@@ -90,8 +90,8 @@ const AdminActions = ({ className }: AdminActionsProps) => {
       }
       console.log('✅ Aulas apagadas');
 
-      // Finalmente, apaga todos os alunos
-      console.log('👤 Apagando todos os alunos...');
+      // 5. Finalmente, apaga todos os alunos (incluindo de outros usuários)
+      console.log('👤 Apagando todos os alunos (incluindo de outros usuários)...');
       const { error: studentsError } = await supabase
         .from('students')
         .delete()
