@@ -30,28 +30,154 @@ const AdminActions = ({ className }: AdminActionsProps) => {
   
   const queryClient = useQueryClient();
 
+  // Função auxiliar para deletar com retry
+  const deleteWithRetry = async (table: string, condition: string) => {
+    console.log(`🗑️ Tentando apagar da tabela ${table} com condição: ${condition}`);
+    
+    let attempts = 0;
+    const maxAttempts = 3;
+    
+    while (attempts < maxAttempts) {
+      try {
+        const { error, count } = await supabase
+          .from(table)
+          .delete()
+          .neq('id', null)
+          .neq('user_id', null);
+        
+        if (error) {
+          console.error(`❌ Erro na tentativa ${attempts + 1} para ${table}:`, error);
+          throw error;
+        }
+        
+        console.log(`✅ Sucesso ao apagar ${table}. Registros afetados: ${count}`);
+        return count;
+      } catch (error) {
+        attempts++;
+        if (attempts >= maxAttempts) {
+          throw error;
+        }
+        console.log(`⚠️ Tentativa ${attempts} falhou, tentando novamente...`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    
+    throw new Error(`Falha ao apagar ${table} após ${maxAttempts} tentativas`);
+  };
+
   // Mutação para apagar todos os alunos
   const deleteAllStudentsMutation = useMutation({
     mutationFn: async () => {
+      console.log('🚀 Iniciando processo de apagar todos os alunos...');
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado.');
 
-      // Apaga transações financeiras primeiro
-      await supabase.from('financial_transactions').delete().neq('student_id', null);
+      // 1. Primeiro, vamos contar quantos registros existem
+      console.log('📊 Contando registros antes de apagar...');
       
-      // Apaga participantes das aulas
-      await supabase.from('class_attendees').delete().neq('student_id', null);
+      const { count: studentsCount } = await supabase
+        .from('students')
+        .select('*', { count: 'exact', head: true });
       
-      // Apaga modelos recorrentes
-      await supabase.from('recurring_class_templates').delete().neq('student_id', null);
+      const { count: transactionsCount } = await supabase
+        .from('financial_transactions')
+        .select('*', { count: 'exact', head: true });
       
-      // Apaga aulas com aluno
-      await supabase.from('classes').delete().neq('student_id', null);
+      const { count: classesCount } = await supabase
+        .from('classes')
+        .select('*', { count: 'exact', head: true });
       
-      // Apaga todos os alunos
-      await supabase.from('students').delete().neq('id', null);
+      console.log(`📊 Registros encontrados: ${studentsCount} alunos, ${transactionsCount} transações, ${classesCount} aulas`);
 
-      return true;
+      // 2. Apaga transações financeiras primeiro
+      console.log('💰 Apagando transações financeiras...');
+      const { error: transactionsError } = await supabase
+        .from('financial_transactions')
+        .delete()
+        .neq('id', null);
+
+      if (transactionsError) {
+        console.error('❌ Erro ao apagar transações:', transactionsError);
+        throw new Error(`Erro ao apagar transações financeiras: ${transactionsError.message}`);
+      }
+      console.log('✅ Transações financeiras apagadas');
+
+      // 3. Apaga participantes das aulas
+      console.log('👥 Apagando participantes das aulas...');
+      const { error: attendeesError } = await supabase
+        .from('class_attendees')
+        .delete()
+        .neq('id', null);
+
+      if (attendeesError) {
+        console.error('❌ Erro ao apagar participantes:', attendeesError);
+        throw new Error(`Erro ao apagar participantes: ${attendeesError.message}`);
+      }
+      console.log('✅ Participantes apagados');
+
+      // 4. Apaga modelos recorrentes
+      console.log('🔄 Apagando modelos recorrentes...');
+      const { error: templatesError } = await supabase
+        .from('recurring_class_templates')
+        .delete()
+        .neq('id', null);
+
+      if (templatesError) {
+        console.error('❌ Erro ao apagar modelos:', templatesError);
+        throw new Error(`Erro ao apagar modelos recorrentes: ${templatesError.message}`);
+      }
+      console.log('✅ Modelos recorrentes apagados');
+
+      // 5. Apaga todas as aulas
+      console.log('📅 Apagando todas as aulas...');
+      const { error: classesError } = await supabase
+        .from('classes')
+        .delete()
+        .neq('id', null);
+
+      if (classesError) {
+        console.error('❌ Erro ao apagar aulas:', classesError);
+        throw new Error(`Erro ao apagar aulas: ${classesError.message}`);
+      }
+      console.log('✅ Aulas apagadas');
+
+      // 6. Finalmente, apaga todos os alunos
+      console.log('👤 Apagando todos os alunos...');
+      const { error: studentsError } = await supabase
+        .from('students')
+        .delete()
+        .neq('id', null);
+
+      if (studentsError) {
+        console.error('❌ Erro ao apagar alunos:', studentsError);
+        throw new Error(`Erro ao apagar alunos: ${studentsError.message}`);
+      }
+      console.log('✅ Alunos apagados');
+
+      // 7. Verificação final
+      console.log('🔍 Verificando se tudo foi apagado...');
+      
+      const { count: finalStudentsCount } = await supabase
+        .from('students')
+        .select('*', { count: 'exact', head: true });
+      
+      const { count: finalTransactionsCount } = await supabase
+        .from('financial_transactions')
+        .select('*', { count: 'exact', head: true });
+      
+      const { count: finalClassesCount } = await supabase
+        .from('classes')
+        .select('*', { count: 'exact', head: true });
+
+      console.log(`📊 Registros finais: ${finalStudentsCount} alunos, ${finalTransactionsCount} transações, ${finalClassesCount} aulas`);
+
+      if (finalStudentsCount === 0 && finalTransactionsCount === 0 && finalClassesCount === 0) {
+        console.log('🎉 Todos os dados foram apagados com sucesso!');
+        return true;
+      } else {
+        throw new Error('Alguns registros não foram apagados. Verifique os logs acima.');
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
@@ -67,7 +193,7 @@ const AdminActions = ({ className }: AdminActionsProps) => {
       setIsDeleteStudentsOpen(false);
     },
     onError: (error: any) => {
-      console.error('Erro ao apagar todos os alunos:', error);
+      console.error('❌ Erro ao apagar todos os alunos:', error);
       showError(error.message || 'Erro ao apagar todos os alunos.');
     },
   });
@@ -75,16 +201,83 @@ const AdminActions = ({ className }: AdminActionsProps) => {
   // Mutação para limpar toda a agenda
   const clearScheduleMutation = useMutation({
     mutationFn: async () => {
-      // Apaga participantes das aulas
-      await supabase.from('class_attendees').delete().neq('class_id', null);
+      console.log('🚀 Iniciando processo de limpar agenda...');
       
-      // Apaga modelos recorrentes
-      await supabase.from('recurring_class_templates').delete().neq('id', null);
+      // 1. Conta registros antes
+      const { count: classesCount } = await supabase
+        .from('classes')
+        .select('*', { count: 'exact', head: true });
       
-      // Apaga todas as aulas
-      await supabase.from('classes').delete().neq('id', null);
+      const { count: attendeesCount } = await supabase
+        .from('class_attendees')
+        .select('*', { count: 'exact', head: true });
+      
+      const { count: templatesCount } = await supabase
+        .from('recurring_class_templates')
+        .select('*', { count: 'exact', head: true });
+      
+      console.log(`📊 Registros encontrados: ${classesCount} aulas, ${attendeesCount} participantes, ${templatesCount} modelos`);
 
-      return true;
+      // 2. Apaga participantes das aulas
+      console.log('👥 Apagando participantes...');
+      const { error: attendeesError } = await supabase
+        .from('class_attendees')
+        .delete()
+        .neq('id', null);
+
+      if (attendeesError) {
+        console.error('❌ Erro ao apagar participantes:', attendeesError);
+        throw new Error(`Erro ao apagar participantes: ${attendeesError.message}`);
+      }
+      console.log('✅ Participantes apagados');
+
+      // 3. Apaga modelos recorrentes
+      console.log('🔄 Apagando modelos recorrentes...');
+      const { error: templatesError } = await supabase
+        .from('recurring_class_templates')
+        .delete()
+        .neq('id', null);
+
+      if (templatesError) {
+        console.error('❌ Erro ao apagar modelos:', templatesError);
+        throw new Error(`Erro ao apagar modelos recorrentes: ${templatesError.message}`);
+      }
+      console.log('✅ Modelos recorrentes apagados');
+
+      // 4. Apaga todas as aulas
+      console.log('📅 Apagando todas as aulas...');
+      const { error: classesError } = await supabase
+        .from('classes')
+        .delete()
+        .neq('id', null);
+
+      if (classesError) {
+        console.error('❌ Erro ao apagar aulas:', classesError);
+        throw new Error(`Erro ao apagar as aulas: ${classesError.message}`);
+      }
+      console.log('✅ Aulas apagadas');
+
+      // 5. Verificação final
+      const { count: finalClassesCount } = await supabase
+        .from('classes')
+        .select('*', { count: 'exact', head: true });
+      
+      const { count: finalAttendeesCount } = await supabase
+        .from('class_attendees')
+        .select('*', { count: 'exact', head: true });
+      
+      const { count: finalTemplatesCount } = await supabase
+        .from('recurring_class_templates')
+        .select('*', { count: 'exact', head: true });
+
+      console.log(`📊 Registros finais: ${finalClassesCount} aulas, ${finalAttendeesCount} participantes, ${finalTemplatesCount} modelos`);
+
+      if (finalClassesCount === 0 && finalAttendeesCount === 0 && finalTemplatesCount === 0) {
+        console.log('🎉 Agenda limpa com sucesso!');
+        return true;
+      } else {
+        throw new Error('Alguns registros da agenda não foram apagados.');
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['classes'] });
@@ -94,7 +287,7 @@ const AdminActions = ({ className }: AdminActionsProps) => {
       setIsClearScheduleOpen(false);
     },
     onError: (error: any) => {
-      console.error('Erro ao limpar agenda:', error);
+      console.error('❌ Erro ao limpar agenda:', error);
       showError(error.message || 'Erro ao limpar a agenda.');
     },
   });
@@ -102,34 +295,57 @@ const AdminActions = ({ className }: AdminActionsProps) => {
   // Mutação para resetar o sistema completo (virgem)
   const resetSystemMutation = useMutation({
     mutationFn: async () => {
+      console.log('🚀 Iniciando RESET COMPLETO do sistema...');
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado.');
 
-      // 1. Apaga todos os dados das tabelas principais
-      await supabase.from('financial_transactions').delete().neq('id', null);
-      await supabase.from('class_attendees').delete().neq('id', null);
-      await supabase.from('classes').delete().neq('id', null);
-      await supabase.from('recurring_class_templates').delete().neq('id', null);
-      await supabase.from('students').delete().neq('id', null);
-      
-      // 2. Apaga todos os perfis exceto o admin atual
-      await supabase.from('profiles').delete().neq('id', user.id);
-      
-      // 3. Reseta créditos de reposição (se existir a tabela)
-      try {
-        await supabase.from('reposition_credit_entries').delete().neq('id', null);
-        await supabase.from('reposition_credit_usage_log').delete().neq('id', null);
-      } catch (error) {
-        console.log('Tabelas de crédito não encontradas, continuando...');
-      }
-      
-      // 4. Reseta configurações do app (opcional)
-      try {
-        await supabase.from('app_settings').delete().neq('key', null);
-      } catch (error) {
-        console.log('Tabela de app_settings não encontrada, continuando...');
+      // Lista de tabelas para apagar
+      const tables = [
+        'financial_transactions',
+        'class_attendees',
+        'classes',
+        'recurring_class_templates',
+        'students',
+        'profiles',
+        'reposition_credit_entries',
+        'reposition_credit_usage_log',
+        'app_settings'
+      ];
+
+      console.log('📋 Tabelas a serem apagadas:', tables);
+
+      // Apaga cada tabela
+      for (const table of tables) {
+        console.log(`🗑️ Apagando tabela: ${table}`);
+        
+        try {
+          // Para profiles, mantém o admin atual
+          const query = supabase
+            .from(table)
+            .delete();
+          
+          if (table === 'profiles') {
+            query.neq('id', user.id);
+          } else {
+            query.neq('id', null);
+          }
+          
+          const { error, count } = await query;
+          
+          if (error) {
+            console.error(`❌ Erro ao apagar ${table}:`, error);
+            throw new Error(`Erro ao apagar ${table}: ${error.message}`);
+          }
+          
+          console.log(`✅ ${table}: ${count} registros apagados`);
+        } catch (error) {
+          console.error(`⚠️ Erro ao apagar ${table} (pode não existir):`, error);
+          // Continua mesmo se a tabela não existir
+        }
       }
 
+      console.log('🎉 Sistema resetado com sucesso!');
       return true;
     },
     onSuccess: () => {
@@ -146,7 +362,7 @@ const AdminActions = ({ className }: AdminActionsProps) => {
       }, 2000);
     },
     onError: (error: any) => {
-      console.error('Erro ao resetar sistema:', error);
+      console.error('❌ Erro ao resetar sistema:', error);
       showError(error.message || 'Erro ao resetar o sistema.');
     },
   });
@@ -221,6 +437,9 @@ const AdminActions = ({ className }: AdminActionsProps) => {
               <p className="font-semibold text-destructive">
                 Esta ação não pode ser desfeita!
               </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Abra o console (F12) para ver o processo detalhado.
+              </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -261,6 +480,9 @@ const AdminActions = ({ className }: AdminActionsProps) => {
               </ul>
               <p className="font-semibold text-destructive">
                 Esta ação não pode ser desfeita!
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Abra o console (F12) para ver o processo detalhado.
               </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -307,6 +529,9 @@ const AdminActions = ({ className }: AdminActionsProps) => {
               </p>
               <p className="text-sm text-muted-foreground mt-2">
                 Apenas seu perfil de admin será mantido.
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Abra o console (F12) para ver o processo detalhado.
               </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
