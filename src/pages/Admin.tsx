@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useSession } from '@/contexts/SessionProvider';
 import AdminActions from '@/components/AdminActions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Shield, AlertTriangle } from 'lucide-react';
+import { Shield, AlertTriangle, RefreshCw } from 'lucide-react';
 
 const Admin = () => {
   const { profile } = useSession();
@@ -44,6 +44,25 @@ const Admin = () => {
               Use com extrema cautela.
             </p>
             <AdminActions />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-red-600/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-red-600">
+            <RefreshCw className="h-5 w-5" />
+            Reset do Sistema
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              <span className="font-bold text-red-600">Reset completo:</span> Apaga TODOS os dados e retorna o sistema ao estado inicial (virgem).
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Apenas seu perfil de administrador será mantido. O aplicativo será recarregado após o reset.
+            </p>
           </div>
         </CardContent>
       </Card>
