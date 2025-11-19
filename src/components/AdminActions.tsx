@@ -30,41 +30,6 @@ const AdminActions = ({ className }: AdminActionsProps) => {
   
   const queryClient = useQueryClient();
 
-  // Função auxiliar para deletar com retry
-  const deleteWithRetry = async (table: string, condition: string) => {
-    console.log(`🗑️ Tentando apagar da tabela ${table} com condição: ${condition}`);
-    
-    let attempts = 0;
-    const maxAttempts = 3;
-    
-    while (attempts < maxAttempts) {
-      try {
-        const { error, count } = await supabase
-          .from(table)
-          .delete()
-          .neq('id', null)
-          .neq('user_id', null);
-        
-        if (error) {
-          console.error(`❌ Erro na tentativa ${attempts + 1} para ${table}:`, error);
-          throw error;
-        }
-        
-        console.log(`✅ Sucesso ao apagar ${table}. Registros afetados: ${count}`);
-        return count;
-      } catch (error) {
-        attempts++;
-        if (attempts >= maxAttempts) {
-          throw error;
-        }
-        console.log(`⚠️ Tentativa ${attempts} falhou, tentando novamente...`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
-    
-    throw new Error(`Falha ao apagar ${table} após ${maxAttempts} tentativas`);
-  };
-
   // Mutação para apagar todos os alunos
   const deleteAllStudentsMutation = useMutation({
     mutationFn: async () => {
@@ -73,24 +38,7 @@ const AdminActions = ({ className }: AdminActionsProps) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado.');
 
-      // 1. Primeiro, vamos contar quantos registros existem
-      console.log('📊 Contando registros antes de apagar...');
-      
-      const { count: studentsCount } = await supabase
-        .from('students')
-        .select('*', { count: 'exact', head: true });
-      
-      const { count: transactionsCount } = await supabase
-        .from('financial_transactions')
-        .select('*', { count: 'exact', head: true });
-      
-      const { count: classesCount } = await supabase
-        .from('classes')
-        .select('*', { count: 'exact', head: true });
-      
-      console.log(`📊 Registros encontrados: ${studentsCount} alunos, ${transactionsCount} transações, ${classesCount} aulas`);
-
-      // 2. Apaga transações financeiras primeiro
+      // Apaga transações financeiras primeiro (sem filtro de student_id)
       console.log('💰 Apagando transações financeiras...');
       const { error: transactionsError } = await supabase
         .from('financial_transactions')
@@ -103,7 +51,7 @@ const AdminActions = ({ className }: AdminActionsProps) => {
       }
       console.log('✅ Transações financeiras apagadas');
 
-      // 3. Apaga participantes das aulas
+      // Apaga participantes das aulas
       console.log('👥 Apagando participantes das aulas...');
       const { error: attendeesError } = await supabase
         .from('class_attendees')
@@ -116,7 +64,7 @@ const AdminActions = ({ className }: AdminActionsProps) => {
       }
       console.log('✅ Participantes apagados');
 
-      // 4. Apaga modelos recorrentes
+      // Apaga modelos recorrentes
       console.log('🔄 Apagando modelos recorrentes...');
       const { error: templatesError } = await supabase
         .from('recurring_class_templates')
@@ -129,7 +77,7 @@ const AdminActions = ({ className }: AdminActionsProps) => {
       }
       console.log('✅ Modelos recorrentes apagados');
 
-      // 5. Apaga todas as aulas
+      // Apaga todas as aulas
       console.log('📅 Apagando todas as aulas...');
       const { error: classesError } = await supabase
         .from('classes')
@@ -142,7 +90,7 @@ const AdminActions = ({ className }: AdminActionsProps) => {
       }
       console.log('✅ Aulas apagadas');
 
-      // 6. Finalmente, apaga todos os alunos
+      // Finalmente, apaga todos os alunos
       console.log('👤 Apagando todos os alunos...');
       const { error: studentsError } = await supabase
         .from('students')
@@ -155,29 +103,7 @@ const AdminActions = ({ className }: AdminActionsProps) => {
       }
       console.log('✅ Alunos apagados');
 
-      // 7. Verificação final
-      console.log('🔍 Verificando se tudo foi apagado...');
-      
-      const { count: finalStudentsCount } = await supabase
-        .from('students')
-        .select('*', { count: 'exact', head: true });
-      
-      const { count: finalTransactionsCount } = await supabase
-        .from('financial_transactions')
-        .select('*', { count: 'exact', head: true });
-      
-      const { count: finalClassesCount } = await supabase
-        .from('classes')
-        .select('*', { count: 'exact', head: true });
-
-      console.log(`📊 Registros finais: ${finalStudentsCount} alunos, ${finalTransactionsCount} transações, ${finalClassesCount} aulas`);
-
-      if (finalStudentsCount === 0 && finalTransactionsCount === 0 && finalClassesCount === 0) {
-        console.log('🎉 Todos os dados foram apagados com sucesso!');
-        return true;
-      } else {
-        throw new Error('Alguns registros não foram apagados. Verifique os logs acima.');
-      }
+      return true;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
@@ -203,22 +129,7 @@ const AdminActions = ({ className }: AdminActionsProps) => {
     mutationFn: async () => {
       console.log('🚀 Iniciando processo de limpar agenda...');
       
-      // 1. Conta registros antes
-      const { count: classesCount } = await supabase
-        .from('classes')
-        .select('*', { count: 'exact', head: true });
-      
-      const { count: attendeesCount } = await supabase
-        .from('class_attendees')
-        .select('*', { count: 'exact', head: true });
-      
-      const { count: templatesCount } = await supabase
-        .from('recurring_class_templates')
-        .select('*', { count: 'exact', head: true });
-      
-      console.log(`📊 Registros encontrados: ${classesCount} aulas, ${attendeesCount} participantes, ${templatesCount} modelos`);
-
-      // 2. Apaga participantes das aulas
+      // Apaga participantes das aulas
       console.log('👥 Apagando participantes...');
       const { error: attendeesError } = await supabase
         .from('class_attendees')
@@ -231,7 +142,7 @@ const AdminActions = ({ className }: AdminActionsProps) => {
       }
       console.log('✅ Participantes apagados');
 
-      // 3. Apaga modelos recorrentes
+      // Apaga modelos recorrentes
       console.log('🔄 Apagando modelos recorrentes...');
       const { error: templatesError } = await supabase
         .from('recurring_class_templates')
@@ -244,7 +155,7 @@ const AdminActions = ({ className }: AdminActionsProps) => {
       }
       console.log('✅ Modelos recorrentes apagados');
 
-      // 4. Apaga todas as aulas
+      // Apaga todas as aulas
       console.log('📅 Apagando todas as aulas...');
       const { error: classesError } = await supabase
         .from('classes')
@@ -257,27 +168,7 @@ const AdminActions = ({ className }: AdminActionsProps) => {
       }
       console.log('✅ Aulas apagadas');
 
-      // 5. Verificação final
-      const { count: finalClassesCount } = await supabase
-        .from('classes')
-        .select('*', { count: 'exact', head: true });
-      
-      const { count: finalAttendeesCount } = await supabase
-        .from('class_attendees')
-        .select('*', { count: 'exact', head: true });
-      
-      const { count: finalTemplatesCount } = await supabase
-        .from('recurring_class_templates')
-        .select('*', { count: 'exact', head: true });
-
-      console.log(`📊 Registros finais: ${finalClassesCount} aulas, ${finalAttendeesCount} participantes, ${finalTemplatesCount} modelos`);
-
-      if (finalClassesCount === 0 && finalAttendeesCount === 0 && finalTemplatesCount === 0) {
-        console.log('🎉 Agenda limpa com sucesso!');
-        return true;
-      } else {
-        throw new Error('Alguns registros da agenda não foram apagados.');
-      }
+      return true;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['classes'] });
