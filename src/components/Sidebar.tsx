@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Users, DollarSign, Calendar, LogOut, Database, ChevronLeft, ChevronRight } from "lucide-react";
+import { LayoutDashboard, Users, DollarSign, Calendar, LogOut, Database, ChevronLeft, ChevronRight, Shield } from "lucide-react";
 import { Button } from "./ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
@@ -91,6 +91,12 @@ const Sidebar = ({ onOpenExporter, collapsed, onToggleCollapse }: SidebarProps) 
           <Calendar className="w-5 h-5" />
           {textLabel("Agenda")}
         </NavLink>
+        {isAdmin && (
+          <NavLink to="/admin" className={navLinkClasses}>
+            <Shield className="w-5 h-5" />
+            {textLabel("Admin")}
+          </NavLink>
+        )}
       </nav>
 
       <div className="mt-4 px-1 pb-2 space-y-2">

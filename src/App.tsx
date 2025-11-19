@@ -11,11 +11,12 @@ import React from "react";
 import { Loader2 } from "lucide-react";
 
 const Login = lazy(() => import("./pages/Login"));
-const Dashboard = lazy(() => import("./pages/Dashboard")); // Adicionando Dashboard
+const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Schedule = lazy(() => import("./pages/Schedule"));
 const Financial = lazy(() => import("./pages/Financial"));
-const Students = lazy(() => import("./pages/Students")); // Novo
-const StudentProfile = lazy(() => import("./pages/StudentProfile")); // Novo
+const Students = lazy(() => import("./pages/Students"));
+const StudentProfile = lazy(() => import("./pages/StudentProfile"));
+const Admin = lazy(() => import("./pages/Admin"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -36,11 +37,12 @@ const App = () => (
         <Routes>
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<Layout />}>
-              <Route index element={<Dashboard />} /> {/* Rota principal para Dashboard */}
+              <Route index element={<Dashboard />} />
               <Route path="agenda" element={<Schedule />} />
               <Route path="financeiro" element={<Financial />} />
-              <Route path="alunos" element={<Students />} /> {/* Rota para lista de alunos */}
-              <Route path="alunos/:studentId" element={<StudentProfile />} /> {/* Rota para perfil do aluno */}
+              <Route path="alunos" element={<Students />} />
+              <Route path="alunos/:studentId" element={<StudentProfile />} />
+              <Route path="admin" element={<Admin />} />
             </Route>
           </Route>
           <Route path="/login" element={<Login />} />
