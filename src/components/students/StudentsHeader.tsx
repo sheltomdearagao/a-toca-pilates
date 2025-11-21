@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Users, Upload } from 'lucide-react';
-import ColoredSeparator from '@/components/ColoredSeparator';
+import { ColoredSeparator } from '@/components/ColoredSeparator';
 
 interface StudentsHeaderProps {
   studentCount: number | undefined;

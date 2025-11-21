@@ -8,7 +8,7 @@ import ClassDetailsDialog from '@/components/schedule/ClassDetailsDialog';
 import AddRecurringClassTemplateDialog from '@/components/schedule/AddRecurringClassTemplateDialog';
 import RecurringTemplatesList from '@/components/schedule/RecurringTemplatesList';
 import { ClassEvent } from '@/types/schedule';
-import ColoredSeparator from "@/components/ColoredSeparator";
+import { ColoredSeparator } from "@/components/ColoredSeparator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 // Importando os novos componentes de visualização

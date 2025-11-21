@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Repeat, Calendar, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import ColoredSeparator from '@/components/ColoredSeparator';
+import { ColoredSeparator } from '@/components/ColoredSeparator';
 import { format, parseISO } from 'date-fns';
 
 interface StudentRecurringScheduleCardProps {

@@ -6,7 +6,7 @@ import { Users, DollarSign, Calendar, UserX } from "lucide-react";
 import { startOfMonth, endOfMonth, startOfDay, endOfDay, parseISO } from "date-fns";
 import { fromZonedTime } from "date-fns-tz";
 import BirthdayCard from "@/components/BirthdayCard";
-import ColoredSeparator from "@/components/ColoredSeparator";
+import { ColoredSeparator } from "@/components/ColoredSeparator";
 import { formatCurrency } from "@/utils/formatters";
 import PaymentDueAlert from "@/components/PaymentDueAlert";
 import { useSession } from "@/contexts/SessionProvider";

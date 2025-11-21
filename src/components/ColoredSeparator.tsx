@@ -23,5 +23,3 @@ export const ColoredSeparator = ({ color = 'primary', className }: ColoredSepara
     <Separator className={cn("my-4 h-[2px]", bgColorClass, className)} />
   );
 };
-
-export default ColoredSeparator;

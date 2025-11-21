@@ -6,7 +6,7 @@ import ProRataCalculator from '@/components/students/ProRataCalculator';
 import AddClassDialog from '@/components/schedule/AddClassDialog';
 import AddEditStudentDialog from '@/components/students/AddEditStudentDialog';
 import DeleteTransactionAlertDialog from '@/components/financial/DeleteTransactionAlertDialog';
-import ColoredSeparator from "@/components/ColoredSeparator";
+import { ColoredSeparator } from "@/components/ColoredSeparator";
 import StudentHeaderActions from '@/components/students/profile/StudentHeaderActions';
 import StudentDetailsCard from '@/components/students/profile/StudentDetailsCard';
 import StudentRecurringScheduleCard from '@/components/students/profile/StudentRecurringScheduleCard';

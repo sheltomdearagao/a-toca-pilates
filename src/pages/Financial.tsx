@@ -13,7 +13,7 @@ import { TransactionFormData } from '@/components/financial/AddEditTransactionDi
 import AllTransactionsTable from '@/components/financial/AllTransactionsTable';
 import FinancialOverviewCards from '@/components/financial/FinancialOverviewCards';
 import MonthlyFinancialChart from '@/components/financial/MonthlyFinancialChart';
-import ColoredSeparator from '@/components/ColoredSeparator';
+import { ColoredSeparator } from '@/components/ColoredSeparator';
 import { startOfMonth, endOfMonth, subMonths, format as formatDate, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { useAppSettings } from '@/hooks/useAppSettings';
