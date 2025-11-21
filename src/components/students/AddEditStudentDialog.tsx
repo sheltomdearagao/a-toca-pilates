@@ -283,17 +283,34 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
               <Controller name="guardian_phone" control={control} render={({ field }) => <Input {...field} />} />
             </div>
 
-            {/* Tipo de Matrícula */}
-            <div className="space-y-2">
-              <Label>Tipo de Matrícula</Label>
-              <Controller name="enrollment_type" control={control} render={({ field }) => (
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {appSettings?.enrollment_types.map(et => <SelectItem key={et} value={et}>{et}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              )} />
+            {/* Status do Aluno e Tipo de Matrícula */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Status do Aluno</Label>
+                <Controller name="status" control={control} render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Ativo">Ativo</SelectItem>
+                      <SelectItem value="Inativo">Inativo</SelectItem>
+                      <SelectItem value="Experimental">Experimental</SelectItem>
+                      <SelectItem value="Bloqueado">Bloqueado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )} />
+                {errors.status && <p className="text-sm text-destructive">{errors.status.message}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label>Tipo de Matrícula</Label>
+                <Controller name="enrollment_type" control={control} render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {appSettings?.enrollment_types.map(et => <SelectItem key={et} value={et}>{et}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )} />
+              </div>
             </div>
 
             {/* Plano e Mensalidade */}
