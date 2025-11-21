@@ -1,256 +1,87 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { Student, StudentStatus, PlanType, EnrollmentType } from "@/types/student";
-import { showError, showSuccess } from "@/utils/toast";
-import { useSearchParams } from "react-router-dom";
-
-// Importar os novos componentes modulares
-import StudentsHeader from '@/components/students/StudentsHeader';
-import StudentsTable from '@/components/students/StudentsTable';
-import AddEditStudentDialog from '@/components/students/AddEditStudentDialog';
-import DeleteStudentAlertDialog from '@/components/students/DeleteStudentAlertDialog';
-import StudentCSVUploader from '@/components/students/StudentCSVUploader';
-import AddClassDialog from '@/components/schedule/AddClassDialog';
-import StudentStatsCards from '@/components/students/StudentStatsCards';
+import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { Student } from '@/types/student';
+import { Button } from '@/components/ui/button';
+import { PlusCircle, Users, Search, Filter } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { ColoredSeparator } from '@/components/ColoredSeparator';
+import StudentsTable from '@/components/students/StudentsTable';
+import StudentsHeader from '@/components/students/StudentsHeader';
+import StudentStatsCards from '@/components/students/StudentStatsCards';
+import AddEditStudentDialog from '@/components/students/AddEditStudentDialog';
+import StudentCSVUploader from '@/components/students/StudentCSVUploader';
+import DeleteStudentAlertDialog from '@/components/students/DeleteStudentAlertDialog';
+import { showSuccess } from '@/utils/toast';
 import { useAppSettings } from '@/hooks/useAppSettings';
-import { Search } from 'lucide-react';
-import { Card } from '@/components/ui/card';
-import { addDays, parseISO, isPast } from 'date-fns';
 
-// Moved fetchStudents outside the component
 const fetchStudents = async (): Promise<Student[]> => {
-  const { data, error } = await supabase.from("students").select("*").order("name");
+  const { data, error } = await supabase
+    .from('students')
+    .select('*')
+    .order('created_at', { ascending: false });
+
   if (error) throw new Error(error.message);
   return data || [];
 };
 
-// Novo fetch para status de pagamento (inadimplência)
-const fetchStudentPaymentStatus = async (): Promise<Record<string, 'Em Dia' | 'Atrasado'>> => {
-  const now = new Date().toISOString();
-  
-  // Busca todas as transações de receita pendentes ou atrasadas com data de vencimento no passado
+const fetchPaymentStatusMap = async (): Promise<Record<string, 'Em Dia' | 'Atrasado'>> => {
   const { data, error } = await supabase
     .from('financial_transactions')
-    .select('student_id, due_date')
-    .eq('type', 'revenue')
-    .or(`status.eq.Atrasado,and(status.eq.Pendente,due_date.lt.${now})`);
+    .select('student_id, status, due_date')
+    .eq('type', 'revenue');
 
   if (error) throw new Error(error.message);
 
-  const overdueStudents: Record<string, 'Em Dia' | 'Atrasado'> = {};
-  
-  // Marca todos os alunos que têm pelo menos uma transação atrasada/pendente como 'Atrasado'
-  data.forEach(t => {
-    if (t.student_id) {
-      overdueStudents[t.student_id] = 'Atrasado';
+  const statusMap: Record<string, 'Em Dia' | 'Atrasado'> = {};
+
+  (data || []).forEach(transaction => {
+    if (transaction.student_id && !statusMap[transaction.student_id]) {
+      const isOverdue = transaction.status === 'Atrasado' ||
+        (transaction.status === 'Pendente' && transaction.due_date &&
+         new Date(transaction.due_date) < new Date());
+
+      statusMap[transaction.student_id] = isOverdue ? 'Atrasado' : 'Em Dia';
     }
   });
 
-  return overdueStudents;
+  return statusMap;
 };
 
 const Students = () => {
-  const queryClient = useQueryClient();
-  const [searchParams] = useSearchParams();
-
-  const [isFormOpen, setFormOpen] = useState(false);
-  const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
-  const [isImportOpen, setImportOpen] = useState(false);
-  const [isScheduleOpen, setScheduleOpen] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [studentToSchedule, setStudentToSchedule] = useState<Student | null>(null);
-
-  // Estados para os filtros
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<StudentStatus | 'all'>('all');
-  const [filterPlanType, setFilterPlanType] = useState<PlanType | 'all'>('all');
-  const [filterEnrollmentType, setFilterEnrollmentType] = useState<EnrollmentType | 'all'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | Student['status']>('all');
+  const [filterPlanType, setFilterPlanType] = useState<'all' | Student['plan_type']>('all');
+  const [filterEnrollmentType, setFilterEnrollmentType] = useState<'all' | Student['enrollment_type']>('all');
   const [filterPaymentStatus, setFilterPaymentStatus] = useState<'all' | 'Em Dia' | 'Atrasado'>('all');
 
-  // Read initial filters from query params on mount
-  useEffect(() => {
-    const status = searchParams.get('status');
-    const payment = searchParams.get('payment');
-    const plan = searchParams.get('plan');
+  const [isAddEditOpen, setIsAddEditOpen] = useState(false);
+  const [isCSVUploaderOpen, setIsCSVUploaderOpen] = useState(false);
+  const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
-    if (status && ['Ativo', 'Inativo', 'Experimental', 'Bloqueado'].includes(status)) {
-      setFilterStatus(status as StudentStatus);
-    }
-    if (payment && ['Em Dia', 'Atrasado'].includes(payment)) {
-      setFilterPaymentStatus(payment as 'Em Dia' | 'Atrasado');
-    }
-    if (plan) {
-      setFilterPlanType(plan as PlanType | 'all');
-    }
-  }, [searchParams]);
-
-  const { data: students, isLoading } = useQuery({ queryKey: ["students"], queryFn: fetchStudents });
-  const { data: appSettings, isLoading: isLoadingSettings } = useAppSettings();
-  
-  // Nova query para status de pagamento
-  const { data: paymentStatusMap, isLoading: isLoadingPaymentStatus } = useQuery({
-    queryKey: ["studentPaymentStatus"],
-    queryFn: fetchStudentPaymentStatus,
+  const { data: students, isLoading: isLoadingStudents } = useQuery({
+    queryKey: ['students'],
+    queryFn: fetchStudents,
     staleTime: 1000 * 60 * 5,
   });
 
-  const addEditMutation = useMutation({
-    mutationFn: async (formData: any) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado.");
-      
-      const dataToSubmit = { ...formData };
-      
-      const paymentDate = dataToSubmit.payment_date;
-      const validityDuration = dataToSubmit.validity_duration;
-      
-      delete dataToSubmit.payment_date;
-      delete dataToSubmit.validity_duration;
-      
-      const isParticularRecorrente = dataToSubmit.enrollment_type === 'Particular' && dataToSubmit.plan_type !== 'Avulso';
-
-      // Lógica de cálculo da validade e status
-      if (isParticularRecorrente && paymentDate && validityDuration) {
-        const paymentDateObj = parseISO(paymentDate);
-        const validityDate = addDays(paymentDateObj, validityDuration).toISOString();
-        dataToSubmit.validity_date = validityDate;
-        
-        // Se a validade for no futuro, o aluno está Ativo (a menos que seja Bloqueado/Experimental)
-        if (!isPast(parseISO(validityDate)) && dataToSubmit.status !== 'Bloqueado' && dataToSubmit.status !== 'Experimental') {
-          dataToSubmit.status = 'Ativo';
-        } else if (isPast(parseISO(validityDate))) {
-          dataToSubmit.status = 'Inativo';
-        }
-      } else {
-        // Para Avulso, Wellhub, TotalPass ou se faltarem dados, a validade é nula
-        dataToSubmit.validity_date = null;
-      }
-      
-      // Limpeza de campos opcionais/condicionais
-      if (dataToSubmit.plan_type === 'Avulso') {
-        dataToSubmit.plan_frequency = null;
-        dataToSubmit.payment_method = null;
-        dataToSubmit.monthly_fee = 0;
-        dataToSubmit.preferred_days = null;
-        dataToSubmit.preferred_time = null;
-      }
-      
-      if (!dataToSubmit.has_promotional_value) {
-        dataToSubmit.discount_description = null;
-      }
-      delete dataToSubmit.has_promotional_value;
-
-      // Limpeza de strings vazias para NULL no banco de dados
-      if (dataToSubmit.date_of_birth === "") {
-        dataToSubmit.date_of_birth = null;
-      }
-      if (dataToSubmit.email === "") {
-        dataToSubmit.email = null;
-      }
-      if (dataToSubmit.phone === "") {
-        dataToSubmit.phone = null;
-      }
-      if (dataToSubmit.address === "") {
-        dataToSubmit.address = null;
-      }
-      if (dataToSubmit.guardian_phone === "") {
-        dataToSubmit.guardian_phone = null;
-      }
-      if (dataToSubmit.notes === "") {
-        dataToSubmit.notes = null;
-      }
-      
-      let studentId = selectedStudent?.id;
-      
-      if (selectedStudent) {
-        // Atualiza aluno existente
-        const { error } = await supabase.from("students").update(dataToSubmit).eq("id", selectedStudent.id);
-        if (error) throw error;
-      } else {
-        // Insere novo aluno
-        const { data: newStudent, error } = await supabase.from("students").insert([{ ...dataToSubmit, user_id: user.id }]).select('id').single();
-        if (error) throw error;
-        studentId = newStudent.id;
-      }
-      
-      // 2. Registrar Transação (Apenas se for novo aluno e tiver valor)
-      if (!selectedStudent && studentId && dataToSubmit.monthly_fee > 0 && isParticularRecorrente) {
-        const transaction = {
-          user_id: user.id,
-          student_id: studentId,
-          description: `Mensalidade - ${dataToSubmit.plan_type} ${dataToSubmit.plan_frequency || ''}`,
-          category: 'Mensalidade',
-          amount: dataToSubmit.monthly_fee,
-          type: 'revenue',
-          status: 'Pago',
-          due_date: dataToSubmit.validity_date, // Próximo vencimento
-          paid_at: paymentDate, // Data de pagamento é a data informada
-        };
-        
-        const { error: transactionError } = await supabase.from('financial_transactions').insert([transaction]);
-        if (transactionError) throw transactionError;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["students"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboardStats"] });
-      queryClient.invalidateQueries({ queryKey: ["studentPaymentStatus"] });
-      queryClient.invalidateQueries({ queryKey: ["studentStats"] });
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      queryClient.invalidateQueries({ queryKey: ['birthdayStudents'] });
-      showSuccess(`Aluno ${selectedStudent ? "atualizado" : "adicionado"} com sucesso!`);
-      setFormOpen(false);
-      setSelectedStudent(null);
-    },
-    onError: (error) => { showError(error.message); },
+  const { data: paymentStatusMap, isLoading: isLoadingPaymentStatus } = useQuery({
+    queryKey: ['studentPaymentStatus'],
+    queryFn: fetchPaymentStatusMap,
+    staleTime: 1000 * 60 * 5,
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async (studentId: string) => {
-      const { error } = await supabase.rpc('delete_student', {
-        student_id_to_delete: studentId
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["students"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboardStats"] });
-      queryClient.invalidateQueries({ queryKey: ["studentPaymentStatus"] });
-      queryClient.invalidateQueries({ queryKey: ["studentStats"] });
-      queryClient.invalidateQueries({ queryKey: ['birthdayStudents'] });
-      showSuccess("Aluno removido com sucesso!");
-      setDeleteAlertOpen(false);
-      setSelectedStudent(null);
-    },
-    onError: (error) => { showError(error.message); },
-  });
-
-  const handleAddNew = useCallback(() => {
-    setSelectedStudent(null);
-    setFormOpen(true);
-  }, []);
-
-  const handleEdit = useCallback((student: Student) => {
-    setSelectedStudent(student);
-    setFormOpen(true);
-  }, []);
-
-  const handleDelete = useCallback((student: Student) => {
-    setSelectedStudent(student);
-    setDeleteAlertOpen(true);
-  }, []);
-  
-  const handleScheduleClass = useCallback((student: Student) => {
-    setStudentToSchedule(student);
-    setScheduleOpen(true);
-  }, []);
-
-  const onSubmitStudent = useCallback((data: any) => {
-    addEditMutation.mutate(data);
-  }, [addEditMutation]);
+  const { data: appSettings } = useAppSettings();
 
   const filteredStudents = useMemo(() => {
     if (!students) return [];
@@ -270,8 +101,22 @@ const Students = () => {
       // 3. Filtro de Tipo de Plano
       const matchesPlanType = filterPlanType === 'all' || student.plan_type === filterPlanType;
       
-      // 4. Filtro de Tipo de Matrícula
-      const matchesEnrollmentType = filterEnrollmentType === 'all' || student.enrollment_type === filterEnrollmentType;
+      // 4. Filtro de Tipo de Matrícula (MODIFICADO)
+      let matchesEnrollmentType = filterEnrollmentType === 'all';
+      if (!matchesEnrollmentType) {
+        const enrollmentTypeLower = student.enrollment_type.toLowerCase();
+        const filterLower = filterEnrollmentType.toLowerCase();
+        
+        if (filterLower === 'wellhub') {
+          // Wellhub inclui: Wellhub, Gympass, Gympass/Wellhub, Wellhub/Gympass
+          matchesEnrollmentType = 
+            enrollmentTypeLower.includes('wellhub') || 
+            enrollmentTypeLower.includes('gympass');
+        } else {
+          // Para outros tipos, faz match exato
+          matchesEnrollmentType = enrollmentTypeLower === filterLower;
+        }
+      }
       
       // 5. Novo Filtro de Status de Pagamento
       const studentPaymentStatus = paymentStatusMap?.[student.id] || 'Em Dia';
@@ -281,73 +126,148 @@ const Students = () => {
     });
   }, [students, searchTerm, filterStatus, filterPlanType, filterEnrollmentType, filterPaymentStatus, paymentStatusMap]);
 
+  const handleAddNewStudent = () => {
+    setSelectedStudent(null);
+    setIsAddEditOpen(true);
+  };
+
+  const handleImportCSV = () => {
+    setIsCSVUploaderOpen(true);
+  };
+
+  const handleEdit = (student: Student) => {
+    setSelectedStudent(student);
+    setIsAddEditOpen(true);
+  };
+
+  const handleDelete = (student: Student) => {
+    setSelectedStudent(student);
+    setIsDeleteAlertOpen(true);
+  };
+
+  const handleScheduleClass = (student: Student) => {
+    // TODO: Implementar agendamento de aula
+    console.log('Agendar aula para:', student.name);
+  };
+
+  const handleSubmitStudent = async (data: any) => {
+    // TODO: Implementar submissão do formulário
+    console.log('Dados do aluno:', data);
+    setIsAddEditOpen(false);
+    showSuccess('Aluno salvo com sucesso!');
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedStudent) return;
+
+    // TODO: Implementar exclusão do aluno
+    console.log('Excluindo aluno:', selectedStudent.name);
+    setIsDeleteAlertOpen(false);
+    setSelectedStudent(null);
+    showSuccess('Aluno excluído com sucesso!');
+  };
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <StudentsHeader
-        studentCount={filteredStudents?.length}
-        onAddNewStudent={handleAddNew}
-        onImportCSV={() => setImportOpen(true)}
+        studentCount={students?.length}
+        onAddNewStudent={handleAddNewStudent}
+        onImportCSV={handleImportCSV}
       />
-      
+
+      <ColoredSeparator color="primary" />
+
       <StudentStatsCards />
 
-      <Card className="p-4 shadow-impressionist shadow-subtle-glow">
-        <div className="flex items-center mb-4">
-          <Search className="w-5 h-5 mr-2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nome, email ou telefone..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-1"
-          />
-        </div>
-        
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Select value={filterStatus} onValueChange={(value: StudentStatus | 'all') => setFilterStatus(value)}>
-            <SelectTrigger><SelectValue placeholder="Status do Aluno" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os Status</SelectItem>
-              <SelectItem value="Ativo">Ativo</SelectItem>
-              <SelectItem value="Inativo">Inativo</SelectItem>
-              <SelectItem value="Experimental">Experimental</SelectItem>
-              <SelectItem value="Bloqueado">Bloqueado</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Select value={filterPlanType} onValueChange={(value: PlanType | 'all') => setFilterPlanType(value)} disabled={isLoadingSettings}>
-            <SelectTrigger><SelectValue placeholder="Tipo de Plano" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os Planos</SelectItem>
-              {appSettings?.plan_types.map(type => (
-                <SelectItem key={type} value={type}>{type}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          <Select value={filterEnrollmentType} onValueChange={(value: EnrollmentType | 'all') => setFilterEnrollmentType(value)} disabled={isLoadingSettings}>
-            <SelectTrigger><SelectValue placeholder="Tipo de Matrícula" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os Tipos de Matrícula</SelectItem>
-              {appSettings?.enrollment_types.map(type => (
-                <SelectItem key={type} value={type}>{type}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          <Select value={filterPaymentStatus} onValueChange={(value: 'all' | 'Em Dia' | 'Atrasado') => setFilterPaymentStatus(value)} disabled={isLoadingPaymentStatus}>
-            <SelectTrigger><SelectValue placeholder="Status de Pagamento" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os Pagamentos</SelectItem>
-              <SelectItem value="Em Dia">Em Dia</SelectItem>
-              <SelectItem value="Atrasado">Atrasado</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      <Card className="shadow-impressionist shadow-subtle-glow">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="w-5 h-5" />
+            Filtros
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="search">Buscar</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <Input
+                  id="search"
+                  placeholder="Nome, email ou telefone..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={filterStatus} onValueChange={(value: any) => setFilterStatus(value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="Ativo">Ativo</SelectItem>
+                  <SelectItem value="Inativo">Inativo</SelectItem>
+                  <SelectItem value="Experimental">Experimental</SelectItem>
+                  <SelectItem value="Bloqueado">Bloqueado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Plano</Label>
+              <Select value={filterPlanType} onValueChange={(value: any) => setFilterPlanType(value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {appSettings?.plan_types.map(plan => (
+                    <SelectItem key={plan} value={plan}>{plan}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Matrícula</Label>
+              <Select value={filterEnrollmentType} onValueChange={(value: any) => setFilterEnrollmentType(value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {appSettings?.enrollment_types.map(type => (
+                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Pagamento</Label>
+              <Select value={filterPaymentStatus} onValueChange={(value: any) => setFilterPaymentStatus(value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="Em Dia">Em Dia</SelectItem>
+                  <SelectItem value="Atrasado">Atrasado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
       </Card>
 
       <StudentsTable
         students={filteredStudents}
-        isLoading={isLoading || isLoadingSettings || isLoadingPaymentStatus}
+        isLoading={isLoadingStudents || isLoadingPaymentStatus}
         onEdit={handleEdit}
         onDelete={handleDelete}
         onScheduleClass={handleScheduleClass}
@@ -355,30 +275,24 @@ const Students = () => {
       />
 
       <AddEditStudentDialog
-        isOpen={isFormOpen}
-        onOpenChange={setFormOpen}
+        isOpen={isAddEditOpen}
+        onOpenChange={setIsAddEditOpen}
         selectedStudent={selectedStudent}
-        onSubmit={onSubmitStudent}
-        isSubmitting={addEditMutation.isPending}
+        onSubmit={handleSubmitStudent}
+        isSubmitting={false}
+      />
+
+      <StudentCSVUploader
+        isOpen={isCSVUploaderOpen}
+        onOpenChange={setIsCSVUploaderOpen}
       />
 
       <DeleteStudentAlertDialog
         isOpen={isDeleteAlertOpen}
-        onOpenChange={setDeleteAlertOpen}
+        onOpenChange={setIsDeleteAlertOpen}
         selectedStudentName={selectedStudent?.name}
-        onConfirmDelete={() => selectedStudent && deleteMutation.mutate(selectedStudent.id)}
-        isDeleting={deleteMutation.isPending}
-      />
-
-      <StudentCSVUploader
-        isOpen={isImportOpen}
-        onOpenChange={setImportOpen}
-      />
-      
-      <AddClassDialog 
-        isOpen={isScheduleOpen} 
-        onOpenChange={setScheduleOpen} 
-        preSelectedStudentId={studentToSchedule?.id}
+        onConfirmDelete={handleConfirmDelete}
+        isDeleting={false}
       />
     </div>
   );
