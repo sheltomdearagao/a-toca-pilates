@@ -17,7 +17,7 @@ const colorMap = {
   red: 'bg-red-500',
 };
 
-const ColoredSeparator = ({ color = 'primary', className }: ColoredSeparatorProps) => {
+export const ColoredSeparator = ({ color = 'primary', className }: ColoredSeparatorProps) => {
   const bgColorClass = colorMap[color] || colorMap.primary;
   return (
     <Separator className={cn("my-4 h-[2px]", bgColorClass, className)} />
