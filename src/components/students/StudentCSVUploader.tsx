@@ -48,6 +48,48 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
     }
   };
 
+  // --- Funções Auxiliares de Parsing ---
+
+  const parseDate = (dateString: any) => {
+    if (!dateString || typeof dateString !== 'string') return null;
+    try {
+        // Limpa espaços e caracteres invisíveis
+        const cleanedString = dateString.trim().replace(/[\/.-]/g, '-');
+        const dateParts = cleanedString.split('-');
+        
+        if (dateParts.length !== 3) return null;
+        
+        const [day, month, year] = dateParts;
+        const fullYear = year.length === 2 ? (parseInt(year) > 50 ? `19${year}` : `20${year}`) : year;
+        const parsedDate = new Date(`${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T12:00:00Z`);
+        
+        if (isNaN(parsedDate.getTime())) return null;
+        return parsedDate.toISOString();
+    } catch (e) { return null; }
+  };
+
+  const parseCurrency = (currencyString: any) => {
+    if (!currencyString) return 0;
+    const str = String(currencyString).trim();
+    // Remove R$, espaços
+    let cleaned = str.replace(/[R$\s]/g, '');
+    // Formato Brasileiro (1.000,00) -> (1000.00)
+    if (cleaned.includes(',') && cleaned.includes('.')) {
+       cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+    } else if (cleaned.includes(',')) {
+       cleaned = cleaned.replace(',', '.');
+    }
+    const amount = parseFloat(cleaned);
+    return isNaN(amount) ? 0 : amount;
+  };
+
+  const validateTime = (timeStr: any) => {
+    if (!timeStr || typeof timeStr !== 'string') return null;
+    // Regex simples para HH:MM
+    const match = timeStr.match(/([0-1]?[0-9]|2[0-3]):[0-5][0-9]/);
+    return match ? match[0] : null;
+  };
+
   const processAndImportData = async (studentsData: any[]) => {
     setIsProcessing(true);
     setTotalCount(studentsData.length);
@@ -65,15 +107,14 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
           name: s.Nome,
           email: s.Email || null,
           phone: s.Telefone || null,
-          address: s.Endereco || null,
+          address: s.Endereco || null, // Agora corrigido
           guardian_phone: s['Telefone Responsavel'] || null,
           notes: s.Notas || null,
           date_of_birth: s['Data Nascimento'] || null,
           preferred_days: s['Dias Preferidos'] ? s['Dias Preferidos'].split(',').map((d: string) => d.trim().toLowerCase()) : null,
-          preferred_time: s['Horario Preferido'] || null, // Agora garantido ser hora ou null
+          preferred_time: s['Horario Preferido'] || null,
           discount_description: s['Descricao Desconto'] || null,
           
-          // Campos de Plano e Status
           plan_type: s.plan_type,
           plan_frequency: s.plan_frequency,
           monthly_fee: s.monthly_fee,
@@ -88,12 +129,13 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
           .insert(studentsToInsert)
           .select('id, name');
 
-        if (studentError) throw new Error(`Erro ao inserir lote de alunos: ${studentError.message}`);
-        if (!insertedStudents) throw new Error("Nenhum aluno foi inserido neste lote.");
+        if (studentError) throw new Error(`Erro ao inserir alunos: ${studentError.message}`);
+        if (!insertedStudents) throw new Error("Falha ao inserir alunos.");
 
+        // Criação de Transações
         const transactionsToInsert = insertedStudents.map(student => {
           const originalData = chunk.find(s => s.Nome === student.name);
-          if (!originalData || !originalData.monthly_fee || originalData.monthly_fee <= 0) return null;
+          if (!originalData || originalData.monthly_fee === undefined || originalData.monthly_fee <= 0) return null;
           
           const transactionStatus = originalData.Status === 'Pago' ? 'Pago' : 'Pendente';
           const finalDueDate = originalData['Data de vencimento'] || new Date().toISOString();
@@ -115,12 +157,12 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
           const { error: transactionError } = await supabase
             .from('financial_transactions')
             .insert(transactionsToInsert as any);
-          if (transactionError) throw new Error(`Erro ao inserir transações do lote: ${transactionError.message}`);
+          if (transactionError) console.error("Erro transações:", transactionError);
         }
         
         totalSuccess += insertedStudents.length;
-        const newProcessedCount = i + chunk.length;
-        setProcessedCount(newProcessedCount > studentsData.length ? studentsData.length : newProcessedCount);
+        const newProcessedCount = Math.min(i + chunk.length, studentsData.length);
+        setProcessedCount(newProcessedCount);
         setProgress((newProcessedCount / studentsData.length) * 100);
       }
 
@@ -132,70 +174,182 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
       onOpenChange(false);
 
     } catch (error: any) {
-      console.error(error);
       showError(error.message);
     } finally {
       resetState();
     }
   };
 
-  // --- Funções de Parsing e Correção ---
-
-  const parseDate = (dateString: string) => {
-    if (!dateString || typeof dateString !== 'string') return null;
-    try {
-        const cleanedString = dateString.trim().replace(/[\/.-]/g, '-');
-        const dateParts = cleanedString.split('-');
-        
-        if (dateParts.length !== 3) {
-            const isoDate = new Date(dateString);
-            if (!isNaN(isoDate.getTime())) return isoDate.toISOString();
-            return null; 
-        }
-        
-        const [day, month, year] = dateParts;
-        const fullYear = year.length === 2 ? (parseInt(year) > 50 ? `19${year}` : `20${year}`) : year;
-        const parsedDate = new Date(`${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T12:00:00Z`);
-        
-        if (isNaN(parsedDate.getTime())) return null;
-        return parsedDate.toISOString();
-    } catch (e) {
-        return null;
-    }
-  };
-
-  const parseCurrency = (currencyString: string) => {
-    if (!currencyString) return 0;
-    if (typeof currencyString === 'number') return currencyString;
+  // --- LÓGICA DE SMART PARSING ---
+  // Esta função reconstrói linhas quebradas por vírgulas em endereços/dias
+  const reconstructRow = (rawRow: string[]) => {
+    // Indices padrão esperados:
+    // 0:Nome, 1:Email, 2:Tel
+    // ... [Endereço com vírgulas] ...
+    // ... [Tel Resp], [Notas] ...
+    // PIVÔ 1: Data Nascimento (DD/MM/AAAA)
+    // ... [Dias com vírgulas] ...
+    // ... [Hora], [Plano] ...
+    // PIVÔ 2: Valor Pago (Numérico)
     
-    let cleaned = currencyString.toString().replace(/[^0-9,.]/g, '');
-    if (cleaned.includes(',') && cleaned.includes('.')) {
-        cleaned = cleaned.replace(/\./g, '').replace(',', '.');
-    } else if (cleaned.includes(',')) {
-        cleaned = cleaned.replace(',', '.');
-    }
-    const amount = parseFloat(cleaned);
-    return isNaN(amount) ? 0 : amount;
-  };
+    if (rawRow.length < 5) return null; // Linha lixo
 
-  // Valida se a string é um horário HH:MM
-  const validateTime = (timeStr: string) => {
-    if (!timeStr) return null;
-    // Regex simples para HH:MM ou H:MM
-    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]/;
-    if (timeRegex.test(timeStr)) {
-        // Retorna formatado para garantir compatibilidade com Time/Postgres
-        return timeStr.match(timeRegex)![0];
-    }
-    return null;
-  };
+    const name = rawRow[0];
+    // Se nome estiver vazio ou for cabeçalho, pula
+    if (!name || name.toLowerCase() === 'nome') return null;
 
-  // Detecta se a string parece um dia da semana (Inglês ou Português)
-  const isDayString = (str: string) => {
-    if (!str) return false;
-    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 
-                  'segunda', 'terca', 'terça', 'quarta', 'quinta', 'sexta', 'sabado', 'sábado', 'domingo'];
-    return days.some(day => str.toLowerCase().includes(day));
+    // Encontrar indice da Data de Nascimento (Pivô 1)
+    const dateRegex = /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/;
+    // Procura a data entre o indice 4 e o fim (para evitar falsos positivos no inicio)
+    let dobIndex = -1;
+    for (let i = 3; i < rawRow.length; i++) {
+      if (dateRegex.test(rawRow[i])) {
+        dobIndex = i;
+        break;
+      }
+    }
+
+    // Se não achou data, tenta achar pelo valor pago (Pivô 2)
+    // Regex para valor: 230.00 ou 230,00 (pode ter R$)
+    const moneyRegex = /^\d+([.,]\d{1,2})?$/;
+    let priceIndex = -1;
+    
+    // Começa a procurar o preço depois da data (se existir) ou do meio
+    const startPriceSearch = dobIndex > -1 ? dobIndex + 1 : 5;
+    for (let i = startPriceSearch; i < rawRow.length; i++) {
+        // Limpa string para testar regex numérico
+        const cleanVal = rawRow[i].replace(/[R$\s]/g, '');
+        if (moneyRegex.test(cleanVal) && rawRow[i].length < 10) { // length < 10 evita pegar telefones
+             priceIndex = i;
+             break;
+        }
+    }
+
+    // --- RECONSTRUÇÃO DO BLOCO 1: ENDEREÇO / RESPONSAVEL / NOTAS ---
+    let address = "";
+    let guardianPhone = "";
+    let notes = "";
+    
+    if (dobIndex > -1) {
+        // Pegamos tudo entre Telefone(idx 2) e Data(idx dobIndex)
+        // Normal: [3]=End, [4]=Resp, [5]=Notas, [6]=DOB -> dobIndex=6. Length=6-3=3 itens.
+        // Quebrado: [3]=Rua, [4]=N 30, [5]=Apto, [6]=Resp, [7]=Notas, [8]=DOB -> dobIndex=8.
+        
+        const chunk = rawRow.slice(3, dobIndex);
+        
+        // Lógica reversa: O último item do chunk é Notas, o penúltimo é Tel Resp, o resto é Endereço.
+        // Mas Tel Resp e Notas podem estar vazios.
+        
+        if (chunk.length > 0) {
+            // Verifica se o ultimo elemento parece um telefone ou é vazio
+            let lastItem = chunk[chunk.length - 1];
+            let secondLastItem = chunk.length > 1 ? chunk[chunk.length - 2] : "";
+
+            // Helper simples para identificar telefone (tem numeros e hifens ou espaços, > 7 chars)
+            const isPhone = (s: string) => s.replace(/\D/g, '').length > 8;
+            
+            if (isPhone(lastItem)) {
+                // Caso: Endereco..., TelefoneResp (Notas vazio)
+                guardianPhone = lastItem;
+                address = chunk.slice(0, -1).join(", ");
+            } else if (isPhone(secondLastItem)) {
+                 // Caso: Endereco..., TelefoneResp, Notas
+                 notes = lastItem;
+                 guardianPhone = secondLastItem;
+                 address = chunk.slice(0, -2).join(", ");
+            } else {
+                 // Caso: Tudo é endereço OU Endereço + Notas (sem telefone)
+                 // Assumimos que o ultimo campo é nota se for muito longo e o anterior for curto? 
+                 // Simplificação: Assume ultimo como nota se chunk > 1, senão tudo endereço.
+                 // No seu CSV Real, Notas geralmente é vazio ou texto curto.
+                 // Vamos tentar juntar tudo no endereço se não achou telefone, é mais seguro para evitar perda.
+                 // Mas se tivermos notas como "não vem dia X", isso vai pro endereço. Aceitável.
+                 // Ajuste fino baseado no seu CSV Real: 
+                 // Notas é sempre a coluna antes da data. Telefone Resp antes da nota.
+                 notes = lastItem;
+                 // Verifica se penultimo é telefone
+                 if (chunk.length > 1 && isPhone(secondLastItem)) {
+                    guardianPhone = secondLastItem;
+                    address = chunk.slice(0, -2).join(" ");
+                 } else {
+                    // Sem telefone responsavel identificado
+                    address = chunk.slice(0, -1).join(" "); 
+                 }
+            }
+        }
+    } else {
+        // Fallback se não achou data: Pega indice 3 como endereço
+        address = rawRow[3];
+    }
+
+    // --- RECONSTRUÇÃO DO BLOCO 2: DIAS / HORARIO / PLANO ---
+    let preferredDays = "";
+    let preferredTime = "";
+    let plan = "";
+
+    if (dobIndex > -1 && priceIndex > -1) {
+        // Tudo entre Data e Valor
+        const middleChunk = rawRow.slice(dobIndex + 1, priceIndex);
+        // Ex: [monday, tuesday, 19:00, 3x Mensal]
+        
+        if (middleChunk.length > 0) {
+            plan = middleChunk[middleChunk.length - 1]; // Ultimo é o plano
+            
+            if (middleChunk.length > 1) {
+                // Penultimo pode ser hora?
+                const possibleTime = middleChunk[middleChunk.length - 2];
+                if (validateTime(possibleTime)) {
+                    preferredTime = possibleTime;
+                    // O resto são dias
+                    preferredDays = middleChunk.slice(0, -2).join(",");
+                } else {
+                    // Sem hora ou hora inválida, tudo antes do plano são dias
+                    preferredDays = middleChunk.slice(0, -1).join(",");
+                }
+            }
+        }
+    } else {
+        // Fallback posicional relativo ao valor pago (se data falhou mas preço achou)
+        if (priceIndex > -1) {
+             plan = rawRow[priceIndex - 1];
+        }
+    }
+
+    // Extrair campos fixos finais (Assumindo que depois do Valor vem Forma Pgto, Status, Vencimento...)
+    // Mas o CSV Real tem: Valor, FormaPgto, Status, Vencimento, Validade, TipoMatricula, Desconto
+    // Se houve deslocamento antes do Valor, indices relativos ao priceIndex funcionam.
+    
+    const getRel = (offset: number) => priceIndex > -1 ? rawRow[priceIndex + offset] : "";
+
+    // Montar objeto final limpo
+    const planString = plan || "";
+    const planParts = planString.trim().split(/\s+/); // Separa "2x" de "Mensal"
+    const plan_frequency = planParts.find(p => p.toLowerCase().includes('x') || p.toLowerCase().includes('z'))?.replace('z', 'x') || null;
+    
+    return {
+        Nome: rawRow[0],
+        Email: rawRow[1],
+        Telefone: rawRow[2],
+        Endereco: address.replace(/^,|,$/g, '').trim(), // Remove virgulas das pontas
+        'Telefone Responsavel': guardianPhone,
+        Notas: notes,
+        'Data Nascimento': parseDate(rawRow[dobIndex]),
+        'Dias Preferidos': preferredDays,
+        'Horario Preferido': preferredTime,
+        Plano: planString,
+        'Valor pago': priceIndex > -1 ? rawRow[priceIndex] : "0",
+        'Forma de pagamento': getRel(1),
+        Status: getRel(2),
+        'Data de vencimento': parseDate(getRel(3)),
+        Validade: parseDate(getRel(4)),
+        enrollment_type: getRel(5),
+        'Descricao Desconto': getRel(6), // Pode estar deslocado se houver mais colunas no fim, mas ok
+        
+        // Campos calculados
+        monthly_fee: parseCurrency(priceIndex > -1 ? rawRow[priceIndex] : "0"),
+        plan_type: planParts.filter(p => !p.includes('x') && !p.includes('z')).join(" ") || 'Avulso',
+        plan_frequency,
+    };
   };
 
   const handleFileUpload = () => {
@@ -205,77 +359,32 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
     }
 
     Papa.parse(csvFile, {
-      header: true,
+      header: false, // IMPORTANTE: Ler como Array de Arrays para ignorar cabeçalhos quebrados
       skipEmptyLines: true,
       encoding: 'UTF-8',
-      transformHeader: (header) => header.trim().replace(/^\ufeff/, ''),
       complete: (results) => {
-        const requiredColumns = ['Nome']; 
-        const headers = results.meta.fields || [];
-        const missingColumns = requiredColumns.filter(col => !headers.includes(col));
-
-        if (missingColumns.length > 0) {
-          showError(`Arquivo CSV inválido. Colunas obrigatórias faltando: ${missingColumns.join(', ')}`);
-          return;
-        }
-
         try {
-          const processedData = results.data.map((row: any, index: number) => {
-            try {
-              if (!row.Nome) return null;
-              
-              // --- CORREÇÃO DE DESLOCAMENTO DE COLUNAS ---
-              // Se 'Horario Preferido' parece um dia, e 'Plano' parece uma hora, houve deslocamento.
-              let cleanRow = { ...row };
-              
-              if (isDayString(row['Horario Preferido']) && validateTime(row['Plano'])) {
-                // Realinha os dados
-                cleanRow['Dias Preferidos'] = `${row['Dias Preferidos']}, ${row['Horario Preferido']}`;
-                cleanRow['Horario Preferido'] = row['Plano']; // O horário estava na coluna Plano
-                cleanRow['Plano'] = row['Valor pago']; // O nome do plano estava em Valor pago
-                cleanRow['Valor pago'] = row['Forma de pagamento'];
-                cleanRow['Forma de pagamento'] = row['Status'];
-                cleanRow['Status'] = row['Data de vencimento'];
-                cleanRow['Data de vencimento'] = row['Validade'];
-                cleanRow['Validade'] = row['Tipo Matricula'] || row['Tipo Matrícula'];
-                cleanRow['Tipo Matricula'] = row['Descricao Desconto']; // Assume que descrição vem depois
-                // Descrição Desconto fica vazio ou pega a próxima coluna se existir
-              }
-              // -------------------------------------------
+            // Ignora a primeira linha (cabeçalho)
+            const rawData = results.data.slice(1) as string[][];
+            
+            const processedData = rawData.map((row, index) => {
+                try {
+                    return reconstructRow(row);
+                } catch (e) {
+                    console.error(`Erro linha ${index}`, e);
+                    return null;
+                }
+            }).filter(Boolean); // Remove nulos
 
-              const planString = cleanRow.Plano || 'Avulso';
-              const planParts = planString.trim().split(/\s+/);
-              const plan_type = planParts[0] || 'Avulso';
-              const plan_frequency = planParts.find((p: string) => p.toLowerCase().includes('x')) || null;
-              
-              const monthly_fee = parseCurrency(cleanRow['Valor pago']);
-              const enrollmentType = cleanRow['Tipo Matricula'] || cleanRow['Tipo Matrícula'] || 'Particular';
-              
-              // Garante que só envia hora válida ou null para o banco
-              const cleanTime = validateTime(cleanRow['Horario Preferido']);
-
-              return {
-                ...cleanRow,
-                plan_type,
-                plan_frequency,
-                monthly_fee,
-                enrollment_type: enrollmentType,
-                'Horario Preferido': cleanTime, // Usa o horário validado
-                
-                'Data de vencimento': parseDate(cleanRow['Data de vencimento']),
-                validity_date: parseDate(cleanRow.Validade),
-                'Data Nascimento': parseDate(cleanRow['Data Nascimento']),
-                Status: cleanRow.Status || 'Ativo',
-              };
-            } catch (innerError: any) {
-              console.error(`Erro processando linha ${index}:`, row);
-              throw new Error(`Erro na linha ${index + 2}: ${innerError.message}`);
+            if (processedData.length === 0) {
+                showError("Nenhum dado válido encontrado.");
+                return;
             }
-          }).filter(Boolean);
-          
-          processAndImportData(processedData);
+
+            processAndImportData(processedData);
+
         } catch (error: any) {
-          showError(error.message);
+          showError(`Erro processando dados: ${error.message}`);
         }
       },
       error: (error: any) => {
@@ -290,7 +399,7 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
         <DialogHeader>
           <DialogTitle>Importar Alunos via CSV</DialogTitle>
           <DialogDescription>
-            O arquivo deve conter a coluna obrigatória `Nome`. O sistema tentará corrigir automaticamente linhas com múltiplos dias não agrupados por aspas.
+            O sistema tentará corrigir automaticamente endereços e listas de dias que contenham vírgulas.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -324,7 +433,7 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
             ) : (
               <Upload className="mr-2 h-4 w-4" />
             )}
-            {isProcessing ? 'Processando...' : 'Importar'}
+            {isProcessing ? 'Importar'}
           </Button>
         </DialogFooter>
       </DialogContent>
