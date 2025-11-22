@@ -515,7 +515,7 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
                 validity_date: validityDate,
                 
                 // Log for debug
-                rawRow: row,
+                rawData: row,
               };
 
               console.log(`✅ Linha ${index + 2} processada:`, {
@@ -523,7 +523,7 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
                 plan_type,
                 monthly_fee: parseCurrency(monthlyFeeRaw),
                 enrollment_type: enrollmentTypeRaw,
-                preferred_time: preferredTime,
+                preferred_time,
                 date_of_birth: birthDate ? format(parseISO(birthDate), 'dd/MM/yyyy') : null,
                 validity_date: validityDate ? format(parseISO(validityDate), 'dd/MM/yyyy') : null
               });
