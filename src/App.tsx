@@ -16,7 +16,6 @@ const Schedule = lazy(() => import("./pages/Schedule"));
 const Financial = lazy(() => import("./pages/Financial"));
 const Students = lazy(() => import("./pages/Students"));
 const StudentProfile = lazy(() => import("./pages/StudentProfile"));
-const Admin = lazy(() => import("./pages/Admin"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -42,7 +41,6 @@ const App = () => (
               <Route path="financeiro" element={<Financial />} />
               <Route path="alunos" element={<Students />} />
               <Route path="alunos/:studentId" element={<StudentProfile />} />
-              <Route path="admin" element={<Admin />} />
             </Route>
           </Route>
           <Route path="/login" element={<Login />} />

@@ -28,7 +28,7 @@ const fetchStudents = async (): Promise<Student[]> => {
   const { data, error } = await supabase
     .from('students')
     .select('*')
-    .order('created_at', { ascending: false });
+    .order('name', { ascending: true }); // Ordenar por nome em ordem alfabética A-Z
 
   if (error) throw new Error(error.message);
   return data || [];
