@@ -19,12 +19,239 @@ import { showError, showSuccess } from '@/utils/toast';
 import Papa from 'papaparse';
 import { format, parseISO } from 'date-fns';
 
+// Tipos
 interface StudentCSVUploaderProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
 }
 
+interface CSVRow {
+  Nome: string;
+  Email?: string;
+  Telefone?: string;
+  Endereco?: string;
+  'Telefone Responsavel'?: string;
+  Notas?: string;
+  'Data Nascimento'?: string;
+  'Dias Preferidos'?: string;
+  'Horario Preferido'?: string;
+  Plano?: string;
+  'Valor pago'?: string;
+  'Forma de pagamento'?: string;
+  Status?: string;
+  'Data de vencimento'?: string;
+  Validade?: string;
+  'Tipo Matricula'?: string;
+  'Descricao Desconto'?: string;
+  [key: string]: string | undefined;
+}
+
+interface ProcessedStudent {
+  user_id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  guardian_phone: string | null;
+  notes: string | null;
+  date_of_birth: string | null;
+  preferred_days: string[] | null;
+  preferred_time: string | null;
+  discount_description: string | null;
+  plan_type: string;
+  plan_frequency: string | null;
+  monthly_fee: number;
+  payment_method: string | null;
+  status: string;
+  enrollment_type: string;
+  validity_date: string | null;
+  rawData: CSVRow;
+}
+
+interface ColumnMapping {
+  [key: string]: string;
+}
+
+// Constantes
 const CHUNK_SIZE = 20;
+
+// Funções auxiliares
+const normalizeColumnName = (name: string): string => {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '')
+    .trim();
+};
+
+const getColumnMapping = (headers: string[]): ColumnMapping => {
+  const mapping: ColumnMapping = {};
+  
+  headers.forEach(header => {
+    const normalized = normalizeColumnName(header);
+    
+    if (['nome', 'name'].includes(normalized)) {
+      mapping.name = header;
+    } else if (['email'].includes(normalized)) {
+      mapping.email = header;
+    } else if (['telefone', 'phone', 'tel'].includes(normalized)) {
+      mapping.phone = header;
+    } else if (['endereco', 'address'].includes(normalized)) {
+      mapping.address = header;
+    } else if (['telefoneresponsavel', 'guardianphone', 'telresponsavel'].includes(normalized)) {
+      mapping.guardianPhone = header;
+    } else if (['notas', 'notes'].includes(normalized)) {
+      mapping.notes = header;
+    } else if (['datanascimento', 'birthdate', 'data_nascimento'].includes(normalized)) {
+      mapping.birthDate = header;
+    } else if (['diaspreferidos', 'preferreddays'].includes(normalized)) {
+      mapping.preferredDays = header;
+    } else if (['horariopreferido', 'preferredtime', 'horario_preferido'].includes(normalized)) {
+      mapping.preferredTime = header;
+    } else if (['descricaodesconto', 'discountdescription'].includes(normalized)) {
+      mapping.discountDescription = header;
+    } else if (['plano', 'plan'].includes(normalized)) {
+      mapping.plan = header;
+    } else if (['valorpago', 'paymentvalue', 'valor_pago'].includes(normalized)) {
+      mapping.monthlyFee = header;
+    } else if (['formadepagamento', 'paymentmethod'].includes(normalized)) {
+      mapping.paymentMethod = header;
+    } else if (['status'].includes(normalized)) {
+      mapping.status = header;
+    } else if (['datavencimento', 'duedate'].includes(normalized)) {
+      mapping.dueDate = header;
+    } else if (['validade', 'validity'].includes(normalized)) {
+      mapping.validityDate = header;
+    } else if (['tipomatricula', 'enrollmenttype'].includes(normalized)) {
+      mapping.enrollmentType = header;
+    }
+  });
+
+  return mapping;
+};
+
+const parseDate = (dateString: string | undefined): string | null => {
+  if (!dateString || typeof dateString !== 'string') return null;
+  try {
+    const cleanedString = dateString.trim().replace(/[\/.-]/g, '-');
+    const dateParts = cleanedString.split('-');
+    
+    if (dateParts.length !== 3) {
+      const isoDate = new Date(dateString);
+      if (!isNaN(isoDate.getTime())) return isoDate.toISOString();
+      return null; 
+    }
+    
+    const [day, month, year] = dateParts;
+    const fullYear = year.length === 2 ? (parseInt(year) > 50 ? `19${year}` : `20${year}`) : year;
+    const parsedDate = new Date(`${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T12:00:00Z`);
+    
+    if (isNaN(parsedDate.getTime())) return null;
+    return parsedDate.toISOString();
+  } catch (e) {
+    console.warn('⚠️ Erro ao parsear data:', dateString, e);
+    return null;
+  }
+};
+
+const parseCurrency = (currencyString: string | undefined): number => {
+  if (!currencyString) return 0;
+  if (typeof currencyString === 'number') return currencyString;
+  
+  let cleaned = currencyString.toString().replace(/[^0-9,.]/g, '');
+  if (cleaned.includes(',') && cleaned.includes('.')) {
+    cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+  } else if (cleaned.includes(',')) {
+    cleaned = cleaned.replace(',', '.');
+  }
+  const amount = parseFloat(cleaned);
+  return isNaN(amount) ? 0 : amount;
+};
+
+const validateTime = (timeStr: string | undefined): string | null => {
+  if (!timeStr) return null;
+  const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]/;
+  if (timeRegex.test(timeStr)) {
+    return timeStr.match(timeRegex)![0];
+  }
+  console.warn('⚠️ Horário inválido:', timeStr);
+  return null;
+};
+
+const processStudentRow = (
+  row: CSVRow, 
+  index: number, 
+  columnMapping: ColumnMapping, 
+  userId: string,
+  errors: string[]
+): ProcessedStudent | null => {
+  try {
+    if (!row.Nome || row.Nome.trim() === '') {
+      const errMsg = `Linha ${index + 2}: Nome é obrigatório`;
+      console.warn('⚠️', errMsg);
+      errors.push(errMsg);
+      return null;
+    }
+
+    // Mapeamento flexível de colunas
+    const name = row[columnMapping.name || 'Nome']?.trim() || '';
+    const email = row[columnMapping.email || 'Email'] || null;
+    const phone = row[columnMapping.phone || 'Telefone'] || null;
+    const address = row[columnMapping.address || 'Endereco'] || null;
+    const guardianPhone = row[columnMapping.guardianPhone || 'Telefone Responsavel'] || null;
+    const notes = row[columnMapping.notes || 'Notas'] || null;
+    const birthDateRaw = row[columnMapping.birthDate || 'Data Nascimento'] || null;
+    const preferredDaysRaw = row[columnMapping.preferredDays || 'Dias Preferidos'] || null;
+    const preferredTimeRaw = row[columnMapping.preferredTime || 'Horario Preferido'] || null;
+    const discountDescription = row[columnMapping.discountDescription || 'Descricao Desconto'] || null;
+    const planRaw = row[columnMapping.plan || 'Plano'] || 'Avulso';
+    const monthlyFeeRaw = row[columnMapping.monthlyFee || 'Valor pago'] || 0;
+    const paymentMethodRaw = row[columnMapping.paymentMethod || 'Forma de pagamento'] || null;
+    const statusRaw = row[columnMapping.status || 'Status'] || 'Ativo';
+    const dueDateRaw = row[columnMapping.dueDate || 'Data de vencimento'] || null;
+    const validityDateRaw = row[columnMapping.validityDate || 'Validade'] || null;
+    const enrollmentTypeRaw = row[columnMapping.enrollmentType || 'Tipo Matricula'] || 'Particular';
+
+    // Processamento de dados
+    const planParts = planRaw.trim().split(/\s+/);
+    const plan_type = planParts[0] || 'Avulso';
+    const plan_frequency = planParts.find((p: string) => p.toLowerCase().includes('x')) || null;
+    
+    const birthDate = parseDate(birthDateRaw);
+    const preferredDays = preferredDaysRaw ? preferredDaysRaw.split(',').map((d: string) => d.trim().toLowerCase()) : null;
+    const preferredTime = validateTime(preferredTimeRaw);
+    const dueDate = parseDate(dueDateRaw);
+    const validityDate = parseDate(validityDateRaw);
+
+    return {
+      user_id: userId,
+      name,
+      email,
+      phone,
+      address,
+      guardian_phone: guardianPhone,
+      notes,
+      date_of_birth: birthDate,
+      preferred_days: preferredDays,
+      preferred_time: preferredTime,
+      discount_description: discountDescription,
+      plan_type,
+      plan_frequency,
+      monthly_fee: parseCurrency(monthlyFeeRaw.toString()),
+      payment_method: paymentMethodRaw,
+      status: statusRaw,
+      enrollment_type: enrollmentTypeRaw,
+      validity_date: validityDate,
+      rawData: row,
+    };
+  } catch (err: any) {
+    const errMsg = `Erro processando linha ${index + 2}: ${err.message}`;
+    console.error('❌', errMsg, 'Dados da linha:', row);
+    errors.push(errMsg);
+    return null;
+  }
+};
 
 const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) => {
   const queryClient = useQueryClient();
@@ -51,114 +278,7 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
     }
   };
 
-  // Função para normalizar nomes de colunas (case insensitive, remove acentos)
-  const normalizeColumnName = (name: string) => {
-    return name
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '') // Remove acentos
-      .replace(/\s+/g, '') // Remove espaços
-      .trim();
-  };
-
-  // Mapeamento flexível de colunas (aceita variações)
-  const getColumnMapping = (headers: string[]) => {
-    const mapping: { [key: string]: string } = {};
-    
-    headers.forEach(header => {
-      const normalized = normalizeColumnName(header);
-      
-      // Nome (obrigatório)
-      if (['nome', 'name'].includes(normalized)) {
-        mapping.name = header;
-      }
-      
-      // Email
-      if (['email'].includes(normalized)) {
-        mapping.email = header;
-      }
-      
-      // Telefone
-      if (['telefone', 'phone', 'tel'].includes(normalized)) {
-        mapping.phone = header;
-      }
-      
-      // Endereço
-      if (['endereco', 'address'].includes(normalized)) {
-        mapping.address = header;
-      }
-      
-      // Telefone Responsável
-      if (['telefoneresponsavel', 'guardianphone', 'telresponsavel'].includes(normalized)) {
-        mapping.guardianPhone = header;
-      }
-      
-      // Notas
-      if (['notas', 'notes'].includes(normalized)) {
-        mapping.notes = header;
-      }
-      
-      // Data de Nascimento
-      if (['datanascimento', 'birthdate', 'data_nascimento'].includes(normalized)) {
-        mapping.birthDate = header;
-      }
-      
-      // Dias Preferidos
-      if (['diaspreferidos', 'preferreddays'].includes(normalized)) {
-        mapping.preferredDays = header;
-      }
-      
-      // Horário Preferido
-      if (['horariopreferido', 'preferredtime', 'horario_preferido'].includes(normalized)) {
-        mapping.preferredTime = header;
-      }
-      
-      // Descrição Desconto
-      if (['descricaodesconto', 'discountdescription'].includes(normalized)) {
-        mapping.discountDescription = header;
-      }
-      
-      // Plano
-      if (['plano', 'plan'].includes(normalized)) {
-        mapping.plan = header;
-      }
-      
-      // Valor Pago
-      if (['valorpago', 'paymentvalue', 'valor_pago'].includes(normalized)) {
-        mapping.monthlyFee = header;
-      }
-      
-      // Forma de Pagamento
-      if (['formadepagamento', 'paymentmethod'].includes(normalized)) {
-        mapping.paymentMethod = header;
-      }
-      
-      // Status
-      if (['status'].includes(normalized)) {
-        mapping.status = header;
-      }
-      
-      // Data de Vencimento
-      if (['datavencimento', 'duedate'].includes(normalized)) {
-        mapping.dueDate = header;
-      }
-      
-      // Validade
-      if (['validade', 'validity'].includes(normalized)) {
-        mapping.validityDate = header;
-      }
-      
-      // Tipo Matrícula
-      if (['tipomatricula', 'enrollmenttype'].includes(normalized)) {
-        mapping.enrollmentType = header;
-      }
-    });
-
-    console.log('📊 Mapeamento de colunas detectado:', mapping);
-    return mapping;
-  };
-
-  const processAndImportData = async (studentsData: any[], userId: string) => {
+  const processAndImportData = async (studentsData: ProcessedStudent[], userId: string) => {
     setIsProcessing(true);
     setTotalCount(studentsData.length);
     let totalSuccess = 0;
@@ -171,76 +291,29 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
         const chunk = studentsData.slice(i, i + CHUNK_SIZE);
         console.log(`📤 Processando lote ${Math.floor(i/CHUNK_SIZE) + 1}: linhas ${i+1} a ${Math.min(i + CHUNK_SIZE, studentsData.length)}`);
 
-        const studentsToInsert = chunk.map((s, index) => {
-          try {
-            const globalIndex = i + index;
-            console.log(`🔍 Processando linha ${globalIndex + 1}:`, s.Nome || 'Sem nome');
-
-            // Validação básica
-            if (!s.Nome || s.Nome.trim() === '') {
-              const errMsg = `Linha ${globalIndex + 1}: Nome é obrigatório`;
-              console.warn('⚠️', errMsg);
-              errors.push(errMsg);
-              return null;
-            }
-
-            // Mapeamento de campos com fallback
-            const planString = s.Plano || s['Tipo Plano'] || 'Avulso';
-            const planParts = planString.trim().split(/\s+/);
-            const plan_type = planParts[0] || 'Avulso';
-            const plan_frequency = planParts.find((p: string) => p.toLowerCase().includes('x')) || null;
-            
-            const monthly_fee = parseCurrency(s['Valor pago'] || s['Mensalidade'] || 0);
-            const enrollmentType = s['Tipo Matricula'] || s['Tipo Matrícula'] || 'Particular';
-            
-            // Horário preferido - valida e formata
-            const rawTime = s['Horario Preferido'] || s['Horário Preferido'];
-            const cleanTime = validateTime(rawTime);
-
-            const processedRow = {
-              user_id: userId,
-              name: s.Nome?.trim() || '',
-              email: s.Email || null,
-              phone: s.Telefone || null,
-              address: s.Endereco || null,
-              guardian_phone: s['Telefone Responsavel'] || s['Tel Responsável'] || null,
-              notes: s.Notas || null,
-              date_of_birth: parseDate(s['Data Nascimento'] || s['Data de Nascimento']),
-              preferred_days: s['Dias Preferidos'] ? s['Dias Preferidos'].split(',').map((d: string) => d.trim().toLowerCase()) : null,
-              preferred_time: cleanTime,
-              discount_description: s['Descricao Desconto'] || s['Descrição Desconto'] || null,
-              
-              // Campos de Plano e Status
-              plan_type,
-              plan_frequency,
-              monthly_fee,
-              payment_method: s['Forma de pagamento'] || s['Método Pagamento'] || null,
-              status: s.Status || 'Ativo',
-              enrollment_type: enrollmentType,
-              validity_date: parseDate(s['Validade'] || s['Data Validade']),
-              
-              // Log para debug
-              rawData: s, // Para debug no console
-            };
-
-            console.log(`✅ Linha ${globalIndex + 1} processada:`, {
-              name: processedRow.name,
-              plan_type,
-              monthly_fee,
-              enrollment_type: enrollmentType,
-              preferred_time: cleanTime,
-              date_of_birth: processedRow.date_of_birth,
-              validity_date: processedRow.validity_date
-            });
-
-            return processedRow;
-          } catch (err: any) {
-            const errMsg = `Erro processando linha ${i + index + 1}: ${err.message}`;
-            console.error('❌', errMsg);
-            errors.push(errMsg);
-            return null;
-          }
-        }).filter(Boolean); // Remove nulls (linhas inválidas)
+        const studentsToInsert = chunk.map(student => {
+          console.log(`🔍 Processando aluno:`, student.name);
+          return {
+            user_id: student.user_id,
+            name: student.name,
+            email: student.email,
+            phone: student.phone,
+            address: student.address,
+            guardian_phone: student.guardian_phone,
+            notes: student.notes,
+            date_of_birth: student.date_of_birth,
+            preferred_days: student.preferred_days,
+            preferred_time: student.preferred_time,
+            discount_description: student.discount_description,
+            plan_type: student.plan_type,
+            plan_frequency: student.plan_frequency,
+            monthly_fee: student.monthly_fee,
+            payment_method: student.payment_method,
+            status: student.status,
+            enrollment_type: student.enrollment_type,
+            validity_date: student.validity_date,
+          };
+        });
 
         if (studentsToInsert.length === 0) {
           console.log('⚠️ Nenhum aluno válido neste lote');
@@ -273,18 +346,18 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
         // Inserir transações para alunos com mensalidade > 0
         const transactionsToInsert = insertedStudents.map((student, idx) => {
           const originalData = chunk[idx];
-          if (!originalData || !originalData.monthly_fee || originalData.monthly_fee <= 0) {
+          if (!originalData || originalData.monthly_fee <= 0) {
             console.log(`⏭️ Pulando transação para ${student.name} (sem valor)`);
             return null;
           }
           
-          const transactionStatus = originalData.Status === 'Pago' ? 'Pago' : 'Pendente';
-          const finalDueDate = parseDate(originalData['Data de vencimento'] || new Date().toISOString());
+          const transactionStatus = originalData.status === 'Pago' ? 'Pago' : 'Pendente';
+          const finalDueDate = originalData.validity_date || new Date().toISOString();
 
-          const transaction = {
-            user_id: userId,
+          return {
+            user_id: originalData.user_id,
             student_id: student.id,
-            description: `Mensalidade - ${originalData.Plano || 'Avulso'}`,
+            description: `Mensalidade - ${originalData.plan_type} ${originalData.plan_frequency || ''}`,
             category: 'Mensalidade',
             amount: originalData.monthly_fee,
             type: 'revenue',
@@ -292,14 +365,6 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
             due_date: finalDueDate,
             paid_at: transactionStatus === 'Pago' ? new Date().toISOString() : null,
           };
-
-          console.log(`💰 Criando transação para ${student.name}:`, {
-            amount: transaction.amount,
-            status: transaction.status,
-            due_date: finalDueDate
-          });
-
-          return transaction;
         }).filter(Boolean);
 
         if (transactionsToInsert.length > 0) {
@@ -324,7 +389,7 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
       // Invalidação agressiva de cache
       console.log('🔄 Invalidando cache...');
       queryClient.invalidateQueries({ queryKey: ['students'] });
-      queryClient.invalidateQueries({ queryKey: ['studentProfileData'] }); // Para perfis individuais
+      queryClient.invalidateQueries({ queryKey: ['studentProfileData'] });
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['financialData'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
@@ -355,85 +420,21 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
     }
   };
 
-  // --- Funções de Parsing e Correção (melhoradas) ---
-
-  const parseDate = (dateString: string) => {
-    if (!dateString || typeof dateString !== 'string') return null;
-    try {
-        const cleanedString = dateString.trim().replace(/[\/.-]/g, '-');
-        const dateParts = cleanedString.split('-');
-        
-        if (dateParts.length !== 3) {
-            const isoDate = new Date(dateString);
-            if (!isNaN(isoDate.getTime())) return isoDate.toISOString();
-            return null; 
-        }
-        
-        const [day, month, year] = dateParts;
-        const fullYear = year.length === 2 ? (parseInt(year) > 50 ? `19${year}` : `20${year}`) : year;
-        const parsedDate = new Date(`${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T12:00:00Z`);
-        
-        if (isNaN(parsedDate.getTime())) return null;
-        return parsedDate.toISOString();
-    } catch (e) {
-        console.warn('⚠️ Erro ao parsear data:', dateString, e);
-        return null;
-    }
-  };
-
-  const parseCurrency = (currencyString: string) => {
-    if (!currencyString) return 0;
-    if (typeof currencyString === 'number') return currencyString;
-    
-    let cleaned = currencyString.toString().replace(/[^0-9,.]/g, '');
-    if (cleaned.includes(',') && cleaned.includes('.')) {
-        cleaned = cleaned.replace(/\./g, '').replace(',', '.');
-    } else if (cleaned.includes(',')) {
-        cleaned = cleaned.replace(',', '.');
-    }
-    const amount = parseFloat(cleaned);
-    return isNaN(amount) ? 0 : amount;
-  };
-
-  // Valida se a string é um horário HH:MM
-  const validateTime = (timeStr: string) => {
-    if (!timeStr) return null;
-    // Regex simples para HH:MM ou H:MM
-    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]/;
-    if (timeRegex.test(timeStr)) {
-        // Retorna formatado para garantir compatibilidade com Time/Postgres
-        return timeStr.match(timeRegex)![0];
-    }
-    console.warn('⚠️ Horário inválido:', timeStr);
-    return null;
-  };
-
-  // Detecta se a string parece um dia da semana (Inglês ou Português)
-  const isDayString = (str: string) => {
-    if (!str) return false;
-    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 
-                  'segunda', 'terca', 'terça', 'quarta', 'quinta', 'sexta', 'sabado', 'sábado', 'domingo'];
-    return days.some(day => str.toLowerCase().includes(day));
-  };
-
   const handleFileUpload = async () => {
     if (!csvFile) {
       showError("Por favor, selecione um arquivo CSV.");
       return;
     }
 
-    // Reset errors
     setParseErrors([]);
 
     try {
-      // Fetch user first
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) {
         showError('Usuário não autenticado. Faça login novamente.');
         return;
       }
 
-      // Now parse the CSV
       Papa.parse(csvFile, {
         header: true,
         skipEmptyLines: true,
@@ -454,88 +455,10 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
           const columnMapping = getColumnMapping(headers);
           console.log('🔍 Mapeamento de colunas:', columnMapping);
 
-          const studentsData = results.data.map((row: any, index: number) => {
-            try {
-              if (!row.Nome || row.Nome.trim() === '') {
-                const errMsg = `Linha ${index + 2}: Nome é obrigatório`;
-                console.warn('⚠️', errMsg);
-                parseErrors.push(errMsg);
-                return null;
-              }
-
-              // Use mapping to get values
-              const name = row[columnMapping.name || 'Nome']?.trim() || '';
-              const email = row[columnMapping.email || 'Email'] || null;
-              const phone = row[columnMapping.phone || 'Telefone'] || null;
-              const address = row[columnMapping.address || 'Endereco'] || null;
-              const guardianPhone = row[columnMapping.guardianPhone || 'Telefone Responsavel'] || null;
-              const notes = row[columnMapping.notes || 'Notas'] || null;
-              const birthDateRaw = row[columnMapping.birthDate || 'Data Nascimento'] || null;
-              const preferredDaysRaw = row[columnMapping.preferredDays || 'Dias Preferidos'] || null;
-              const preferredTimeRaw = row[columnMapping.preferredTime || 'Horario Preferido'] || null;
-              const discountDescription = row[columnMapping.discountDescription || 'Descricao Desconto'] || null;
-              const planRaw = row[columnMapping.plan || 'Plano'] || 'Avulso';
-              const monthlyFeeRaw = row[columnMapping.monthlyFee || 'Valor pago'] || 0;
-              const paymentMethodRaw = row[columnMapping.paymentMethod || 'Forma de pagamento'] || null;
-              const statusRaw = row[columnMapping.status || 'Status'] || 'Ativo';
-              const dueDateRaw = row[columnMapping.dueDate || 'Data de vencimento'] || null;
-              const validityDateRaw = row[columnMapping.validityDate || 'Validade'] || null;
-              const enrollmentTypeRaw = row[columnMapping.enrollmentType || 'Tipo Matricula'] || 'Particular';
-
-              // Process plan
-              const planParts = planRaw.trim().split(/\s+/);
-              const plan_type = planParts[0] || 'Avulso';
-              const plan_frequency = planParts.find((p: string) => p.toLowerCase().includes('x')) || null;
-              
-              // Process dates
-              const birthDate = parseDate(birthDateRaw);
-              const preferredDays = preferredDaysRaw ? preferredDaysRaw.split(',').map((d: string) => d.trim().toLowerCase()) : null;
-              const preferredTime = validateTime(preferredTimeRaw);
-              const dueDate = parseDate(dueDateRaw);
-              const validityDate = parseDate(validityDateRaw);
-
-              const processedRow = {
-                user_id: user.id,
-                name,
-                email,
-                phone,
-                address,
-                guardian_phone: guardianPhone,
-                notes,
-                date_of_birth: birthDate,
-                preferred_days: preferredDays,
-                preferred_time: preferredTime,
-                discount_description: discountDescription,
-                plan_type,
-                plan_frequency,
-                monthly_fee: parseCurrency(monthlyFeeRaw),
-                payment_method: paymentMethodRaw,
-                status: statusRaw,
-                enrollment_type: enrollmentTypeRaw,
-                validity_date: validityDate,
-                
-                // Log for debug
-                rawData: row,
-              };
-
-              console.log(`✅ Linha ${index + 2} processada:`, {
-                name,
-                plan_type,
-                monthly_fee: parseCurrency(monthlyFeeRaw),
-                enrollment_type: enrollmentTypeRaw,
-                preferred_time,
-                date_of_birth: birthDate ? format(parseISO(birthDate), 'dd/MM/yyyy') : null,
-                validity_date: validityDate ? format(parseISO(validityDate), 'dd/MM/yyyy') : null
-              });
-
-              return processedRow;
-            } catch (err: any) {
-              const errMsg = `Erro processando linha ${index + 2}: ${err.message}`;
-              console.error('❌', errMsg, 'Dados da linha:', row);
-              parseErrors.push(errMsg);
-              return null;
-            }
-          }).filter(Boolean); // Remove nulls (linhas inválidas)
+          const errors: string[] = [];
+          const studentsData = results.data.map((row: CSVRow, index: number) => {
+            return processStudentRow(row, index, columnMapping, user.id, errors);
+          }).filter(Boolean) as ProcessedStudent[];
 
           if (studentsData.length === 0) {
             showError('Nenhum dado válido encontrado no CSV. Verifique o formato das colunas.');
@@ -543,6 +466,7 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
           }
 
           console.log(`📊 Total de linhas válidas: ${studentsData.length}`);
+          setParseErrors(errors);
           processAndImportData(studentsData, user.id);
         },
         error: (error: any) => {
@@ -553,7 +477,6 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
     } catch (error: any) {
       console.error('❌ Erro geral na importação:', error);
       showError(`Falha na importação: ${error.message}. Verifique o console.`);
-      setParseErrors(parseErrors);
     }
   };
 
