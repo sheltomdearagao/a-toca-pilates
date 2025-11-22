@@ -433,14 +433,4 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
               <Button type="button" variant="secondary">Cancelar</Button>
             </DialogClose>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Salvar
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-};
-
-export default AddEditStudentDialog;
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />

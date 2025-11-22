@@ -69,7 +69,7 @@ const fetchAppSettings = async (): Promise<AppSettings> => {
     } else if (setting.key === 'plan_frequencies') {
       settings.plan_frequencies = parseJsonSetting(setting.value, ["2x", "3x", "4x", "5x"], 'plan_frequencies');
     } else if (setting.key === 'payment_methods') {
-      settings.payment_methods = parseJsonSetting(setting.value, ["Cartão", "Espécie"], 'payment_methods');
+      settings.payment_methods = parseJsonSetting(setting.value, ["Cartão", "Espécie", "Link"], 'payment_methods');
     } else if (setting.key === 'enrollment_types') {
       settings.enrollment_types = parseJsonSetting(setting.value, ["Particular", "Wellhub", "TotalPass"], 'enrollment_types');
     } else if (setting.key === 'price_table') {
@@ -85,7 +85,7 @@ const fetchAppSettings = async (): Promise<AppSettings> => {
     expense_categories: settings.expense_categories ?? ["Aluguel", "Salários", "Marketing", "Material", "Contas", "Outras Despesas"],
     plan_types: settings.plan_types ?? ["Mensal", "Trimestral", "Avulso"],
     plan_frequencies: settings.plan_frequencies ?? ["2x", "3x", "4x", "5x"],
-    payment_methods: settings.payment_methods ?? ["Cartão", "Espécie"],
+    payment_methods: settings.payment_methods ?? ["Cartão", "Espécie", "Link"],
     enrollment_types: settings.enrollment_types ?? ["Particular", "Wellhub", "TotalPass"],
     price_table: settings.price_table ?? DEFAULT_PRICE_TABLE,
   } as AppSettings;
