@@ -14,11 +14,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Loader2, MoreHorizontal, Repeat, CheckCircle, Edit, Trash2, DollarSign } from "lucide-react";
+import { Loader2, MoreHorizontal, CheckCircle, Edit, Trash2, ArrowUpDown } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { cn } from "@/lib/utils";
+import { ptBR } from 'date-fns/locale/pt-BR';
 import React from "react";
-import FinancialTableSkeleton from "./FinancialTableSkeleton";
+import FinancialTableSkeleton from "./FinancialTableSkeleton"; // Importar o Skeleton
+import { showSuccess, showError } from "@/utils/toast";
 
 interface AllTransactionsTableProps {
   transactions: FinancialTransaction[] | undefined;
@@ -27,6 +28,9 @@ interface AllTransactionsTableProps {
   onEdit: (transaction: FinancialTransaction) => void;
   onDelete: (transaction: FinancialTransaction) => void;
   onMarkAsPaid: (transactionId: string) => void;
+  sortColumn: keyof FinancialTransaction;
+  sortDirection: 'asc' | 'desc';
+  onSort: (column: keyof FinancialTransaction) => void;
 }
 
 const AllTransactionsTable = ({
@@ -36,61 +40,89 @@ const AllTransactionsTable = ({
   onEdit,
   onDelete,
   onMarkAsPaid,
+  sortColumn,
+  sortDirection,
+  onSort,
 }: AllTransactionsTableProps) => {
   if (isLoading) {
-    return <FinancialTableSkeleton columns={8} rows={10} />;
+    return <FinancialTableSkeleton columns={6} rows={3} />;
   }
+
+  const handleSort = (column: keyof FinancialTransaction) => {
+    onSort(column);
+  };
 
   return (
     <div className="bg-card rounded-lg border shadow-impressionist shadow-subtle-glow">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Descrição</TableHead>
-            <TableHead>Tipo</TableHead>
-            <TableHead>Categoria</TableHead>
-            <TableHead>Aluno</TableHead>
-            <TableHead>Vencimento</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Valor</TableHead>
+            <TableHead 
+              className="cursor-pointer hover:bg-muted/50"
+              onClick={() => handleSort('description')}
+            >
+              Descrição {sortColumn === 'description' && <ArrowUpDown className={`ml-1 h-4 w-4 ${sortDirection}`} />}
+            </TableHead>
+            <TableHead 
+              className="cursor-pointer hover:bg-muted/50"
+              onClick={() => handleSort('type')}
+            >
+              Tipo {sortColumn === 'type' && <ArrowUpDown className={`ml-1 h-4 w-4 ${sortDirection}`} />}
+            </TableHead>
+            <TableHead 
+              className="cursor-pointer hover:bg-muted/50"
+              onClick={() => handleSort('category')}
+            >
+              Categoria {sortColumn === 'category' && <ArrowUpDown className={`ml-1 h-4 w-4 ${sortDirection}`} />}
+            </TableHead>
+            <TableHead 
+              className="cursor-pointer hover:bg-muted/50"
+              onClick={() => handleSort('status')}
+            >
+              Status {sortColumn === 'status' && <ArrowUpDown className={`ml-1 h-4 w-4 ${sortDirection}`} />}
+            </TableHead>
+            <TableHead 
+              className="cursor-pointer hover:bg-muted/50"
+              onClick={() => handleSort('due_date')}
+            >
+              Vencimento {sortColumn === 'due_date' && <ArrowUpDown className={`ml-1 h-4 w-4 ${sortDirection}`} />}
+            </TableHead>
+            <TableHead 
+              className="cursor-pointer hover:bg-muted/50 text-right"
+              onClick={() => handleSort('amount')}
+            >
+              Valor {sortColumn === 'amount' && <ArrowUpDown className={`ml-1 h-4 w-4 ${sortDirection}`} />}
+            </TableHead>
+            <TableHead 
+              className="cursor-pointer hover:bg-muted/50 text-right"
+              onClick={() => handleSort('created_at')}
+            >
+              Data de Lançamento {sortColumn === 'created_at' && <ArrowUpDown className={`ml-1 h-4 w-4 ${sortDirection}`} />}
+            </TableHead>
             <TableHead className="text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {transactions?.map((t) => (
-            <TableRow 
-              key={t.id} 
-              className={cn(
-                "hover:bg-muted/50 transition-colors",
-                t.type === 'revenue' && "bg-green-50/5",
-                t.type === 'expense' && "bg-red-50/5"
-              )}
-            >
-              <TableCell className="font-medium flex items-center">
-                {t.description}
-                {t.is_recurring && (
-                  <Repeat className="w-4 h-4 ml-2 text-muted-foreground" />
-                )}
-              </TableCell>
+            <TableRow key={t.id} className="bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors">
+              <TableCell className="font-medium">{t.description}</TableCell>
               <TableCell>{t.type === 'revenue' ? 'Receita' : 'Despesa'}</TableCell>
               <TableCell>{t.category}</TableCell>
-              <TableCell>{t.students?.name || '-'}</TableCell>
-              <TableCell>{t.due_date ? format(parseISO(t.due_date), 'dd/MM/yyyy') : '-'}</TableCell>
               <TableCell>
-                <span className={cn(
-                  "px-2 py-1 rounded-full text-xs font-medium",
-                  t.status === 'Pago' && "bg-green-100 text-green-800",
-                  t.status === 'Atrasado' && "bg-red-100 text-red-800",
-                  t.status === 'Pendente' && "bg-yellow-100 text-yellow-800"
-                )}>
-                  {t.status || '-'}
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                  t.status === 'Pago' ? 'bg-green-100 text-green-800' :
+                  t.status === 'Atrasado' ? 'bg-red-100 text-red-800' :
+                  'bg-yellow-100 text-yellow-800'
+                }`}>
+                  {t.status}
                 </span>
               </TableCell>
-              <TableCell className={cn(
-                "text-right font-bold",
-                t.type === 'revenue' ? "text-green-600" : "text-red-600"
-              )}>
+              <TableCell>{t.due_date ? format(parseISO(t.due_date), 'dd/MM/yyyy', { locale: ptBR }) : '-'}</TableCell>
+              <TableCell className="text-right font-bold">
                 {formatCurrency(t.amount)}
+              </TableCell>
+              <TableCell className="text-right font-bold">
+                {format(parseISO(t.created_at), 'dd/MM/yyyy', { locale: ptBR })}
               </TableCell>
               <TableCell className="text-right">
                 <DropdownMenu>
@@ -106,7 +138,7 @@ const AllTransactionsTable = ({
                     </DropdownMenuItem>
                     {t.status !== 'Pago' && t.type === 'revenue' && (
                       <DropdownMenuItem onClick={() => onMarkAsPaid(t.id)}>
-                        <DollarSign className="w-4 h-4 mr-2" /> Marcar como Pago
+                        <CheckCircle className="w-4 h-4 mr-2" /> Marcar como Pago
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem 
