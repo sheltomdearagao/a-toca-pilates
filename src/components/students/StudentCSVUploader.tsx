@@ -487,30 +487,7 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
           <DialogTitle>Importar Alunos via CSV</DialogTitle>
           <DialogDescription>
             <div className="space-y-2 text-sm">
-              <p><strong>Formato esperado das colunas (obrigatória: Nome):</strong></p>
-              <ul className="list-disc pl-4 space-y-1">
-                <li>Nome</li>
-                <li>Email (opcional)</li>
-                <li>Telefone (opcional)</li>
-                <li>Endereco (opcional)</li>
-                <li>Telefone Responsavel (opcional)</li>
-                <li>Notas (opcional)</li>
-                <li>Data Nascimento (dd/mm/yyyy ou yyyy-mm-dd)</li>
-                <li>Dias Preferidos (ex: Segunda, Terça - separados por vírgula)</li>
-                <li>Horario Preferido (ex: 08:00)</li>
-                <li>Plano (ex: Mensal 3x)</li>
-                <li>Valor pago (ex: 260,00)</li>
-                <li>Forma de pagamento (ex: Pix)</li>
-                <li>Status (ex: Ativo)</li>
-                <li>Data de vencimento (opcional)</li>
-                <li>Validade (opcional)</li>
-                <li>Tipo Matricula (ex: Particular)</li>
-                <li>Descricao Desconto (opcional)</li>
-              </ul>
-              <p className="text-xs text-muted-foreground mt-2">
-                O sistema tenta corrigir automaticamente deslocamentos de colunas. Verifique o console (F12) para logs detalhados.
-              </p>
-              {parseErrors.length > 0 && (
+                            {parseErrors.length > 0 && (
                 <div className="mt-2 p-2 bg-destructive/10 border border-destructive/30 rounded text-destructive text-xs">
                   <AlertCircle className="w-4 h-4 inline mr-1" />
                   <strong>Erros encontrados:</strong>
