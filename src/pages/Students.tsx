@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query'; // Adicionado import
 import { supabase } from '@/integrations/supabase/client';
 import { Student } from '@/types/student';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Users, Search, Filter } from 'lucide-react';
+import { PlusCircle, Users, Search, Filter, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,7 +22,7 @@ import StudentStatsCards from '@/components/students/StudentStatsCards';
 import AddEditStudentDialog from '@/components/students/AddEditStudentDialog';
 import StudentCSVUploader from '@/components/students/StudentCSVUploader';
 import DeleteStudentAlertDialog from '@/components/students/DeleteStudentAlertDialog';
-import { showSuccess } from '@/utils/toast';
+import { showSuccess, showError } from '@/utils/toast'; // Adicionado import
 import { useAppSettings } from '@/hooks/useAppSettings';
 
 const fetchStudents = async (): Promise<Student[]> => {
@@ -58,6 +59,7 @@ const fetchPaymentStatusMap = async (): Promise<Record<string, 'Em Dia' | 'Atras
 };
 
 const Students = () => {
+  const queryClient = useQueryClient(); // Adicionado useQueryClient
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | Student['status']>('all');
   const [filterPlanType, setFilterPlanType] = useState<'all' | Student['plan_type']>('all');
@@ -167,6 +169,25 @@ const Students = () => {
     showSuccess('Aluno excluído com sucesso!');
   };
 
+  // Nova função para atualizar todos os alunos para 'Ativo'
+  const handleBulkUpdateStatus = async () => {
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({ status: 'Ativo' });
+
+      if (error) throw error;
+
+      // Invalida cache para atualizar a lista
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['studentStats'] });
+
+      showSuccess('Todos os alunos foram definidos como "Ativo" com sucesso!');
+    } catch (error: any) {
+      showError(`Erro ao atualizar status: ${error.message}`);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <StudentsHeader
@@ -174,6 +195,18 @@ const Students = () => {
         onAddNewStudent={handleAddNewStudent}
         onImportCSV={handleImportCSV}
       />
+
+      {/* Botão de Atualização em Massa */}
+      <div className="flex justify-end mb-4">
+        <Button 
+          variant="outline" 
+          onClick={handleBulkUpdateStatus}
+          className="flex items-center gap-2"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Definir Todos como Ativo
+        </Button>
+      </div>
 
       <ColoredSeparator color="primary" />
 
