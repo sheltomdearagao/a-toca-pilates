@@ -43,6 +43,7 @@ interface CSVRow {
   Validade?: string;
   'Tipo Matricula'?: string;
   'Descricao Desconto'?: string;
+  'Data de Pagamento'?: string; // Nova coluna
   [key: string]: string | undefined;
 }
 
@@ -125,6 +126,8 @@ const getColumnMapping = (headers: string[]): ColumnMapping => {
       mapping.validityDate = header;
     } else if (['tipomatricula', 'enrollmenttype'].includes(normalized)) {
       mapping.enrollmentType = header;
+    } else if (['datadepagamento', 'paidat', 'data_pagamento'].includes(normalized)) {
+      mapping.paidAt = header;
     }
   });
 
@@ -212,6 +215,7 @@ const processStudentRow = (
     const dueDateRaw = row[columnMapping.dueDate || 'Data de vencimento'] || null;
     const validityDateRaw = row[columnMapping.validityDate || 'Validade'] || null;
     const enrollmentTypeRaw = row[columnMapping.enrollmentType || 'Tipo Matricula'] || 'Particular';
+    const paidAtRaw = row[columnMapping.paidAt || 'Data de Pagamento'] || null;
 
     // Processamento de dados
     const planParts = planRaw.trim().split(/\s+/);
@@ -223,6 +227,7 @@ const processStudentRow = (
     const preferredTime = validateTime(preferredTimeRaw);
     const dueDate = parseDate(dueDateRaw);
     const validityDate = parseDate(validityDateRaw);
+    const paidAt = parseDate(paidAtRaw);
 
     return {
       user_id: userId,
@@ -353,6 +358,10 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
           
           const transactionStatus = originalData.status === 'Pago' ? 'Pago' : 'Pendente';
           const finalDueDate = originalData.validity_date || new Date().toISOString();
+          
+          // Usar a data de pagamento fornecida no CSV, ou a data atual se não fornecida
+          const paidAt = originalData.rawData['Data de Pagamento'] ? parseDate(originalData.rawData['Data de Pagamento']) : 
+                         (transactionStatus === 'Pago' ? new Date().toISOString() : null);
 
           return {
             user_id: originalData.user_id,
@@ -363,7 +372,7 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
             type: 'revenue',
             status: transactionStatus,
             due_date: finalDueDate,
-            paid_at: transactionStatus === 'Pago' ? new Date().toISOString() : null,
+            paid_at: paidAt,
           };
         }).filter(Boolean);
 
@@ -487,7 +496,31 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
           <DialogTitle>Importar Alunos via CSV</DialogTitle>
           <DialogDescription>
             <div className="space-y-2 text-sm">
-                            {parseErrors.length > 0 && (
+              <p><strong>Formato esperado das colunas (obrigatória: Nome):</strong></p>
+              <ul className="list-disc pl-4 space-y-1">
+                <li>Nome</li>
+                <li>Email (opcional)</li>
+                <li>Telefone (opcional)</li>
+                <li>Endereco (opcional)</li>
+                <li>Telefone Responsavel (opcional)</li>
+                <li>Notas (opcional)</li>
+                <li>Data Nascimento (dd/mm/yyyy ou yyyy-mm-dd)</li>
+                <li>Dias Preferidos (ex: Segunda, Terça - separados por vírgula)</li>
+                <li>Horario Preferido (ex: 08:00)</li>
+                <li>Plano (ex: Mensal 3x)</li>
+                <li>Valor pago (ex: 260,00)</li>
+                <li>Forma de pagamento (ex: Pix)</li>
+                <li>Status (ex: Ativo)</li>
+                <li>Data de vencimento (opcional)</li>
+                <li>Validade (opcional)</li>
+                <li>Tipo Matricula (ex: Particular)</li>
+                <li>Descricao Desconto (opcional)</li>
+                <li><strong>Data de Pagamento (opcional - dd/mm/yyyy)</strong></li>
+              </ul>
+              <p className="text-xs text-muted-foreground mt-2">
+                O sistema tenta corrigir automaticamente deslocamentos de colunas. Verifique o console (F12) para logs detalhados.
+              </p>
+              {parseErrors.length > 0 && (
                 <div className="mt-2 p-2 bg-destructive/10 border border-destructive/30 rounded text-destructive text-xs">
                   <AlertCircle className="w-4 h-4 inline mr-1" />
                   <strong>Erros encontrados:</strong>
