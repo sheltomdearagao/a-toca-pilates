@@ -15,56 +15,24 @@ type BirthdayStudent = {
 };
 
 const fetchBirthdayStudents = async (): Promise<BirthdayStudent[]> => {
-  console.log('🎂 [BIRTHDAY] Iniciando busca de aniversariantes...');
+  console.log('🎂 [BIRTHDAY] Iniciando busca de aniversariantes via RPC...');
   
-  // Busca TODOS os alunos ativos
-  const { data: allStudents, error } = await supabase
-    .from("students")
-    .select("id, name, date_of_birth, phone, status")
-    .eq("status", "Ativo");
-
-  console.log('📊 [BIRTHDAY] Total de alunos ativos:', allStudents?.length || 0);
+  const currentMonth = new Date().getMonth() + 1; // 1-12
+  
+  // Chama a função RPC existente no Supabase
+  const { data, error } = await supabase.rpc('get_birthday_students_for_month', {
+    p_month: currentMonth,
+  });
 
   if (error) {
-    console.error('❌ [BIRTHDAY] Erro na consulta:', error);
+    console.error('❌ [BIRTHDAY] Erro na consulta RPC:', error);
     throw new Error(error.message);
   }
 
-  // Filtra no cliente
-  const currentMonth = new Date().getMonth(); // 0-11
-  const currentYear = new Date().getFullYear();
-  
-  console.log('📅 [BIRTHDAY] Mês/Ano atual:', { currentMonth: currentMonth + 1, currentYear });
-  
-  const list = (allStudents || []).filter((s: any) => {
-    // Ignora alunos sem data de nascimento
-    if (!s.date_of_birth) {
-      console.log(`⚠️ [BIRTHDAY] ${s.name} não tem data de nascimento`);
-      return false;
-    }
-    
-    try {
-      const dob = parseISO(s.date_of_birth);
-      const studentMonth = dob.getMonth();
-      const matches = studentMonth === currentMonth;
-      
-      console.log(`${matches ? '✅' : '❌'} [BIRTHDAY] ${s.name}:`, {
-        date_of_birth: s.date_of_birth,
-        studentMonth: studentMonth + 1,
-        currentMonth: currentMonth + 1,
-        matches
-      });
-      
-      return matches;
-    } catch (err) {
-      console.error(`❌ [BIRTHDAY] Erro ao processar ${s.name}:`, err);
-      return false;
-    }
-  });
+  console.log('✅ [BIRTHDAY] Total de aniversariantes encontrados:', data?.length || 0);
 
-  console.log('✅ [BIRTHDAY] Total de aniversariantes encontrados:', list.length);
-
-  return list as BirthdayStudent[];
+  // O RPC retorna apenas alunos ativos com data de nascimento no mês atual.
+  return (data || []) as BirthdayStudent[];
 };
 
 const BirthdayCard = () => {
@@ -74,16 +42,10 @@ const BirthdayCard = () => {
     staleTime: 1000 * 60 * 5,
   });
 
-  console.log('🔄 [BIRTHDAY] Estado da query:', {
-    data: students,
-    isLoading,
-    error,
-    dataLength: students?.length
-  });
-
   const birthdaysThisMonth = (students ?? [])
     .slice()
     .sort((a, b) => {
+      // Ordena pelo dia do mês
       const dateA = getDate(parseISO(a.date_of_birth));
       const dateB = getDate(parseISO(b.date_of_birth));
       return dateA - dateB;
@@ -123,7 +85,7 @@ const BirthdayCard = () => {
                   </div>
 
                   <div>
-                    <Link to={`/alunos/${student.id}`} className="font-medium text-foreground hover:underline hover:text-primary">
+                    <Link to={`/alunos/${student.id}`} className="font-medium hover:underline hover:text-primary">
                       {student.name}
                     </Link>
 
