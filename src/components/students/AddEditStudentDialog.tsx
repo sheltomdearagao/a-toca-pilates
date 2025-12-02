@@ -236,7 +236,14 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
   }, [isOpen, selectedStudent, reset]);
 
   const handleFormSubmit = async (data: FormData) => {
-    // Passo 1: Preparação e Cálculos
+    // Passo 1: Recuperar o usuário atual
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      showError('Usuário não autenticado.');
+      return;
+    }
+
+    // Passo 2: Preparação e Cálculos
     const studentData = {
       name: data.name,
       email: data.email,
@@ -254,6 +261,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
       preferred_days: data.preferred_days,
       preferred_time: data.preferred_time,
       discount_description: data.discount_description,
+      user_id: user.id, // Adicionando user_id
     };
 
     // Calcular end_date da assinatura
@@ -261,7 +269,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
     const validityDuration = data.validity_duration || 30;
     const endDate = addDays(paymentDate, validityDuration);
     
-    // Passo 2: Salvar Aluno (students)
+    // Passo 3: Salvar Aluno (students)
     try {
       const { data: newStudent, error: studentError } = await supabase
         .from('students')
@@ -271,7 +279,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
 
       if (studentError) throw new Error(`Erro ao criar aluno: ${studentError.message}`);
 
-      // Passo 3: Salvar Assinatura (subscriptions)
+      // Passo 4: Salvar Assinatura (subscriptions)
       const { data: planData, error: planError } = await supabase
         .from('plans')
         .select('id')
@@ -314,10 +322,11 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
 
       if (subscriptionError) throw new Error(`Erro ao criar assinatura: ${subscriptionError.message}`);
 
-      // Passo 4: Lançar no Financeiro (financial_transactions)
+      // Passo 5: Lançar no Financeiro (financial_transactions)
       const { error: transactionError } = await supabase
         .from('financial_transactions')
         .insert({
+          user_id: user.id, // Adicionando user_id
           student_id: newStudent.id,
           subscription_id: newSubscription.id,
           amount: data.monthly_fee,
