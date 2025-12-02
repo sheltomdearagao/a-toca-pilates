@@ -125,6 +125,7 @@ const StudentProfile = () => {
           hasMore={hasMoreTransactions}
           onLoadMore={loadMoreTransactions}
           isFetching={isFetchingHistory}
+          studentId={studentId}
         />
         <StudentAttendanceHistory
           attendance={attendance}

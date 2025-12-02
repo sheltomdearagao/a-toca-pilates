@@ -91,7 +91,7 @@ export const useStudentProfileData = (studentId: string | undefined) => {
         { data: student, error: studentError },
         { data: recurringTemplate, error: templateError },
       ] = await Promise.all([
-        supabase.from('students').select('*').eq('id', studentId!).single(),
+        supabase.from('students').select('*, subscriptions(price, frequency, status, plans(name))').eq('id', studentId!).single(),
         supabase.from('recurring_class_templates').select('*').eq('student_id', studentId!).single(),
       ]);
 
