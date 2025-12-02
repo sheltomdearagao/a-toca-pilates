@@ -26,6 +26,9 @@ export type StudentProfileData = {
   recurringTemplate: RecurringClassTemplate | null;
   hasMoreTransactions: boolean;
   hasMoreAttendance: boolean;
+  activePlan: string | null;
+  activePrice: number | null;
+  activeFrequency: number | null;
 };
 
 const PAGE_SIZE = 10;
@@ -34,6 +37,7 @@ const fetchStudentProfile = async (studentId: string, transactionLimit: number, 
   const [
     { data: transactions, error: transactionsError, count: transactionCount },
     { data: attendance, error: attendanceError, count: attendanceCount },
+    { data: activeSubscription, error: subscriptionError },
   ] = await Promise.all([
     supabase.from('financial_transactions')
       .select('*, students(name, phone)', { count: 'exact' })
@@ -45,16 +49,30 @@ const fetchStudentProfile = async (studentId: string, transactionLimit: number, 
       .eq('student_id', studentId)
       .order('start_time', { foreignTable: 'classes', ascending: false }) // ORDENAÇÃO: Mais recente primeiro
       .limit(attendanceLimit),
+    supabase.from('subscriptions')
+      .select('price, frequency, plans (name)')
+      .eq('student_id', studentId)
+      .eq('status', 'active')
+      .order('start_date', { ascending: false })
+      .limit(1),
   ]);
 
   if (transactionsError) throw new Error(`Erro ao carregar transações: ${transactionsError.message}`);
   if (attendanceError) throw new Error(`Erro ao carregar presença: ${attendanceError.message}`);
+  if (subscriptionError) console.error("Erro ao carregar assinatura ativa:", subscriptionError);
+
+  const activePlan = activeSubscription?.[0]?.plans?.[0]?.name || null;
+  const activePrice = activeSubscription?.[0]?.price || null;
+  const activeFrequency = activeSubscription?.[0]?.frequency || null;
 
   return { 
     transactions: transactions || [], 
     attendance: (attendance as any) || [],
     hasMoreTransactions: (transactionCount ?? 0) > transactionLimit,
     hasMoreAttendance: (attendanceCount ?? 0) > attendanceLimit,
+    activePlan,
+    activePrice,
+    activeFrequency,
   };
 };
 
@@ -269,6 +287,9 @@ export const useStudentProfileData = (studentId: string | undefined) => {
       attendance: historyData?.attendance || [],
       hasMoreTransactions: historyData?.hasMoreTransactions ?? false,
       hasMoreAttendance: historyData?.hasMoreAttendance ?? false,
+      activePlan: historyData?.activePlan,
+      activePrice: historyData?.activePrice,
+      activeFrequency: historyData?.activeFrequency,
     },
     isLoading,
     isFetchingHistory,

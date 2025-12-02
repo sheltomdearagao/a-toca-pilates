@@ -46,6 +46,9 @@ const StudentProfile = () => {
   const recurringTemplate = data?.recurringTemplate;
   const hasMoreTransactions = data?.hasMoreTransactions ?? false;
   const hasMoreAttendance = data?.hasMoreAttendance ?? false;
+  const activePlan = data?.activePlan;
+  const activePrice = data?.activePrice;
+  const activeFrequency = data?.activeFrequency;
 
   const handleRegisterPayment = () => {
     setTransactionToEdit(undefined);
