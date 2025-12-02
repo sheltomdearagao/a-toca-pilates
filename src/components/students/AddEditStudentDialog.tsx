@@ -334,7 +334,8 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
           paid_at: paymentDate.toISOString(),
           description: `Matrícula Inicial - ${data.plan_type} ${data.plan_frequency || ''}`,
           type: 'revenue',
-          status: 'paid'
+          status: 'paid',
+          category: 'Mensalidade' // Correção: Adicionando o campo obrigatório 'category'
         });
 
       if (transactionError) throw new Error(`Erro ao criar lançamento financeiro: ${transactionError.message}`);
