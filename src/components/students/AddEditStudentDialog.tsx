@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { format, parseISO, addDays } from 'date-fns';
+import { format, parseISO, addDays, isAfter } from 'date-fns';
 import {
   Dialog,
   DialogContent,
@@ -236,7 +236,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
   }, [isOpen, selectedStudent, reset]);
 
   const handleFormSubmit = async (data: FormData) => {
-    // Separar os dados em studentData e subscriptionData
+    // Passo 1: Preparação e Cálculos
     const studentData = {
       name: data.name,
       email: data.email,
@@ -253,38 +253,33 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
       date_of_birth: data.date_of_birth,
       preferred_days: data.preferred_days,
       preferred_time: data.preferred_time,
-      has_promotional_value: data.has_promotional_value,
       discount_description: data.discount_description,
-      payment_date: data.payment_date,
-      validity_duration: data.validity_duration,
     };
 
-    const subscriptionData = {
-      plan_type: data.plan_type,
-      monthly_fee: data.monthly_fee,
-      plan_frequency: data.plan_frequency,
-      payment_date: data.payment_date,
-      validity_duration: data.validity_duration,
-    };
-
+    // Calcular end_date da assinatura
+    const paymentDate = data.payment_date ? parseISO(data.payment_date) : new Date();
+    const validityDuration = data.validity_duration || 30;
+    const endDate = addDays(paymentDate, validityDuration);
+    
+    // Passo 2: Salvar Aluno (students)
     try {
-      // Passo 1: Salvar dados do aluno na tabela students
-      const { data: studentResult, error: studentError } = await supabase
+      const { data: newStudent, error: studentError } = await supabase
         .from('students')
         .insert(studentData)
         .select()
         .single();
 
-      if (studentError) throw studentError;
-      
-      // Passo 2: Salvar assinatura na tabela subscriptions
+      if (studentError) throw new Error(`Erro ao criar aluno: ${studentError.message}`);
+
+      // Passo 3: Salvar Assinatura (subscriptions)
       const { data: planData, error: planError } = await supabase
         .from('plans')
         .select('id')
         .eq('name', data.plan_type)
         .single();
 
-      if (planError) {
+      let planId = planData?.id;
+      if (!planId) {
         // Se o plano não existir, criar um novo
         const { data: newPlan, error: createPlanError } = await supabase
           .from('plans')
@@ -297,45 +292,44 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
           .select()
           .single();
         
-        if (createPlanError) throw createPlanError;
+        if (createPlanError) throw new Error(`Erro ao criar plano: ${createPlanError.message}`);
         
-        // Usar o ID do plano recém-criado
-        const planId = newPlan.id;
-        
-        // Criar a assinatura
-        const { error: subscriptionError } = await supabase
-          .from('subscriptions')
-          .insert({
-            student_id: studentResult.id,
-            plan_id: planId,
-            price: data.monthly_fee,
-            frequency: data.plan_frequency ? parseInt(data.plan_frequency) : 0,
-            start_date: new Date().toISOString(),
-            due_day: 10, // Valor padrão para o dia de vencimento
-            status: 'active'
-          });
-        
-        if (subscriptionError) throw subscriptionError;
-      } else {
-        // Plano já existe, usar o ID existente
-        const planId = planData.id;
-        
-        // Criar a assinatura
-        const { error: subscriptionError } = await supabase
-          .from('subscriptions')
-          .insert({
-            student_id: studentResult.id,
-            plan_id: planId,
-            price: data.monthly_fee,
-            frequency: data.plan_frequency ? parseInt(data.plan_frequency) : 0,
-            start_date: new Date().toISOString(),
-            due_day: 10, // Valor padrão para o dia de vencimento
-            status: 'active'
-          });
-        
-        if (subscriptionError) throw subscriptionError;
+        planId = newPlan.id;
       }
-      
+
+      const { data: newSubscription, error: subscriptionError } = await supabase
+        .from('subscriptions')
+        .insert({
+          student_id: newStudent.id,
+          plan_id: planId,
+          price: data.monthly_fee,
+          frequency: data.plan_frequency ? parseInt(data.plan_frequency) : 0,
+          start_date: paymentDate.toISOString(),
+          end_date: endDate.toISOString(),
+          due_day: 10, // Valor padrão para o dia de vencimento
+          status: 'active'
+        })
+        .select()
+        .single();
+
+      if (subscriptionError) throw new Error(`Erro ao criar assinatura: ${subscriptionError.message}`);
+
+      // Passo 4: Lançar no Financeiro (financial_transactions)
+      const { error: transactionError } = await supabase
+        .from('financial_transactions')
+        .insert({
+          student_id: newStudent.id,
+          subscription_id: newSubscription.id,
+          amount: data.monthly_fee,
+          payment_method: data.payment_method,
+          paid_at: paymentDate.toISOString(),
+          description: `Matrícula Inicial - ${data.plan_type} ${data.plan_frequency || ''}`,
+          type: 'revenue',
+          status: 'paid'
+        });
+
+      if (transactionError) throw new Error(`Erro ao criar lançamento financeiro: ${transactionError.message}`);
+
       // Sucesso
       showSuccess('Aluno salvo com sucesso!');
       onOpenChange(false);
