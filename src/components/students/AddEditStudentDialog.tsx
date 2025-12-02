@@ -29,6 +29,8 @@ import { cn } from '@/lib/utils';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Student } from '@/types/student';
 import { showError } from '@/utils/toast';
+import { supabase } from '@/integrations/supabase/client';
+import { showSuccess } from '@/utils/toast';
 
 type PriceTable = {
   [planType: string]: {
@@ -233,8 +235,113 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
     }
   }, [isOpen, selectedStudent, reset]);
 
-  const handleFormSubmit = (data: FormData) => {
-    onSubmit(data);
+  const handleFormSubmit = async (data: FormData) => {
+    // Separar os dados em studentData e subscriptionData
+    const studentData = {
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      address: data.address,
+      guardian_phone: data.guardian_phone,
+      status: data.status,
+      notes: data.notes,
+      plan_type: data.plan_type,
+      plan_frequency: data.plan_frequency,
+      payment_method: data.payment_method,
+      monthly_fee: data.monthly_fee,
+      enrollment_type: data.enrollment_type,
+      date_of_birth: data.date_of_birth,
+      preferred_days: data.preferred_days,
+      preferred_time: data.preferred_time,
+      has_promotional_value: data.has_promotional_value,
+      discount_description: data.discount_description,
+      payment_date: data.payment_date,
+      validity_duration: data.validity_duration,
+    };
+
+    const subscriptionData = {
+      plan_type: data.plan_type,
+      monthly_fee: data.monthly_fee,
+      plan_frequency: data.plan_frequency,
+      payment_date: data.payment_date,
+      validity_duration: data.validity_duration,
+    };
+
+    try {
+      // Passo 1: Salvar dados do aluno na tabela students
+      const { data: studentResult, error: studentError } = await supabase
+        .from('students')
+        .insert(studentData)
+        .select()
+        .single();
+
+      if (studentError) throw studentError;
+      
+      // Passo 2: Salvar assinatura na tabela subscriptions
+      const { data: planData, error: planError } = await supabase
+        .from('plans')
+        .select('id')
+        .eq('name', data.plan_type)
+        .single();
+
+      if (planError) {
+        // Se o plano não existir, criar um novo
+        const { data: newPlan, error: createPlanError } = await supabase
+          .from('plans')
+          .insert({
+            name: data.plan_type,
+            frequency: data.plan_frequency ? parseInt(data.plan_frequency) : 0,
+            default_price: data.monthly_fee,
+            active: true
+          })
+          .select()
+          .single();
+        
+        if (createPlanError) throw createPlanError;
+        
+        // Usar o ID do plano recém-criado
+        const planId = newPlan.id;
+        
+        // Criar a assinatura
+        const { error: subscriptionError } = await supabase
+          .from('subscriptions')
+          .insert({
+            student_id: studentResult.id,
+            plan_id: planId,
+            price: data.monthly_fee,
+            frequency: data.plan_frequency ? parseInt(data.plan_frequency) : 0,
+            start_date: new Date().toISOString(),
+            due_day: 10, // Valor padrão para o dia de vencimento
+            status: 'active'
+          });
+        
+        if (subscriptionError) throw subscriptionError;
+      } else {
+        // Plano já existe, usar o ID existente
+        const planId = planData.id;
+        
+        // Criar a assinatura
+        const { error: subscriptionError } = await supabase
+          .from('subscriptions')
+          .insert({
+            student_id: studentResult.id,
+            plan_id: planId,
+            price: data.monthly_fee,
+            frequency: data.plan_frequency ? parseInt(data.plan_frequency) : 0,
+            start_date: new Date().toISOString(),
+            due_day: 10, // Valor padrão para o dia de vencimento
+            status: 'active'
+          });
+        
+        if (subscriptionError) throw subscriptionError;
+      }
+      
+      // Sucesso
+      showSuccess('Aluno salvo com sucesso!');
+      onOpenChange(false);
+    } catch (error: any) {
+      showError(error.message);
+    }
   };
 
   const handleFormError = (validationErrors: any) => {
