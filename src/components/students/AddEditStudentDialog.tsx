@@ -243,108 +243,138 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
       return;
     }
 
-    // Passo 2: Preparação e Cálculos
-    const studentData = {
-      name: data.name,
-      email: data.email,
-      phone: data.phone,
-      address: data.address,
-      guardian_phone: data.guardian_phone,
-      status: data.status,
-      notes: data.notes,
-      plan_type: data.plan_type,
-      plan_frequency: data.plan_frequency,
-      payment_method: data.payment_method,
-      monthly_fee: data.monthly_fee,
-      enrollment_type: data.enrollment_type,
-      date_of_birth: data.date_of_birth,
-      preferred_days: data.preferred_days,
-      preferred_time: data.preferred_time,
-      discount_description: data.discount_description,
-      user_id: user.id, // Adicionando user_id
-    };
+    // Verificar se é modo edição
+    if (selectedStudent) {
+      // Modo Edição: Atualizar apenas o aluno
+      const studentData = {
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        address: data.address,
+        guardian_phone: data.guardian_phone,
+        status: data.status,
+        notes: data.notes,
+        // Não incluir campos de plano, pois não queremos alterar a assinatura
+      };
 
-    // Calcular end_date da assinatura
-    const paymentDate = data.payment_date ? parseISO(data.payment_date) : new Date();
-    const validityDuration = data.validity_duration || 30;
-    const endDate = addDays(paymentDate, validityDuration);
-    
-    // Passo 3: Salvar Aluno (students)
-    try {
-      const { data: newStudent, error: studentError } = await supabase
-        .from('students')
-        .insert(studentData)
-        .select()
-        .single();
+      try {
+        const { error: updateError } = await supabase
+          .from('students')
+          .update(studentData)
+          .eq('id', selectedStudent.id);
 
-      if (studentError) throw new Error(`Erro ao criar aluno: ${studentError.message}`);
+        if (updateError) throw new Error(`Erro ao atualizar aluno: ${updateError.message}`);
 
-      // Passo 4: Salvar Assinatura (subscriptions)
-      const { data: planData, error: planError } = await supabase
-        .from('plans')
-        .select('id')
-        .eq('name', data.plan_type)
-        .single();
+        showSuccess('Cadastro atualizado com sucesso!');
+        onOpenChange(false);
+      } catch (error: any) {
+        showError(error.message);
+      }
+    } else {
+      // Modo Criação: Mantém a lógica atual de 3 etapas
+      // Passo 2: Preparação e Cálculos
+      const studentData = {
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        address: data.address,
+        guardian_phone: data.guardian_phone,
+        status: data.status,
+        notes: data.notes,
+        plan_type: data.plan_type,
+        plan_frequency: data.plan_frequency,
+        payment_method: data.payment_method,
+        monthly_fee: data.monthly_fee,
+        enrollment_type: data.enrollment_type,
+        date_of_birth: data.date_of_birth,
+        preferred_days: data.preferred_days,
+        preferred_time: data.preferred_time,
+        discount_description: data.discount_description,
+        user_id: user.id, // Adicionando user_id
+      };
 
-      let planId = planData?.id;
-      if (!planId) {
-        // Se o plano não existir, criar um novo
-        const { data: newPlan, error: createPlanError } = await supabase
+      // Calcular end_date da assinatura
+      const paymentDate = data.payment_date ? parseISO(data.payment_date) : new Date();
+      const validityDuration = data.validity_duration || 30;
+      const endDate = addDays(paymentDate, validityDuration);
+      
+      // Passo 3: Salvar Aluno (students)
+      try {
+        const { data: newStudent, error: studentError } = await supabase
+          .from('students')
+          .insert(studentData)
+          .select()
+          .single();
+
+        if (studentError) throw new Error(`Erro ao criar aluno: ${studentError.message}`);
+
+        // Passo 4: Salvar Assinatura (subscriptions)
+        const { data: planData, error: planError } = await supabase
           .from('plans')
+          .select('id')
+          .eq('name', data.plan_type)
+          .single();
+
+        let planId = planData?.id;
+        if (!planId) {
+          // Se o plano não existir, criar um novo
+          const { data: newPlan, error: createPlanError } = await supabase
+            .from('plans')
+            .insert({
+              name: data.plan_type,
+              frequency: data.plan_frequency ? parseInt(data.plan_frequency) : 0,
+              default_price: data.monthly_fee,
+              active: true
+            })
+            .select()
+            .single();
+          
+          if (createPlanError) throw new Error(`Erro ao criar plano: ${createPlanError.message}`);
+          
+          planId = newPlan.id;
+        }
+
+        const { data: newSubscription, error: subscriptionError } = await supabase
+          .from('subscriptions')
           .insert({
-            name: data.plan_type,
+            student_id: newStudent.id,
+            plan_id: planId,
+            price: data.monthly_fee,
             frequency: data.plan_frequency ? parseInt(data.plan_frequency) : 0,
-            default_price: data.monthly_fee,
-            active: true
+            start_date: paymentDate.toISOString(),
+            end_date: endDate.toISOString(),
+            due_day: 10, // Valor padrão para o dia de vencimento
+            status: 'active'
           })
           .select()
           .single();
-        
-        if (createPlanError) throw new Error(`Erro ao criar plano: ${createPlanError.message}`);
-        
-        planId = newPlan.id;
+
+        if (subscriptionError) throw new Error(`Erro ao criar assinatura: ${subscriptionError.message}`);
+
+        // Passo 5: Lançar no Financeiro (financial_transactions)
+        const { error: transactionError } = await supabase
+          .from('financial_transactions')
+          .insert({
+            user_id: user.id, // Adicionando user_id
+            student_id: newStudent.id,
+            subscription_id: newSubscription.id,
+            amount: data.monthly_fee,
+            payment_method: data.payment_method,
+            paid_at: paymentDate.toISOString(),
+            description: `Matrícula Inicial - ${data.plan_type} ${data.plan_frequency || ''}`,
+            type: 'revenue',
+            status: 'paid',
+            category: 'Mensalidade' // Correção: Adicionando o campo obrigatório 'category'
+          });
+
+        if (transactionError) throw new Error(`Erro ao criar lançamento financeiro: ${transactionError.message}`);
+
+        // Sucesso
+        showSuccess('Aluno salvo com sucesso!');
+        onOpenChange(false);
+      } catch (error: any) {
+        showError(error.message);
       }
-
-      const { data: newSubscription, error: subscriptionError } = await supabase
-        .from('subscriptions')
-        .insert({
-          student_id: newStudent.id,
-          plan_id: planId,
-          price: data.monthly_fee,
-          frequency: data.plan_frequency ? parseInt(data.plan_frequency) : 0,
-          start_date: paymentDate.toISOString(),
-          end_date: endDate.toISOString(),
-          due_day: 10, // Valor padrão para o dia de vencimento
-          status: 'active'
-        })
-        .select()
-        .single();
-
-      if (subscriptionError) throw new Error(`Erro ao criar assinatura: ${subscriptionError.message}`);
-
-      // Passo 5: Lançar no Financeiro (financial_transactions)
-      const { error: transactionError } = await supabase
-        .from('financial_transactions')
-        .insert({
-          user_id: user.id, // Adicionando user_id
-          student_id: newStudent.id,
-          subscription_id: newSubscription.id,
-          amount: data.monthly_fee,
-          payment_method: data.payment_method,
-          paid_at: paymentDate.toISOString(),
-          description: `Matrícula Inicial - ${data.plan_type} ${data.plan_frequency || ''}`,
-          type: 'revenue',
-          status: 'paid',
-          category: 'Mensalidade' // Correção: Adicionando o campo obrigatório 'category'
-        });
-
-      if (transactionError) throw new Error(`Erro ao criar lançamento financeiro: ${transactionError.message}`);
-
-      // Sucesso
-      showSuccess('Aluno salvo com sucesso!');
-      onOpenChange(false);
-    } catch (error: any) {
-      showError(error.message);
     }
   };
 
