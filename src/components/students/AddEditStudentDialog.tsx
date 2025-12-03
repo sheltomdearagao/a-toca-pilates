@@ -31,7 +31,7 @@ import { Student } from '@/types/student';
 import { showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess } from '@/utils/toast';
-import { formatCurrency } from '@/utils/formatters'; // Added import for formatCurrency
+import { formatCurrency } from '@/utils/formatters';
 
 type PriceTable = {
   [planType: string]: {
@@ -164,7 +164,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
       has_promotional_value: false, discount_description: null,
       payment_date: format(new Date(), 'yyyy-MM-dd'), // Default para hoje
       validity_duration: 30,
-      due_day: 5,
+      due_day: 5, // Valor padrão como número
       is_pro_rata_waived: false,
     },
   });
@@ -266,7 +266,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
         // Usamos a data de validade existente para preencher a data de pagamento no modo edição
         payment_date: selectedStudent.validity_date ? format(parseISO(selectedStudent.validity_date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
         validity_duration: 30, // Mantemos 30 como default para edição
-        due_day: 5, // Default para edição
+        due_day: 5, // Valor padrão como número
         is_pro_rata_waived: false,
       });
     } else {
@@ -280,7 +280,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
         has_promotional_value: false, discount_description: null,
         payment_date: format(new Date(), 'yyyy-MM-dd'),
         validity_duration: 30,
-        due_day: 5,
+        due_day: 5, // Valor padrão como número
         is_pro_rata_waived: false,
       });
     }
@@ -341,7 +341,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
         preferred_days: data.preferred_days,
         preferred_time: data.preferred_time,
         discount_description: data.discount_description,
-        due_day: data.due_day,
+        due_day: data.due_day, // Garantindo que é número
         user_id: user.id, // Adicionando user_id
       };
 
@@ -402,7 +402,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
             frequency: data.plan_frequency ? parseInt(data.plan_frequency) : 0,
             start_date: paymentDate.toISOString(),
             end_date: planEndDate?.toISOString() || endDate.toISOString(),
-            due_day: data.due_day,
+            due_day: data.due_day, // Garantindo que é número
             status: 'active'
           })
           .select()
@@ -481,6 +481,10 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
                 <Label>Telefone (Opcional)</Label>
                 <Controller name="phone" control={control} render={({ field }) => <Input {...field} />} />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Data Nasc. (Opcional)</Label>
+              <Controller name="date_of_birth" control={control} render={({ field }) => <Input type="date" {...field} />} />
             </div>
             <div className="space-y-2">
               <Label>Endereço (Opcional)</Label>
@@ -568,13 +572,9 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
             {/* Datas */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Data Nasc. (Opcional)</Label>
-                <Controller name="date_of_birth" control={control} render={({ field }) => <Input type="date" {...field} />} />
-              </div>
-              <div className="space-y-2">
                 <Label>Dia de Vencimento</Label>
                 <Controller name="due_day" control={control} render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value.toString()}>
+                  <Select onValueChange={(value) => setValue('due_day', parseInt(value))} value={field.value.toString()}>
                     <SelectTrigger><SelectValue placeholder="Selecione o dia" /></SelectTrigger>
                     <SelectContent>
                       {[5, 10, 15, 20, 25, 30].map(day => (
