@@ -271,7 +271,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
         showError(error.message);
       }
     } else {
-      // Modo Criação: Mantém a lógica atual de 3 etapas
+      // Modo Criação: Implementando rollback
       // Passo 2: Preparação e Cálculos
       const studentData = {
         name: data.name,
@@ -298,15 +298,17 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
       const validityDuration = data.validity_duration || 30;
       const endDate = addDays(paymentDate, validityDuration);
       
-      // Passo 3: Salvar Aluno (students)
+      // Passo 3: Salvar Aluno (students) com rollback
+      let newStudent = null;
       try {
-        const { data: newStudent, error: studentError } = await supabase
+        const { data: newStudentTemp, error: studentError } = await supabase
           .from('students')
           .insert(studentData)
           .select()
           .single();
 
         if (studentError) throw new Error(`Erro ao criar aluno: ${studentError.message}`);
+        newStudent = newStudentTemp;
 
         // Passo 4: Salvar Assinatura (subscriptions)
         const { data: planData, error: planError } = await supabase
@@ -373,6 +375,14 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
         showSuccess('Aluno salvo com sucesso!');
         onOpenChange(false);
       } catch (error: any) {
+        // Rollback: Excluir aluno se já foi criado
+        if (newStudent) {
+          try {
+            await supabase.from('students').delete().eq('id', newStudent.id);
+          } catch (rollbackError) {
+            console.error('Erro ao excluir aluno durante rollback:', rollbackError);
+          }
+        }
         showError(error.message);
       }
     }
