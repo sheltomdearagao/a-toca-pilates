@@ -42,14 +42,32 @@ const BirthdayCard = () => {
     staleTime: 1000 * 60 * 5,
   });
 
-  const birthdaysThisMonth = (students ?? [])
-    .slice()
-    .sort((a, b) => {
-      // Ordena pelo dia do mês
-      const dateA = getDate(parseISO(a.date_of_birth));
-      const dateB = getDate(parseISO(b.date_of_birth));
-      return dateA - dateB;
-    });
+  const birthdaysThisMonth = useMemo(() => {
+    if (!students) return [];
+    
+    return students
+      .slice()
+      .sort((a, b) => {
+        // Ordena pelo dia do mês
+        const dateA = parseISO(a.date_of_birth);
+        const dateB = parseISO(b.date_of_birth);
+        
+        const dayA = getDate(dateA);
+        const dayB = getDate(dateB);
+        
+        return dayA - dayB;
+      });
+  }, [students]);
+
+  if (error) {
+    console.error("Erro ao carregar aniversariantes:", error);
+    return (
+      <Card className="shadow-impressionist shadow-subtle-glow border-l-4 border-destructive">
+        <CardHeader><CardTitle className="text-lg text-destructive">Erro ao Carregar Aniversariantes</CardTitle></CardHeader>
+        <CardContent><p className="text-sm text-muted-foreground">Verifique o console para detalhes do erro.</p></CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="shadow-impressionist shadow-subtle-glow">
