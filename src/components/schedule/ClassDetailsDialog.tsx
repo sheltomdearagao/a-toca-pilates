@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Link } from 'react-router-dom';
+import { cn } from '@/lib/utils';
 
 interface ClassDetailsDialogProps {
   isOpen: boolean;
@@ -142,6 +143,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
   const refreshData = useCallback(async () => {
     await loadAttendees();
     queryClient.invalidateQueries({ queryKey: ['classes'] });
+    queryClient.invalidateQueries({ queryKey: ['studentStats'] }); // Invalida estatísticas de alunos
   }, [loadAttendees, queryClient]);
 
   const updateStatusMutation = useMutation({
@@ -153,9 +155,9 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
 
       if (error) throw error;
     },
-    onSuccess: async () => {
+    onSuccess: async (_, { status }) => {
       await refreshData();
-      showSuccess('Status da presença atualizado com sucesso!');
+      showSuccess(`Status da presença atualizado para '${status}'!`);
     },
     onError: (error) => showError(error.message),
   });
@@ -178,7 +180,6 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado.');
 
-      // Verifica se o studentId é um UUID válido (não nulo ou vazio)
       if (!studentId || studentId.length < 36) {
         throw new Error('ID do aluno inválido.');
       }
@@ -259,7 +260,7 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                 <span>{classEvent.title}</span>
               </div>
               <div className="flex gap-2">
-                <Button onClick={() => setIsEditOpen(true)}>
+                <Button onClick={() => setIsEditOpen(true)} variant="outline">
                   <Edit className="mr-2 h-4 w-4" />
                   Editar Aula
                 </Button>
@@ -277,7 +278,8 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
               </div>
             )}
 
-            <div className="space-y-3">
+            {/* Seção de Adicionar Participante */}
+            <div className="space-y-3 border-t pt-4">
               <div className="flex items-center justify-between">
                 <h4 className="flex items-center font-semibold">
                   <UserPlus className="mr-2 h-4 w-4" />
@@ -349,11 +351,12 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
               )}
             </div>
 
-            <div className="space-y-3">
+            {/* Seção de Participantes e Controle de Presença */}
+            <div className="space-y-3 border-t pt-4">
               <div className="flex items-center justify-between">
                 <h4 className="flex items-center font-semibold">
                   <Users className="mr-2 h-4 w-4" />
-                  Participantes ({attendees.length}/{classCapacity})
+                  Controle de Presença
                 </h4>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
                   <div className="flex items-center gap-1">
@@ -419,27 +422,35 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
                         >
                           {attendee.status}
                         </Badge>
+                        
+                        {/* Botões de Ação de Presença */}
                         <Button
                           size="icon"
-                          variant="ghost"
+                          variant={attendee.status === 'Presente' ? 'default' : 'ghost'}
+                          className={cn("h-8 w-8", attendee.status === 'Presente' ? "bg-green-600 hover:bg-green-700 text-white" : "hover:bg-green-100 text-green-600")}
                           onClick={() => handleUpdateStatus(attendee.id, 'Presente')}
                           title="Marcar como Presente"
+                          disabled={updateStatusMutation.isPending}
                         >
-                          <Check className="h-4 w-4 text-green-600" />
+                          <Check className="h-4 w-4" />
                         </Button>
                         <Button
                           size="icon"
-                          variant="ghost"
+                          variant={attendee.status === 'Faltou' ? 'default' : 'ghost'}
+                          className={cn("h-8 w-8", attendee.status === 'Faltou' ? "bg-red-600 hover:bg-red-700 text-white" : "hover:bg-red-100 text-red-600")}
                           onClick={() => handleUpdateStatus(attendee.id, 'Faltou')}
                           title="Marcar como Faltou"
+                          disabled={updateStatusMutation.isPending}
                         >
-                          <X className="h-4 w-4 text-red-600" />
+                          <X className="h-4 w-4" />
                         </Button>
+                        
                         <Button
                           size="icon"
                           variant="ghost"
                           onClick={() => handleRemoveAttendee(attendee.id)}
                           title="Remover Participante"
+                          disabled={removeAttendeeMutation.isPending}
                         >
                           <Trash2 className="h-4 w-4 text-muted-foreground" />
                         </Button>
