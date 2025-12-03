@@ -17,7 +17,8 @@ import { Progress } from '@/components/ui/progress';
 import { Loader2, Upload, AlertCircle } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import Papa from 'papaparse';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, addDays, isAfter, isBefore } from 'date-fns';
+import { ptBR } from 'date-fns/locale/pt-BR';
 
 // Tipos
 interface StudentCSVUploaderProps {
@@ -66,6 +67,7 @@ interface ProcessedStudent {
   status: string;
   enrollment_type: string;
   validity_date: string | null;
+  due_day: string | null; // Added due_day to match usage
   rawData: CSVRow;
 }
 
@@ -218,10 +220,6 @@ const processStudentRow = (
     const paidAtRaw = row[columnMapping.paidAt || 'Data de Pagamento'] || null;
 
     // Processamento de dados
-    const planParts = planRaw.trim().split(/\s+/);
-    const plan_type = planParts[0] || 'Avulso';
-    const plan_frequency = planParts.find((p: string) => p.toLowerCase().includes('x')) || null;
-    
     const birthDate = parseDate(birthDateRaw);
     const preferredDays = preferredDaysRaw ? preferredDaysRaw.split(',').map((d: string) => d.trim().toLowerCase()) : null;
     const preferredTime = validateTime(preferredTimeRaw);
@@ -229,6 +227,11 @@ const processStudentRow = (
     const validityDate = parseDate(validityDateRaw);
     const paidAt = parseDate(paidAtRaw);
 
+    // Processar plano
+    const planParts = planRaw.trim().split(/\s+/);
+    const plan_type = planParts[0] || 'Avulso';
+    const plan_frequency = planParts.find((p: string) => p.toLowerCase().includes('x')) || null;
+    
     return {
       user_id: userId,
       name,
@@ -248,6 +251,7 @@ const processStudentRow = (
       status: statusRaw,
       enrollment_type: enrollmentTypeRaw,
       validity_date: validityDate,
+      due_day: dueDate, // Fixed due_day reference
       rawData: row,
     };
   } catch (err: any) {
@@ -310,13 +314,8 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
             preferred_days: student.preferred_days,
             preferred_time: student.preferred_time,
             discount_description: student.discount_description,
-            plan_type: student.plan_type,
-            plan_frequency: student.plan_frequency,
-            monthly_fee: student.monthly_fee,
-            payment_method: student.payment_method,
-            status: student.status,
             enrollment_type: student.enrollment_type,
-            validity_date: student.validity_date,
+            status: student.status,
           };
         });
 
@@ -348,46 +347,102 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
 
         console.log(`✅ ${insertedStudents.length} alunos inseridos. IDs:`, insertedStudents.map(s => s.id));
 
-        // Inserir transações para alunos com mensalidade > 0
-        const transactionsToInsert = insertedStudents.map((student, idx) => {
-          const originalData = chunk[idx];
-          if (!originalData || originalData.monthly_fee <= 0) {
-            console.log(`⏭️ Pulando transação para ${student.name} (sem valor)`);
-            return null;
+        // Processar cada aluno do lote para criar plano, assinatura e lançamento financeiro
+        for (const [index, student] of chunk.entries()) {
+          const insertedStudent = insertedStudents[index];
+          const studentId = insertedStudent.id;
+          
+          // 2. Tratar o plano
+          const planName = student.plan_type;
+          let planId = null;
+          
+          if (planName && planName !== 'Avulso') {
+            const { data: planData, error: planError } = await supabase
+              .from('plans')
+              .select('id')
+              .eq('name', planName)
+              .single();
+            
+            if (planError && planError.code !== 'PGRST116') {
+              const errMsg = `Erro ao buscar plano '${planName}': ${planError.message}`;
+              console.error('❌', errMsg);
+              errors.push(errMsg);
+              continue;
+            }
+            
+            if (planData) {
+              planId = planData.id;
+            } else {
+              // Criar novo plano
+              const { data: newPlan, error: createPlanError } = await supabase
+                .from('plans')
+                .insert({
+                  name: planName,
+                  frequency: student.plan_frequency ? parseInt(student.plan_frequency) : 0,
+                  default_price: student.monthly_fee,
+                  active: true
+                })
+                .select()
+                .single();
+              
+              if (createPlanError) {
+                const errMsg = `Erro ao criar plano '${planName}': ${createPlanError.message}`;
+                console.error('❌', errMsg);
+                errors.push(errMsg);
+                continue;
+              }
+              
+              planId = newPlan.id;
+            }
           }
           
-          const transactionStatus = originalData.status === 'Pago' ? 'Pago' : 'Pendente';
-          const finalDueDate = originalData.validity_date || new Date().toISOString();
-          
-          // Usar a data de pagamento fornecida no CSV, ou a data atual se não fornecida
-          const paidAt = originalData.rawData['Data de Pagamento'] ? parseDate(originalData.rawData['Data de Pagamento']) : 
-                         (transactionStatus === 'Pago' ? new Date().toISOString() : null);
-
-          return {
-            user_id: originalData.user_id,
-            student_id: student.id,
-            description: `Mensalidade - ${originalData.plan_type} ${originalData.plan_frequency || ''}`,
-            category: 'Mensalidade',
-            amount: originalData.monthly_fee,
-            type: 'revenue',
-            status: transactionStatus,
-            due_date: finalDueDate,
-            paid_at: paidAt,
-          };
-        }).filter(Boolean);
-
-        if (transactionsToInsert.length > 0) {
-          const { error: transactionError } = await supabase
-            .from('financial_transactions')
-            .insert(transactionsToInsert as any);
-          
-          if (transactionError) {
-            const errMsg = `Erro ao inserir transações do lote: ${transactionError.message}`;
-            console.error('❌', errMsg);
-            errors.push(errMsg);
-            throw new Error(errMsg);
+          // 3. Criar assinatura
+          if (planId) {
+            const { data: newSubscription, error: subscriptionError } = await supabase
+              .from('subscriptions')
+              .insert({
+                student_id: studentId,
+                plan_id: planId,
+                price: student.monthly_fee,
+                frequency: student.plan_frequency ? parseInt(student.plan_frequency) : 0,
+                start_date: student.validity_date ? new Date(student.validity_date).toISOString() : new Date().toISOString(),
+                due_day: student.due_day ? parseInt(student.due_day) : 10, // Fixed due_day usage
+                status: 'active'
+              })
+              .select()
+              .single();
+            
+            if (subscriptionError) {
+              const errMsg = `Erro ao criar assinatura para ${student.name}: ${subscriptionError.message}`;
+              console.error('❌', errMsg);
+              errors.push(errMsg);
+              continue;
+            }
+            
+            // 4. Lançamento Financeiro (apenas para Particulares)
+            if (student.enrollment_type === 'Particular' && student.monthly_fee > 0) {
+              const { error: transactionError } = await supabase
+                .from('financial_transactions')
+                .insert({
+                  user_id: userId,
+                  student_id: studentId,
+                  subscription_id: newSubscription.id,
+                  amount: student.monthly_fee,
+                  payment_method: student.payment_method,
+                  paid_at: student.validity_date ? new Date(student.validity_date).toISOString() : new Date().toISOString(),
+                  description: `Mensalidade - ${student.plan_type} ${student.plan_frequency || ''}`,
+                  type: 'revenue',
+                  status: 'paid',
+                  category: 'Mensalidade'
+                });
+              
+              if (transactionError) {
+                const errMsg = `Erro ao criar lançamento financeiro para ${student.name}: ${transactionError.message}`;
+                console.error('❌', errMsg);
+                errors.push(errMsg);
+              }
+            }
           }
-          console.log(`✅ ${transactionsToInsert.length} transações criadas`);
         }
 
         const newProcessedCount = Math.min(i + CHUNK_SIZE, studentsData.length);
@@ -423,7 +478,6 @@ const StudentCSVUploader = ({ isOpen, onOpenChange }: StudentCSVUploaderProps) =
     } catch (error: any) {
       console.error('❌ Erro geral na importação:', error);
       showError(`Falha na importação: ${error.message}. Verifique o console.`);
-      setParseErrors(errors);
     } finally {
       setIsProcessing(false);
     }
