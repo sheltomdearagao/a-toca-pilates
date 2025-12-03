@@ -66,6 +66,13 @@ const VALIDITY_DURATIONS = [
   { value: 90, label: '90 Dias' },
 ];
 
+// Função de pré-processamento segura para números
+const safeNumberPreprocess = (val: unknown) => {
+  if (typeof val === 'string' && val.trim() === '') return undefined;
+  if (typeof val === 'string') return parseFloat(val.replace(',', '.'));
+  return val;
+};
+
 const createStudentSchema = (appSettings: any) => {
   const planTypes = appSettings?.plan_types as [string, ...string[]] || ['Avulso'];
   const frequencies = appSettings?.plan_frequencies as [string, ...string[]] || ['2x'];
@@ -88,7 +95,7 @@ const createStudentSchema = (appSettings: any) => {
     plan_frequency: z.enum(frequencies).optional().nullable(),
     payment_method: z.enum(methods).optional().nullable(),
     monthly_fee: z.preprocess(
-      (val) => (typeof val === 'string' ? parseFloat(val.replace(',', '.')) : val),
+      safeNumberPreprocess,
       z.number().min(0, 'Mensalidade inválida')
     ),
 
@@ -105,10 +112,13 @@ const createStudentSchema = (appSettings: any) => {
     // Campos de controle de validade
     payment_date: z.string().optional().nullable(), // Data em que pagou
     validity_duration: z.preprocess(
-      (val) => (typeof val === 'string' ? parseInt(val, 10) : val),
+      safeNumberPreprocess,
       z.number().optional().nullable()
     ),
-    due_day: z.number().min(1).max(31).default(5),
+    due_day: z.preprocess(
+      safeNumberPreprocess,
+      z.number().min(1).max(31).default(5)
+    ),
     is_pro_rata_waived: z.boolean().optional(),
   }).superRefine((data, ctx) => {
     if (data.plan_type !== 'Avulso' && data.enrollment_type === 'Particular') {
@@ -482,14 +492,19 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
                 <Controller name="phone" control={control} render={({ field }) => <Input {...field} />} />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Data Nasc. (Opcional)</Label>
-              <Controller name="date_of_birth" control={control} render={({ field }) => <Input type="date" {...field} />} />
+            
+            {/* Data Nasc. e Endereço (Layout Ajustado) */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Data Nasc. (Opcional)</Label>
+                <Controller name="date_of_birth" control={control} render={({ field }) => <Input type="date" {...field} />} />
+              </div>
+              <div className="space-y-2">
+                <Label>Endereço (Opcional)</Label>
+                <Controller name="address" control={control} render={({ field }) => <Input {...field} />} />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Endereço (Opcional)</Label>
-              <Controller name="address" control={control} render={({ field }) => <Input {...field} />} />
-            </div>
+            
             <div className="space-y-2">
               <Label>Telefone Responsável (Opcional)</Label>
               <Controller name="guardian_phone" control={control} render={({ field }) => <Input {...field} />} />
