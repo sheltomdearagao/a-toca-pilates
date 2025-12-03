@@ -6,6 +6,7 @@ import { ptBR } from "date-fns/locale/pt-BR";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
+import { useMemo } from "react"; // Importando useMemo do React
 
 type BirthdayStudent = {
   id: string;
