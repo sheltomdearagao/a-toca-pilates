@@ -1,8 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { format, parseISO, addDays, isAfter } from 'date-fns';
+import { format, parseISO, addDays, isAfter, differenceInDays } from 'date-fns';
 import {
   Dialog,
   DialogContent,
@@ -31,6 +31,7 @@ import { Student } from '@/types/student';
 import { showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess } from '@/utils/toast';
+import { formatCurrency } from '@/utils/formatters'; // Added import for formatCurrency
 
 type PriceTable = {
   [planType: string]: {
@@ -101,12 +102,14 @@ const createStudentSchema = (appSettings: any) => {
     has_promotional_value: z.boolean().optional(),
     discount_description: z.string().optional().nullable(),
 
-    // Campos de controle de validade (sempre presentes, mas condicionalmente obrigatórios)
+    // Campos de controle de validade
     payment_date: z.string().optional().nullable(), // Data em que pagou
     validity_duration: z.preprocess(
       (val) => (typeof val === 'string' ? parseInt(val, 10) : val),
       z.number().optional().nullable()
     ),
+    due_day: z.number().min(1).max(31).default(5),
+    is_pro_rata_waived: z.boolean().optional(),
   }).superRefine((data, ctx) => {
     if (data.plan_type !== 'Avulso' && data.enrollment_type === 'Particular') {
       if (!data.plan_frequency) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Frequência obrigatória', path: ['plan_frequency'] });
@@ -161,6 +164,8 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
       has_promotional_value: false, discount_description: null,
       payment_date: format(new Date(), 'yyyy-MM-dd'), // Default para hoje
       validity_duration: 30,
+      due_day: 5,
+      is_pro_rata_waived: false,
     },
   });
 
@@ -169,8 +174,47 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
   const paymentMethod = watch('payment_method');
   const hasPromo = watch('has_promotional_value');
   const enrollmentType = watch('enrollment_type');
+  const validityDuration = watch('validity_duration');
+  const dueDay = watch('due_day');
+  const isProRataWaived = watch('is_pro_rata_waived');
+  const paymentDate = watch('payment_date');
+  const monthlyFee = watch('monthly_fee');
 
   const requiresValidityControl = enrollmentType === 'Particular' && planType !== 'Avulso';
+
+  // Estado para armazenar valores calculados
+  const [planValue, setPlanValue] = useState<number | null>(null);
+  const [proRataValue, setProRataValue] = useState<number | null>(null);
+  const [cycleStartDate, setCycleStartDate] = useState<Date | null>(null);
+  const [planEndDate, setPlanEndDate] = useState<Date | null>(null);
+
+  // Cálculo de datas e valores
+  const { proRataDays, proRataAmount } = useMemo(() => {
+    if (!paymentDate || !validityDuration || !planValue) return { proRataDays: 0, proRataAmount: 0 };
+    
+    const startDate = parseISO(paymentDate);
+    const dueDayValue = dueDay;
+    
+    // Calcular a próxima data de vencimento
+    let cycleStartDate = new Date(startDate.getFullYear(), startDate.getMonth(), dueDayValue);
+    
+    // Se a data de vencimento já passou neste mês, vamos para o próximo mês
+    if (cycleStartDate < startDate) {
+      cycleStartDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, dueDayValue);
+    }
+    
+    // Calcular a data de término do plano
+    const endDate = addDays(cycleStartDate, validityDuration);
+    
+    // Calcular o número de dias para o proporcional
+    const proRataDays = differenceInDays(cycleStartDate, startDate);
+    const proRataAmount = (proRataDays / validityDuration) * planValue;
+    
+    setCycleStartDate(cycleStartDate);
+    setPlanEndDate(endDate);
+    
+    return { proRataDays, proRataAmount };
+  }, [paymentDate, validityDuration, planValue, dueDay]);
 
   useEffect(() => {
     if (!appSettings?.price_table) return;
@@ -190,7 +234,10 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
     const table: PriceTable = appSettings.price_table;
     const freqMap = table[planType]?.[planFrequency ?? ''];
     const price = freqMap?.[paymentMethod ?? ''];
-    if (price != null) setValue('monthly_fee', price);
+    if (price != null) {
+      setValue('monthly_fee', price);
+      setPlanValue(price);
+    }
   }, [planType, planFrequency, paymentMethod, hasPromo, enrollmentType, appSettings, setValue]);
 
   useEffect(() => {
@@ -219,6 +266,8 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
         // Usamos a data de validade existente para preencher a data de pagamento no modo edição
         payment_date: selectedStudent.validity_date ? format(parseISO(selectedStudent.validity_date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
         validity_duration: 30, // Mantemos 30 como default para edição
+        due_day: 5, // Default para edição
+        is_pro_rata_waived: false,
       });
     } else {
       reset({
@@ -231,6 +280,8 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
         has_promotional_value: false, discount_description: null,
         payment_date: format(new Date(), 'yyyy-MM-dd'),
         validity_duration: 30,
+        due_day: 5,
+        is_pro_rata_waived: false,
       });
     }
   }, [isOpen, selectedStudent, reset]);
@@ -290,6 +341,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
         preferred_days: data.preferred_days,
         preferred_time: data.preferred_time,
         discount_description: data.discount_description,
+        due_day: data.due_day,
         user_id: user.id, // Adicionando user_id
       };
 
@@ -336,16 +388,21 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
           planId = newPlan.id;
         }
 
+        // Calcular o valor proporcional
+        const proRataAmount = isProRataWaived ? 0 : (proRataDays / validityDuration) * (planValue || 0);
+        const totalAmount = proRataAmount + (planValue || 0);
+
+        // Criar a assinatura
         const { data: newSubscription, error: subscriptionError } = await supabase
           .from('subscriptions')
           .insert({
             student_id: newStudent.id,
             plan_id: planId,
-            price: data.monthly_fee,
+            price: planValue || 0, // Valor do plano recorrente
             frequency: data.plan_frequency ? parseInt(data.plan_frequency) : 0,
             start_date: paymentDate.toISOString(),
-            end_date: endDate.toISOString(),
-            due_day: 10, // Valor padrão para o dia de vencimento
+            end_date: planEndDate?.toISOString() || endDate.toISOString(),
+            due_day: data.due_day,
             status: 'active'
           })
           .select()
@@ -360,10 +417,10 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
             user_id: user.id, // Adicionando user_id
             student_id: newStudent.id,
             subscription_id: newSubscription.id,
-            amount: data.monthly_fee,
+            amount: totalAmount,
             payment_method: data.payment_method,
             paid_at: paymentDate.toISOString(),
-            description: `Matrícula Inicial - ${data.plan_type} ${data.plan_frequency || ''}`,
+            description: `Matrícula: Ajuste Proporcional + Plano ${data.plan_type} ${data.plan_frequency || ''}`,
             type: 'revenue',
             status: 'paid',
             category: 'Mensalidade' // Correção: Adicionando o campo obrigatório 'category'
@@ -514,6 +571,19 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
                 <Label>Data Nasc. (Opcional)</Label>
                 <Controller name="date_of_birth" control={control} render={({ field }) => <Input type="date" {...field} />} />
               </div>
+              <div className="space-y-2">
+                <Label>Dia de Vencimento</Label>
+                <Controller name="due_day" control={control} render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value.toString()}>
+                    <SelectTrigger><SelectValue placeholder="Selecione o dia" /></SelectTrigger>
+                    <SelectContent>
+                      {[5, 10, 15, 20, 25, 30].map(day => (
+                        <SelectItem key={day} value={day.toString()}>{day}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )} />
+              </div>
             </div>
 
             {/* Preferências de Dia/Horário */}
@@ -555,7 +625,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
               </div>
             )}
             
-            {/* Controle de Validade (Sempre visível para planos recorrentes particulares) */}
+            {/* Controle de Validade */}
             {requiresValidityControl && (
               <div className="grid grid-cols-2 gap-4 border-t pt-4 mt-4">
                 <div className="space-y-2">
@@ -574,6 +644,34 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
                     </Select>
                   )} />
                   {errors.validity_duration && <p className="text-sm text-destructive">{errors.validity_duration.message}</p>}
+                </div>
+              </div>
+            )}
+
+            {/* Card de Pagamento */}
+            {planValue && proRataAmount && requiresValidityControl && planType !== 'Avulso' && (
+              <div className="mt-4 p-4 bg-muted rounded-lg">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-medium">Ajuste Proporcional (de {format(parseISO(paymentDate), 'dd/MM')} a {format(cycleStartDate || new Date(), 'dd/MM')}):</span>
+                  <span className="font-bold text-primary">
+                    {isProRataWaived ? 'Isento' : formatCurrency(proRataAmount)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-medium">Plano ({format(cycleStartDate || new Date(), 'dd/MM')} a {format(planEndDate || new Date(), 'dd/MM')}):</span>
+                  <span className="font-bold text-primary">{formatCurrency(planValue)}</span>
+                </div>
+                <div className="flex justify-between items-center font-bold text-lg">
+                  <span>Total a Pagar:</span>
+                  <span className="text-primary">
+                    {isProRataWaived ? formatCurrency(planValue) : formatCurrency(proRataAmount + planValue)}
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center space-x-2">
+                  <Controller name="is_pro_rata_waived" control={control} render={({ field }) => (
+                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                  )} />
+                  <Label>Isentar Ajuste Proporcional</Label>
                 </div>
               </div>
             )}
