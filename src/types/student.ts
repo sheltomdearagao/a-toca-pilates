@@ -25,6 +25,7 @@ export type Student = {
   address?: string | null; // Novo campo
   guardian_phone?: string | null; // Novo campo
   discount_description?: string | null; // Novo campo
+  due_day?: number | null; // Adicionado campo due_day
 
   // Créditos de Reposição
   reposition_credits?: number | null;

@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertTriangle } from 'lucide-react';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { cn } from '@/lib/utils';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -32,6 +32,7 @@ import { showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess } from '@/utils/toast';
 import { formatCurrency } from '@/utils/formatters';
+import { Card } from '@/components/ui/card';
 
 type PriceTable = {
   [planType: string]: {
@@ -81,7 +82,6 @@ const createStudentSchema = (appSettings: any) => {
 
   return z.object({
     name: z.string().min(3, 'Nome obrigatório'),
-    // Permite string vazia ou nula, mas se não for vazia, deve ser um email válido
     email: z.string().optional().nullable().transform(e => e?.trim() === '' ? null : e).refine(e => !e || z.string().email().safeParse(e).success, {
       message: 'Email inválido',
     }),
@@ -92,46 +92,45 @@ const createStudentSchema = (appSettings: any) => {
     notes: z.string().optional().nullable(),
 
     plan_type: z.enum(planTypes),
+    enrollment_type: z.enum(enrollTypes),
+
+    // Campos Condicionais
     plan_frequency: z.enum(frequencies).optional().nullable(),
     payment_method: z.enum(methods).optional().nullable(),
     monthly_fee: z.preprocess(
       safeNumberPreprocess,
       z.number().min(0, 'Mensalidade inválida')
     ),
-
-    enrollment_type: z.enum(enrollTypes),
-
-    date_of_birth: z.string().optional().nullable(),
-    
-    preferred_days: z.array(z.string()).optional().nullable(),
-    preferred_time: z.string().optional().nullable(),
-
-    has_promotional_value: z.boolean().optional(),
-    discount_description: z.string().optional().nullable(),
-
-    // Campos de controle de validade
-    payment_date: z.string().optional().nullable(), // Data em que pagou
-    validity_duration: z.preprocess(
-      safeNumberPreprocess,
-      z.number().optional().nullable()
-    ),
     due_day: z.preprocess(
       safeNumberPreprocess,
       z.number().min(1).max(31).default(5)
     ),
+    payment_date: z.string().optional().nullable(),
+    validity_duration: z.preprocess(
+      safeNumberPreprocess,
+      z.number().optional().nullable()
+    ),
     is_pro_rata_waived: z.boolean().optional(),
+
+    date_of_birth: z.string().optional().nullable(),
+    preferred_days: z.array(z.string()).optional().nullable(),
+    preferred_time: z.string().optional().nullable(),
+    has_promotional_value: z.boolean().optional(),
+    discount_description: z.string().optional().nullable(),
   }).superRefine((data, ctx) => {
-    if (data.plan_type !== 'Avulso' && data.enrollment_type === 'Particular') {
+    const isParticular = data.enrollment_type === 'Particular';
+    const isRecorrente = data.plan_type !== 'Avulso';
+    const requiresValidityControl = isParticular && isRecorrente;
+
+    if (isParticular && isRecorrente) {
       if (!data.plan_frequency) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Frequência obrigatória', path: ['plan_frequency'] });
       if (!data.payment_method) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Método de pagamento obrigatório', path: ['payment_method'] });
     }
+    
     if (data.has_promotional_value && (!data.discount_description || data.discount_description.trim() === '')) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Descrição do desconto obrigatória', path: ['discount_description'] });
     }
     
-    // Validação para planos que exigem controle de validade (Particulares, não Avulsos)
-    const requiresValidityControl = data.enrollment_type === 'Particular' && data.plan_type !== 'Avulso';
-
     if (requiresValidityControl) {
       if (!data.payment_date || data.payment_date.trim() === '') {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Data de pagamento obrigatória para controle de validade.', path: ['payment_date'] });
@@ -172,9 +171,9 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
       date_of_birth: null,
       preferred_days: [], preferred_time: null,
       has_promotional_value: false, discount_description: null,
-      payment_date: format(new Date(), 'yyyy-MM-dd'), // Default para hoje
+      payment_date: format(new Date(), 'yyyy-MM-dd'),
       validity_duration: 30,
-      due_day: 5, // Valor padrão como número
+      due_day: 5,
       is_pro_rata_waived: false,
     },
   });
@@ -190,7 +189,8 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
   const paymentDate = watch('payment_date');
   const monthlyFee = watch('monthly_fee');
 
-  const requiresValidityControl = enrollmentType === 'Particular' && planType !== 'Avulso';
+  const isParticular = enrollmentType === 'Particular';
+  const requiresValidityControl = isParticular && planType !== 'Avulso';
 
   // Estado para armazenar valores calculados
   const [planValue, setPlanValue] = useState<number | null>(null);
@@ -200,7 +200,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
 
   // Cálculo de datas e valores
   const { proRataDays, proRataAmount } = useMemo(() => {
-    if (!paymentDate || !validityDuration || !planValue) return { proRataDays: 0, proRataAmount: 0 };
+    if (!paymentDate || !validityDuration || !planValue || !isParticular) return { proRataDays: 0, proRataAmount: 0 };
     
     const startDate = parseISO(paymentDate);
     const dueDayValue = dueDay;
@@ -224,21 +224,18 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
     setPlanEndDate(endDate);
     
     return { proRataDays, proRataAmount };
-  }, [paymentDate, validityDuration, planValue, dueDay]);
+  }, [paymentDate, validityDuration, planValue, dueDay, isParticular]);
 
   useEffect(() => {
     if (!appSettings?.price_table) return;
     
-    // Se for Wellhub ou TotalPass, a mensalidade é 0
-    if (enrollmentType !== 'Particular') {
+    // Se não for Particular, zera tudo relacionado a preço
+    if (!isParticular || planType === 'Avulso') {
       setValue('monthly_fee', 0);
+      setPlanValue(0);
       return;
     }
-
-    if (planType === 'Avulso') {
-      setValue('monthly_fee', 0);
-      return;
-    }
+    
     if (hasPromo) return;
     
     const table: PriceTable = appSettings.price_table;
@@ -248,7 +245,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
       setValue('monthly_fee', price);
       setPlanValue(price);
     }
-  }, [planType, planFrequency, paymentMethod, hasPromo, enrollmentType, appSettings, setValue]);
+  }, [planType, planFrequency, paymentMethod, hasPromo, enrollmentType, appSettings, setValue, isParticular]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -276,7 +273,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
         // Usamos a data de validade existente para preencher a data de pagamento no modo edição
         payment_date: selectedStudent.validity_date ? format(parseISO(selectedStudent.validity_date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
         validity_duration: 30, // Mantemos 30 como default para edição
-        due_day: 5, // Valor padrão como número
+        due_day: selectedStudent.due_day ?? 5, // Usar due_day existente ou default
         is_pro_rata_waived: false,
       });
     } else {
@@ -290,7 +287,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
         has_promotional_value: false, discount_description: null,
         payment_date: format(new Date(), 'yyyy-MM-dd'),
         validity_duration: 30,
-        due_day: 5, // Valor padrão como número
+        due_day: 5,
         is_pro_rata_waived: false,
       });
     }
@@ -356,7 +353,8 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
       };
 
       // Calcular end_date da assinatura
-      const paymentDate = data.payment_date ? parseISO(data.payment_date) : new Date();
+      const paymentDateStr = data.payment_date || format(new Date(), 'yyyy-MM-dd');
+      const paymentDate: Date = parseISO(paymentDateStr); // Garantindo que é Date
       const validityDuration = data.validity_duration || 30;
       const endDate = addDays(paymentDate, validityDuration);
       
@@ -373,6 +371,8 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
         newStudent = newStudentTemp;
 
         // Passo 4: Salvar Assinatura (subscriptions)
+        const isParticular = data.enrollment_type === 'Particular';
+        
         const { data: planData, error: planError } = await supabase
           .from('plans')
           .select('id')
@@ -398,9 +398,17 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
           planId = newPlan.id;
         }
 
-        // Calcular o valor proporcional
-        const proRataAmount = isProRataWaived ? 0 : (proRataDays / validityDuration) * (planValue || 0);
-        const totalAmount = proRataAmount + (planValue || 0);
+        // Configurações da Assinatura
+        let subscriptionPrice = data.monthly_fee || 0;
+        let subscriptionDueDay = data.due_day || null;
+        let subscriptionEndDate = planEndDate?.toISOString() || endDate.toISOString();
+
+        if (!isParticular) {
+          // Wellhub/TotalPass: Preços e vencimentos zerados/nulos
+          subscriptionPrice = 0;
+          subscriptionDueDay = null;
+          subscriptionEndDate = null;
+        }
 
         // Criar a assinatura
         const { data: newSubscription, error: subscriptionError } = await supabase
@@ -408,11 +416,11 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
           .insert({
             student_id: newStudent.id,
             plan_id: planId,
-            price: planValue || 0, // Valor do plano recorrente
+            price: subscriptionPrice, // Valor do plano recorrente (0 para parceiros)
             frequency: data.plan_frequency ? parseInt(data.plan_frequency) : 0,
-            start_date: paymentDate.toISOString(),
-            end_date: planEndDate?.toISOString() || endDate.toISOString(),
-            due_day: data.due_day, // Garantindo que é número
+            start_date: paymentDate.toISOString(), // Correção: paymentDate é Date
+            end_date: subscriptionEndDate,
+            due_day: subscriptionDueDay, // Garantindo que é número ou null
             status: 'active'
           })
           .select()
@@ -420,23 +428,28 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
 
         if (subscriptionError) throw new Error(`Erro ao criar assinatura: ${subscriptionError.message}`);
 
-        // Passo 5: Lançar no Financeiro (financial_transactions)
-        const { error: transactionError } = await supabase
-          .from('financial_transactions')
-          .insert({
-            user_id: user.id, // Adicionando user_id
-            student_id: newStudent.id,
-            subscription_id: newSubscription.id,
-            amount: totalAmount,
-            payment_method: data.payment_method,
-            paid_at: paymentDate.toISOString(),
-            description: `Matrícula: Ajuste Proporcional + Plano ${data.plan_type} ${data.plan_frequency || ''}`,
-            type: 'revenue',
-            status: 'paid',
-            category: 'Mensalidade' // Correção: Adicionando o campo obrigatório 'category'
-          });
+        // Passo 5: Lançar no Financeiro (financial_transactions) - APENAS SE FOR PARTICULAR
+        if (isParticular) {
+          const proRataAmountFinal = isProRataWaived ? 0 : (proRataDays / validityDuration) * (planValue || 0);
+          const totalAmount = proRataAmountFinal + (planValue || 0);
 
-        if (transactionError) throw new Error(`Erro ao criar lançamento financeiro: ${transactionError.message}`);
+          const { error: transactionError } = await supabase
+            .from('financial_transactions')
+            .insert({
+              user_id: user.id,
+              student_id: newStudent.id,
+              subscription_id: newSubscription.id,
+              amount: totalAmount,
+              payment_method: data.payment_method,
+              paid_at: paymentDate.toISOString(), // Correção: paymentDate é Date
+              description: `Matrícula: Ajuste Proporcional + Plano ${data.plan_type} ${data.plan_frequency || ''}`,
+              type: 'revenue',
+              status: 'paid',
+              category: 'Mensalidade'
+            });
+
+          if (transactionError) throw new Error(`Erro ao criar lançamento financeiro: ${transactionError.message}`);
+        }
 
         // Sucesso
         showSuccess('Aluno salvo com sucesso!');
@@ -456,7 +469,6 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
   };
 
   const handleFormError = (validationErrors: any) => {
-    // Encontra a primeira mensagem de erro
     const firstErrorKey = Object.keys(validationErrors)[0];
     if (firstErrorKey) {
       const error = validationErrors[firstErrorKey];
@@ -540,66 +552,84 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
               </div>
             </div>
 
-            {/* Plano e Mensalidade */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Plano</Label>
-                <Controller name="plan_type" control={control} render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {appSettings?.plan_types.map(pt => <SelectItem key={pt} value={pt}>{pt}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                )} />
-              </div>
-              <div className="space-y-2">
-                <Label>Frequência</Label>
-                <Controller name="plan_frequency" control={control} render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value || ''} disabled={enrollmentType !== 'Particular' || planType === 'Avulso'}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {appSettings?.plan_frequencies.map(fq => <SelectItem key={fq} value={fq}>{fq}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                )} />
-                {errors.plan_frequency && <p className="text-sm text-destructive">{errors.plan_frequency.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label>Pagamento</Label>
-                <Controller name="payment_method" control={control} render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value || ''} disabled={enrollmentType !== 'Particular' || planType === 'Avulso'}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {appSettings?.payment_methods.map(pm => <SelectItem key={pm} value={pm}>{pm}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                )} />
-                {errors.payment_method && <p className="text-sm text-destructive">{errors.payment_method.message}</p>}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Mensalidade (R$)</Label>
-              <Controller name="monthly_fee" control={control} render={({ field }) => <Input type="number" step="0.01" {...field} disabled={enrollmentType !== 'Particular'} />} />
-              {errors.monthly_fee && <p className="text-sm text-destructive">{errors.monthly_fee.message}</p>}
-            </div>
+            {/* Se for Wellhub/TotalPass, mostra alerta e pula campos de pagamento */}
+            {!isParticular && (
+              <Card className="col-span-full p-4 bg-yellow-50/50 border-yellow-300 text-yellow-800">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                  <p className="text-sm font-medium">
+                    Alunos {enrollmentType}: O pagamento é processado externamente pela operadora. Nenhuma cobrança será gerada neste sistema.
+                  </p>
+                </div>
+              </Card>
+            )}
 
-            {/* Datas */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Dia de Vencimento</Label>
-                <Controller name="due_day" control={control} render={({ field }) => (
-                  <Select onValueChange={(value) => setValue('due_day', parseInt(value))} value={field.value.toString()}>
-                    <SelectTrigger><SelectValue placeholder="Selecione o dia" /></SelectTrigger>
-                    <SelectContent>
-                      {[5, 10, 15, 20, 25, 30].map(day => (
-                        <SelectItem key={day} value={day.toString()}>{day}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )} />
+            {/* Campos de Plano e Pagamento (Apenas para Particulares) */}
+            {isParticular && (
+              <>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Plano</Label>
+                    <Controller name="plan_type" control={control} render={({ field }) => (
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {appSettings?.plan_types.map(pt => <SelectItem key={pt} value={pt}>{pt}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    )} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Frequência</Label>
+                    <Controller name="plan_frequency" control={control} render={({ field }) => (
+                      <Select onValueChange={field.onChange} value={field.value || ''} disabled={planType === 'Avulso'}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {appSettings?.plan_frequencies.map(fq => <SelectItem key={fq} value={fq}>{fq}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    )} />
+                    {errors.plan_frequency && <p className="text-sm text-destructive">{errors.plan_frequency.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Pagamento</Label>
+                    <Controller name="payment_method" control={control} render={({ field }) => (
+                      <Select onValueChange={field.onChange} value={field.value || ''} disabled={planType === 'Avulso'}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {appSettings?.payment_methods.map(pm => <SelectItem key={pm} value={pm}>{pm}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    )} />
+                    {errors.payment_method && <p className="text-sm text-destructive">{errors.payment_method.message}</p>}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Mensalidade (R$)</Label>
+                  <Controller name="monthly_fee" control={control} render={({ field }) => <Input type="number" step="0.01" {...field} />} />
+                  {errors.monthly_fee && <p className="text-sm text-destructive">{errors.monthly_fee.message}</p>}
+                </div>
+              </>
+            )}
+
+            {/* Datas de Vencimento (Apenas para Particulares Recorrentes) */}
+            {requiresValidityControl && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Dia de Vencimento</Label>
+                  <Controller name="due_day" control={control} render={({ field }) => (
+                    <Select onValueChange={(value) => setValue('due_day', parseInt(value))} value={field.value.toString()}>
+                      <SelectTrigger><SelectValue placeholder="Selecione o dia" /></SelectTrigger>
+                      <SelectContent>
+                        {[5, 10, 15, 20, 25, 30].map(day => (
+                          <SelectItem key={day} value={day.toString()}>{day}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )} />
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Preferências de Dia/Horário */}
             <div className="space-y-2">
@@ -629,7 +659,7 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
             {/* Promoções */}
             <div className="flex items-center space-x-2">
               <Controller name="has_promotional_value" control={control} render={({ field }) => (
-                <Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={enrollmentType !== 'Particular'} />
+                <Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={!isParticular} />
               )} />
               <Label>Valor Promocional</Label>
             </div>
