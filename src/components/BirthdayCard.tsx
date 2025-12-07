@@ -6,13 +6,14 @@ import { ptBR } from "date-fns/locale/pt-BR";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
-import { useMemo } from "react"; // Adicionando importação do useMemo
+import { useMemo } from "react";
 
 type BirthdayStudent = {
   id: string;
   name: string;
   date_of_birth: string;
   phone: string | null;
+  status: string;
 };
 
 const fetchBirthdayStudents = async (): Promise<BirthdayStudent[]> => {
@@ -32,7 +33,7 @@ const fetchBirthdayStudents = async (): Promise<BirthdayStudent[]> => {
 
   console.log('✅ [BIRTHDAY] Total de aniversariantes encontrados:', data?.length || 0);
 
-  // O RPC retorna apenas alunos ativos com data de nascimento no mês atual.
+  // O RPC retorna todos os alunos com data de nascimento no mês atual, não apenas ativos.
   return (data || []) as BirthdayStudent[];
 };
 

@@ -505,23 +505,31 @@ const AddEditStudentDialog = ({ isOpen, onOpenChange, selectedStudent, onSubmit,
               </div>
             </div>
             
-            {/* Data Nasc. e Endereço (Layout Ajustado) */}
+            {/* Endereço (agora acima do número do responsável) */}
+            <div className="space-y-2">
+              <Label>Endereço (Opcional)</Label>
+              <Controller name="address" control={control} render={({ field }) => <Input {...field} />} />
+            </div>
+            
+            {/* Número do responsável (agora abaixo do telefone) */}
+            <div className="space-y-2">
+              <Label>Telefone Responsável (Opcional)</Label>
+              <Controller name="guardian_phone" control={control} render={({ field }) => <Input {...field} />} />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Notas (Opcional)</Label>
+              <Controller name="notes" control={control} render={({ field }) => <Textarea {...field} />} />
+            </div>
+            
+            {/* Data Nasc. (Ajustado para ficar abaixo de Notas) */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Data Nasc. (Opcional)</Label>
                 <Controller name="date_of_birth" control={control} render={({ field }) => <Input type="date" {...field} />} />
               </div>
-              <div className="space-y-2">
-                <Label>Endereço (Opcional)</Label>
-                <Controller name="address" control={control} render={({ field }) => <Input {...field} />} />
-              </div>
             </div>
             
-            <div className="space-y-2">
-              <Label>Telefone Responsável (Opcional)</Label>
-              <Controller name="guardian_phone" control={control} render={({ field }) => <Input {...field} />} />
-            </div>
-
             {/* Status do Aluno e Tipo de Matrícula */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

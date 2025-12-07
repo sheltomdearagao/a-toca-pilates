@@ -17,6 +17,7 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { ChevronRight, ChevronDown } from 'lucide-react'; // Added missing imports
 
 type StudentWithoutBirthday = {
   id: string;
@@ -60,8 +61,9 @@ const DataMigrationTool = () => {
   const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
   const [birthDate, setBirthDate] = useState('');
   const [dueDate, setDueDate] = useState('');
-  const [isStudentDialogOpen, setStudentDialogOpen] = useState(false);
-  const [isTransactionDialogOpen, setTransactionDialogOpen] = useState(false);
+  const [isStudentDialogOpen, setIsStudentDialogOpen] = useState(false);
+  const [isTransactionDialogOpen, setIsTransactionDialogOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false); // Novo estado para controlar o colapso
 
   const { data: studentsWithoutBirthday, isLoading: isLoadingStudents } = useQuery({
     queryKey: ['studentsWithoutBirthday'],
@@ -89,7 +91,7 @@ const DataMigrationTool = () => {
       queryClient.invalidateQueries({ queryKey: ['birthdayStudents'] });
       queryClient.invalidateQueries({ queryKey: ['students'] });
       showSuccess('Data de nascimento atualizada com sucesso!');
-      setStudentDialogOpen(false);
+      setIsStudentDialogOpen(false);
       setBirthDate('');
       setSelectedStudentId(null);
     },
@@ -112,7 +114,7 @@ const DataMigrationTool = () => {
       queryClient.invalidateQueries({ queryKey: ['upcomingPayments'] });
       queryClient.invalidateQueries({ queryKey: ['financialData'] });
       showSuccess('Data de vencimento atualizada com sucesso!');
-      setTransactionDialogOpen(false);
+      setIsTransactionDialogOpen(false);
       setDueDate('');
       setSelectedTransactionId(null);
     },
@@ -123,128 +125,144 @@ const DataMigrationTool = () => {
 
   const handleOpenStudentDialog = (studentId: string) => {
     setSelectedStudentId(studentId);
-    setStudentDialogOpen(true);
+    setIsStudentDialogOpen(true);
   };
 
   const handleOpenTransactionDialog = (transactionId: string) => {
     setSelectedTransactionId(transactionId);
-    setTransactionDialogOpen(true);
+    setIsTransactionDialogOpen(true);
   };
 
   return (
     <>
       <Card className="shadow-impressionist shadow-subtle-glow border-2 border-yellow-500/50">
-        <CardHeader>
-          <CardTitle className="flex items-center text-lg">
+        <CardHeader className="flex items-center justify-between">
+          <div className="flex items-center">
             <Database className="w-5 h-5 mr-2 text-yellow-600" />
-            Migração de Dados - Alunos e Pagamentos Antigos
-          </CardTitle>
+            <CardTitle className="flex items-center">
+              {isCollapsed ? 'Atualização de Dados' : 'Atualização de Dados (Migração de Dados)'}
+            </CardTitle>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            {isCollapsed ? (
+              <ChevronRight className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+          </Button>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Alunos sem Data de Nascimento */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold flex items-center">
-                <AlertTriangle className="w-4 h-4 mr-2 text-yellow-600" />
-                Alunos sem Data de Nascimento
-              </h3>
-              <Badge variant="secondary">
-                {isLoadingStudents ? '...' : studentsWithoutBirthday?.length || 0} alunos
-              </Badge>
-            </div>
-            
-            {isLoadingStudents ? (
-              <div className="text-center py-4"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
-            ) : studentsWithoutBirthday && studentsWithoutBirthday.length > 0 ? (
-              <div className="border rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Ação</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {studentsWithoutBirthday.map(student => (
-                      <TableRow key={student.id}>
-                        <TableCell className="font-medium">{student.name}</TableCell>
-                        <TableCell><Badge variant="status-active">{student.status}</Badge></TableCell>
-                        <TableCell className="text-right">
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => handleOpenStudentDialog(student.id)}
-                          >
-                            Adicionar Data
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+        {!isCollapsed && (
+          <CardContent className="space-y-6">
+            {/* Alunos sem Data de Nascimento */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold flex items-center">
+                  <AlertTriangle className="w-4 h-4 mr-2 text-yellow-600" />
+                  Alunos sem Data de Nascimento
+                </h3>
+                <Badge variant="secondary">
+                  {isLoadingStudents ? '...' : studentsWithoutBirthday?.length || 0} alunos
+                </Badge>
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                ✅ Todos os alunos ativos têm data de nascimento cadastrada!
-              </p>
-            )}
-          </div>
+              
+              {isLoadingStudents ? (
+                <div className="text-center py-4"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
+              ) : studentsWithoutBirthday && studentsWithoutBirthday.length > 0 ? (
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Ação</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {studentsWithoutBirthday.map(student => (
+                        <TableRow key={student.id}>
+                          <TableCell className="font-medium">{student.name}</TableCell>
+                          <TableCell><Badge variant="status-active">{student.status}</Badge></TableCell>
+                          <TableCell className="text-right">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => handleOpenStudentDialog(student.id)}
+                            >
+                              Adicionar Data
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  ✅ Todos os alunos ativos têm data de nascimento cadastrada!
+                </p>
+              )}
+            </div>
 
-          {/* Transações sem Data de Vencimento */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold flex items-center">
-                <AlertTriangle className="w-4 h-4 mr-2 text-yellow-600" />
-                Transações Pendentes sem Data de Vencimento
-              </h3>
-              <Badge variant="secondary">
-                {isLoadingTransactions ? '...' : transactionsWithoutDueDate?.length || 0} transações
-              </Badge>
-            </div>
-            
-            {isLoadingTransactions ? (
-              <div className="text-center py-4"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
-            ) : transactionsWithoutDueDate && transactionsWithoutDueDate.length > 0 ? (
-              <div className="border rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Descrição</TableHead>
-                      <TableHead>Aluno</TableHead>
-                      <TableHead className="text-right">Ação</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {transactionsWithoutDueDate.map(transaction => (
-                      <TableRow key={transaction.id}>
-                        <TableCell className="font-medium">{transaction.description}</TableCell>
-                        <TableCell>{transaction.students?.name || 'N/A'}</TableCell>
-                        <TableCell className="text-right">
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => handleOpenTransactionDialog(transaction.id)}
-                          >
-                            Adicionar Vencimento
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+            {/* Transações sem Data de Vencimento */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold flex items-center">
+                  <AlertTriangle className="w-4 h-4 mr-2 text-yellow-600" />
+                  Transações Pendentes sem Data de Vencimento
+                </h3>
+                <Badge variant="secondary">
+                  {isLoadingTransactions ? '...' : transactionsWithoutDueDate?.length || 0} transações
+                </Badge>
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                ✅ Todas as transações pendentes têm data de vencimento!
-              </p>
-            )}
-          </div>
-        </CardContent>
+              
+              {isLoadingTransactions ? (
+                <div className="text-center py-4"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
+              ) : transactionsWithoutDueDate && transactionsWithoutDueDate.length > 0 ? (
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Descrição</TableHead>
+                        <TableHead>Aluno</TableHead>
+                        <TableHead className="text-right">Ação</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {transactionsWithoutDueDate.map(transaction => (
+                        <TableRow key={transaction.id}>
+                          <TableCell className="font-medium">{transaction.description}</TableCell>
+                          <TableCell>{transaction.students?.name || 'N/A'}</TableCell>
+                          <TableCell className="text-right">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => handleOpenTransactionDialog(transaction.id)}
+                            >
+                              Adicionar Vencimento
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  ✅ Todas as transações pendentes têm data de vencimento!
+                </p>
+              )}
+            </div>
+          </CardContent>
+        )}
       </Card>
 
       {/* Dialog para adicionar data de nascimento */}
-      <Dialog open={isStudentDialogOpen} onOpenChange={setStudentDialogOpen}>
+      <Dialog open={isStudentDialogOpen} onOpenChange={setIsStudentDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Adicionar Data de Nascimento</DialogTitle>
@@ -276,7 +294,7 @@ const DataMigrationTool = () => {
       </Dialog>
 
       {/* Dialog para adicionar data de vencimento */}
-      <Dialog open={isTransactionDialogOpen} onOpenChange={setTransactionDialogOpen}>
+      <Dialog open={isTransactionDialogOpen} onOpenChange={setIsTransactionDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Adicionar Data de Vencimento</DialogTitle>
