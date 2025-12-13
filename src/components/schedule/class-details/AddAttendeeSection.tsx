@@ -25,6 +25,9 @@ interface AddAttendeeSectionProps {
   setNewStudentForDisplacement: (student: StudentOption | null) => void;
   attendees: ClassAttendee[] | undefined;
   allStudents: StudentOption[] | undefined;
+  credits: number;
+  isLoadingCredits: boolean;
+  selectedAttendanceType: string;
 }
 
 const AddAttendeeSection = React.memo(({
@@ -40,6 +43,9 @@ const AddAttendeeSection = React.memo(({
   setNewStudentForDisplacement,
   attendees,
   allStudents,
+  credits,
+  isLoadingCredits,
+  selectedAttendanceType,
 }: AddAttendeeSectionProps) => {
   const [selectedStudentIdToAdd, setSelectedStudentIdToAdd] = useState<string | null>(null);
 
@@ -55,12 +61,10 @@ const AddAttendeeSection = React.memo(({
       return;
     }
 
-    // Verificação de saldo para alunos com tipo de agendamento "Reposição"
-    if (studentToAdd.enrollment_type === 'Particular') {
-      // Aqui precisamos verificar o saldo de créditos do aluno
-      // Mas como não temos acesso ao saldo diretamente aqui, vamos assumir que o componente pai já fez essa verificação
-      // ou que o backend fará a verificação na confirmação de presença
-      // Para este componente, apenas verificamos se o aluno é Particular
+    // Check credit balance for 'Reposicao' type
+    if (selectedAttendanceType === 'Reposicao' && !isLoadingCredits && credits < 1) {
+      showError(`O aluno não possui créditos suficientes para reposição. Créditos disponíveis: ${credits}`);
+      return;
     }
 
     if (!isClassFull) {

@@ -28,6 +28,8 @@ import {
 } from '@/components/ui/select';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useRepositionCredits } from '@/hooks/useRepositionCredits';
+import AddAttendeeSection from './AddAttendeeSection'; // Fixed import
 
 interface ClassDetailsDialogProps {
   isOpen: boolean;
@@ -108,6 +110,9 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [selectedAttendanceType, setSelectedAttendanceType] = useState<AttendanceType>('Pontual');
   const [isAddingAttendee, setIsAddingAttendee] = useState(false);
+  const [isDisplaceConfirmationOpen, setIsDisplaceConfirmationOpen] = useState(false);
+  const [studentToDisplace, setStudentToDisplace] = useState<ClassAttendee | null>(null);
+  const [newStudentForDisplacement, setNewStudentForDisplacement] = useState<StudentOption | null>(null);
 
   const { data: students = [], isLoading: isLoadingStudents } = useQuery({
     queryKey: ['allStudents'],
@@ -115,6 +120,8 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
     enabled: isOpen,
     staleTime: 1000 * 60 * 5,
   });
+
+  const { credits, isLoading: isLoadingCredits } = useRepositionCredits(selectedStudentId);
 
   const loadAttendees = useCallback(async () => {
     if (!classEvent?.id) {
@@ -230,6 +237,19 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
 
     setIsAddingAttendee(true);
     addAttendeeMutation.mutate(selectedStudentId);
+  };
+
+  const handleConfirmDisplacement = () => {
+    if (studentToDisplace && newStudentForDisplacement) {
+      // Remove the student to displace
+      removeAttendeeMutation.mutate(studentToDisplace.id);
+      // Add the new student
+      addAttendeeMutation.mutate(newStudentForDisplacement.id);
+      // Reset state
+      setStudentToDisplace(null);
+      setNewStudentForDisplacement(null);
+      setIsDisplaceConfirmationOpen(false);
+    }
   };
 
   const handleDeleteSuccess = () => {
@@ -495,6 +515,24 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
           onDeleted={handleDeleteSuccess}
         />
       )}
+
+      <AddAttendeeSection
+        availableStudentsForAdd={availableStudents}
+        isLoadingAllStudents={isLoadingStudents}
+        isClassFull={isClassFull}
+        onAddAttendee={handleAddAttendee}
+        onConfirmDisplacement={handleConfirmDisplacement}
+        isAddingAttendee={isAddingAttendee}
+        isDisplaceConfirmationOpen={isDisplaceConfirmationOpen}
+        onDisplaceConfirmationChange={setIsDisplaceConfirmationOpen}
+        setStudentToDisplace={setStudentToDisplace}
+        setNewStudentForDisplacement={setNewStudentForDisplacement}
+        attendees={attendees}
+        allStudents={students}
+        credits={credits}
+        isLoadingCredits={isLoadingCredits}
+        selectedAttendanceType={selectedAttendanceType}
+      />
     </>
   );
 };
