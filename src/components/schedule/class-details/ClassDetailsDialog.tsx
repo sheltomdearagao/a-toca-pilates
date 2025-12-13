@@ -159,9 +159,9 @@ const ClassDetailsDialog = ({ isOpen, onOpenChange, classEvent, classCapacity }:
       await refreshData();
       // Atualizando os feedbacks de presença
       const attendee = attendees.find(a => a.id === attendeeId);
-      if (attendee && attendee.attendance_type === 'Reposicao' && status === 'Presente') {
+      if (attendee?.attendance_type === 'Reposicao' && status === 'Presente') {
         showSuccess('Presença confirmada. 1 Crédito de reposição consumido!');
-      } else if (attendee && attendee.attendance_type === 'Pontual' && status === 'Faltou') {
+      } else if (attendee?.attendance_type === 'Pontual' && status === 'Faltou') {
         showSuccess('Falta registrada. Crédito de reposição gerado!');
       } else {
         showSuccess(status === 'Presente' ? 'Presença confirmada.' : 'Falta registrada na reposição.');
