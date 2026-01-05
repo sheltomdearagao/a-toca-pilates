@@ -31,8 +31,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
 import { showError, showSuccess } from '@/utils/toast';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query'; // Importar useQuery
 import { consumeRepositionCredit, returnRepositionCredit } from '@/utils/repositionCreditManager'; // Importar utilitários
+import { InstructorOption } from '@/types/instructor'; // Importar InstructorOption
 
 const availableHours = Array.from({ length: 14 }, (_, i) => {
   const hour = i + 7;
@@ -43,6 +44,7 @@ const ATTENDANCE_TYPES: AttendanceType[] = ['Pontual', 'Experimental', 'Reposica
 
 const classSchema = z.object({
   student_id: z.string().nullable(),
+  instructor_id: z.string().optional().nullable(), // NOVO CAMPO
   title: z.string().min(3, 'O título é obrigatório.'),
   attendance_type: z.enum(['Pontual', 'Experimental', 'Reposicao', 'Recorrente']).default('Pontual'), // Adicionado tipo de presença
   date: z.string().min(1, 'A data é obrigatória.'),
@@ -75,6 +77,12 @@ const fetchAllStudents = async (): Promise<StudentOption[]> => {
   return data || [];
 };
 
+const fetchAllInstructors = async (): Promise<InstructorOption[]> => { // Nova função para buscar instrutores
+  const { data, error } = await supabase.from('instructors').select('id, name').order('name');
+  if (error) throw error;
+  return data || [];
+};
+
 const fetchOriginalAttendee = async (classId: string) => {
   const { data, error } = await supabase
     .from('class_attendees')
@@ -91,7 +99,9 @@ const EditClassDialog = ({ isOpen, onOpenChange, classEvent }: EditClassDialogPr
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [allStudents, setAllStudents] = useState<StudentOption[]>([]);
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [allInstructors, setAllInstructors] = useState<InstructorOption[]>([]); // Novo estado para instrutores
+  const [isStudentPopoverOpen, setIsStudentPopoverOpen] = useState(false);
+  const [isInstructorPopoverOpen, setIsInstructorPopoverOpen] = useState(false); // Novo estado para popover do instrutor
   
   const [localSelectedStudentId, setLocalSelectedStudentId] = useState<string | null>(null);
 
@@ -99,6 +109,7 @@ const EditClassDialog = ({ isOpen, onOpenChange, classEvent }: EditClassDialogPr
     resolver: zodResolver(classSchema),
     defaultValues: {
       student_id: null,
+      instructor_id: null, // Definir default
       title: '',
       attendance_type: 'Pontual',
       date: format(new Date(), 'yyyy-MM-dd'),
@@ -110,10 +121,11 @@ const EditClassDialog = ({ isOpen, onOpenChange, classEvent }: EditClassDialogPr
   const selectedAttendanceType = watch('attendance_type');
   const selectedStudentId = watch('student_id');
 
-  // Buscar todos os alunos ao abrir o diálogo
+  // Buscar todos os alunos e instrutores ao abrir o diálogo
   useEffect(() => {
     if (isOpen) {
       fetchAllStudents().then(setAllStudents).catch(console.error);
+      fetchAllInstructors().then(setAllInstructors).catch(console.error); // Buscar instrutores
     }
   }, [isOpen]);
 
@@ -121,6 +133,7 @@ const EditClassDialog = ({ isOpen, onOpenChange, classEvent }: EditClassDialogPr
     if (isOpen && classEvent) {
       const startTime = parseISO(classEvent.start_time);
       const studentId = classEvent.student_id || null;
+      const instructorId = classEvent.instructor_id || null; // Obter instructor_id
       
       // Tenta buscar o tipo de presença original (se houver)
       fetchOriginalAttendee(classEvent.id).then(originalAttendee => {
@@ -128,6 +141,7 @@ const EditClassDialog = ({ isOpen, onOpenChange, classEvent }: EditClassDialogPr
         
         reset({
           student_id: studentId,
+          instructor_id: instructorId, // Preencher instructor_id
           title: classEvent.title || '',
           attendance_type: originalType as AttendanceType,
           date: format(startTime, 'yyyy-MM-dd'),
@@ -139,6 +153,7 @@ const EditClassDialog = ({ isOpen, onOpenChange, classEvent }: EditClassDialogPr
         console.error("Erro ao carregar tipo de presença original:", err);
         reset({
           student_id: studentId,
+          instructor_id: instructorId, // Preencher instructor_id
           title: classEvent.title || '',
           attendance_type: 'Pontual', // Fallback
           date: format(startTime, 'yyyy-MM-dd'),
@@ -194,6 +209,7 @@ const EditClassDialog = ({ isOpen, onOpenChange, classEvent }: EditClassDialogPr
         duration_minutes: 60,
         notes: data.notes || null,
         student_id: newStudentId, // Atualiza o student_id na tabela classes
+        instructor_id: data.instructor_id || null, // NOVO CAMPO
       }).eq('id', classEvent.id);
       
       if (updateError) throw updateError;
@@ -244,7 +260,7 @@ const EditClassDialog = ({ isOpen, onOpenChange, classEvent }: EditClassDialogPr
                 name="student_id"
                 control={control}
                 render={({ field }) => (
-                  <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+                  <Popover open={isStudentPopoverOpen} onOpenChange={setIsStudentPopoverOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         type="button"
@@ -273,7 +289,7 @@ const EditClassDialog = ({ isOpen, onOpenChange, classEvent }: EditClassDialogPr
                                 setLocalSelectedStudentId(newId);
                                 // Preenche o título automaticamente se um aluno for selecionado
                                 setValue('title', `Aula com ${student.name}`);
-                                setIsPopoverOpen(false);
+                                setIsStudentPopoverOpen(false);
                               }}
                             >
                               <Check
@@ -283,6 +299,61 @@ const EditClassDialog = ({ isOpen, onOpenChange, classEvent }: EditClassDialogPr
                                 )}
                               />
                               {student.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              />
+            </div>
+
+            {/* NOVO CAMPO: Seleção de Instrutor */}
+            <div className="space-y-2">
+              <Label>Instrutor (Opcional)</Label>
+              <Controller
+                name="instructor_id"
+                control={control}
+                render={({ field }) => (
+                  <Popover open={isInstructorPopoverOpen} onOpenChange={setIsInstructorPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        role="combobox"
+                        className={cn(
+                          "w-full justify-between",
+                          !field.value && "text-muted-foreground"
+                        )}
+                      >
+                        {field.value
+                          ? allInstructors.find((instructor) => instructor.id === field.value)?.name
+                          : "Selecione um instrutor..."}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                      <Command>
+                        <CommandInput placeholder="Buscar instrutor..." />
+                        <CommandEmpty>Nenhum instrutor encontrado.</CommandEmpty>
+                        <CommandGroup>
+                          {allInstructors.map((instructor) => (
+                            <CommandItem
+                              value={instructor.name}
+                              key={instructor.id}
+                              onSelect={() => {
+                                field.onChange(instructor.id);
+                                setIsInstructorPopoverOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  instructor.id === field.value ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {instructor.name}
                             </CommandItem>
                           ))}
                         </CommandGroup>

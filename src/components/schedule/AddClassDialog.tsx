@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
@@ -33,6 +32,8 @@ import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AttendanceType } from '@/types/schedule';
 import { useRepositionCredits } from '@/hooks/useRepositionCredits';
+import { InstructorOption } from '@/types/instructor'; // Importar InstructorOption
+import { useForm, Controller } from 'react-hook-form'; // Adicionado: Importação de useForm e Controller
 
 const availableHours = Array.from({ length: 14 }, (_, i) => {
   const hour = i + 7;
@@ -43,6 +44,7 @@ const ATTENDANCE_TYPES: AttendanceType[] = ['Pontual', 'Experimental', 'Reposica
 
 const classSchema = z.object({
   student_ids: z.array(z.string()).min(1).max(10),
+  instructor_id: z.string().optional().nullable(), // NOVO CAMPO
   title: z.string().optional(),
   attendance_type: z.enum(['Pontual', 'Experimental', 'Reposicao', 'Recorrente']).default('Pontual'),
   date: z.string().min(1),
@@ -73,6 +75,12 @@ const fetchAllStudents = async (): Promise<StudentOption[]> => {
   return data || [];
 };
 
+const fetchAllInstructors = async (): Promise<InstructorOption[]> => { // Nova função para buscar instrutores
+  const { data, error } = await supabase.from('instructors').select('id, name').order('name');
+  if (error) throw error;
+  return data || [];
+};
+
 const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudentId }: AddClassDialogProps) => {
   const qc = useQueryClient();
   const { data: students = [] } = useQuery<StudentOption[]>({
@@ -81,10 +89,17 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
     staleTime: 1000 * 60 * 5,
   });
 
+  const { data: instructors = [], isLoading: isLoadingInstructors } = useQuery<InstructorOption[]>({ // Nova query para instrutores
+    queryKey: ['allInstructors'],
+    queryFn: fetchAllInstructors,
+    staleTime: 1000 * 60 * 5,
+  });
+
   const { control, handleSubmit, reset, watch, setValue } = useForm<ClassFormData>({
     resolver: zodResolver(classSchema),
     defaultValues: {
       student_ids: preSelectedStudentId ? [preSelectedStudentId] : [],
+      instructor_id: null, // Definir default
       title: '',
       attendance_type: 'Pontual',
       date: quickAddSlot ? format(quickAddSlot.date, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
@@ -101,11 +116,13 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
   const { credits, isLoading: isLoadingCredits, consumeCredit } = useRepositionCredits(selectedStudentForRepos);
 
   const [isPopOpen, setIsPopOpen] = useState<boolean>(false);
+  const [isInstructorPopOpen, setIsInstructorPopOpen] = useState<boolean>(false); // Estado para o popover do instrutor
 
   useEffect(() => {
     if (isOpen) {
       reset({
         student_ids: preSelectedStudentId ? [preSelectedStudentId] : [],
+        instructor_id: null, // Resetar instrutor
         title: '',
         attendance_type: 'Pontual',
         date: quickAddSlot ? format(quickAddSlot.date, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
@@ -157,6 +174,7 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
             duration_minutes: 60,
             notes: formData.notes || null,
             student_id: formData.student_ids.length === 1 ? formData.student_ids[0] : null,
+            instructor_id: formData.instructor_id || null, // NOVO CAMPO
           })
           .select('id')
           .single();
@@ -272,6 +290,61 @@ const AddClassDialog = ({ isOpen, onOpenChange, quickAddSlot, preSelectedStudent
                 </Popover>
               )}
             />
+
+            {/* NOVO CAMPO: Seleção de Instrutor */}
+            <div className="space-y-2">
+              <Label>Instrutor (Opcional)</Label>
+              <Controller
+                name="instructor_id"
+                control={control}
+                render={({ field }) => (
+                  <Popover open={isInstructorPopOpen} onOpenChange={setIsInstructorPopOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className={cn(
+                          "w-full justify-between",
+                          !field.value && "text-muted-foreground"
+                        )}
+                        disabled={isLoadingInstructors}
+                      >
+                        {field.value
+                          ? instructors?.find((instructor) => instructor.id === field.value)?.name
+                          : "Selecione um instrutor..."}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                      <Command>
+                        <CommandInput placeholder="Buscar instrutor..." />
+                        <CommandEmpty>Nenhum instrutor encontrado.</CommandEmpty>
+                        <CommandGroup>
+                          {instructors?.map((instructor) => (
+                            <CommandItem
+                              value={instructor.name}
+                              key={instructor.id}
+                              onSelect={() => {
+                                field.onChange(instructor.id);
+                                setIsInstructorPopOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  instructor.id === field.value ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {instructor.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              />
+            </div>
 
             <div className="space-y-2">
               <Label>Tipo de Agendamento</Label>

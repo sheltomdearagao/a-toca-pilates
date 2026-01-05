@@ -20,6 +20,7 @@ import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import FinancialTableSkeleton from '@/components/financial/FinancialTableSkeleton';
 import { Badge } from '@/components/ui/badge';
+import { Link } from 'react-router-dom'; // Importar Link
 
 interface InstructorsTableProps {
   instructors: Instructor[] | undefined;
@@ -70,7 +71,14 @@ const InstructorsTable = React.memo(({ instructors, isLoading, onEdit, onDelete,
         <TableBody>
           {instructors.map((instructor) => (
             <TableRow key={instructor.id} className="hover:bg-muted/50 transition-colors">
-              <TableCell className="font-medium">{instructor.name}</TableCell>
+              <TableCell className="font-medium">
+                <Link 
+                  to={`/instrutores/${instructor.id}`} 
+                  className="hover:text-primary hover:underline transition-colors flex items-center"
+                >
+                  {instructor.name}
+                </Link>
+              </TableCell>
               <TableCell>{instructor.email || '-'}</TableCell>
               <TableCell>{instructor.phone || '-'}</TableCell>
               <TableCell>

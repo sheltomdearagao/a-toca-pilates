@@ -10,9 +10,11 @@ export type ClassEvent = {
   notes: string | null;
   created_at: string;
   student_id: string | null;
+  instructor_id: string | null; // NOVO CAMPO: ID do instrutor
   recurring_class_template_id: string | null;
   class_attendees: { count: number }[];
   students?: { name: string; enrollment_type?: EnrollmentType };
+  instructors?: { name: string }; // NOVO CAMPO: Nome do instrutor para join
   
   // NOVO: Lista de nomes dos participantes para exibição no card
   attendee_names?: string[]; 
