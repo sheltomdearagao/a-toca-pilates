@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Users, DollarSign, Calendar, LogOut, Database, ChevronLeft, ChevronRight } from "lucide-react";
+import { LayoutDashboard, Users, DollarSign, Calendar, LogOut, Database, ChevronLeft, ChevronRight, UserCog, Shield } from "lucide-react"; // Added UserCog and Shield
 import { Button } from "./ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
@@ -17,6 +17,7 @@ const Sidebar = ({ onOpenExporter, collapsed, onToggleCollapse }: SidebarProps) 
   const navigate = useNavigate();
   const { profile } = useSession();
   const isAdmin = profile?.role === 'admin';
+  const isAdminOrRecepcao = isAdmin || profile?.role === 'recepcao';
 
   const logoUrl = "https://nkwsvsmmzvukdghlyxpm.supabase.co/storage/v1/object/public/app-assets/atocalogo.png";
 
@@ -81,6 +82,12 @@ const Sidebar = ({ onOpenExporter, collapsed, onToggleCollapse }: SidebarProps) 
           <Users className="w-5 h-5" />
           {textLabel("Alunos")}
         </NavLink>
+        {isAdminOrRecepcao && ( // Visible for admin and recepcao
+          <NavLink to="/instrutores" className={navLinkClasses}>
+            <UserCog className="w-5 h-5" />
+            {textLabel("Instrutores")}
+          </NavLink>
+        )}
         {isAdmin && (
           <NavLink to="/financeiro" className={navLinkClasses}>
             <DollarSign className="w-5 h-5" />
@@ -91,6 +98,12 @@ const Sidebar = ({ onOpenExporter, collapsed, onToggleCollapse }: SidebarProps) 
           <Calendar className="w-5 h-5" />
           {textLabel("Agenda")}
         </NavLink>
+        {isAdmin && ( // Admin page link
+          <NavLink to="/admin" className={navLinkClasses}>
+            <Shield className="w-5 h-5" />
+            {textLabel("Admin")}
+          </NavLink>
+        )}
       </nav>
 
       <div className="mt-4 px-1 pb-2 space-y-2">

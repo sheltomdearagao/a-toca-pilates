@@ -16,6 +16,9 @@ const Schedule = lazy(() => import("./pages/Schedule"));
 const Financial = lazy(() => import("./pages/Financial"));
 const Students = lazy(() => import("./pages/Students"));
 const StudentProfile = lazy(() => import("./pages/StudentProfile"));
+const Instructors = lazy(() => import("./pages/Instructors")); // New import
+const Admin = lazy(() => import("./pages/Admin")); // Admin page was missing in App.tsx
+
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -41,6 +44,8 @@ const App = () => (
               <Route path="financeiro" element={<Financial />} />
               <Route path="alunos" element={<Students />} />
               <Route path="alunos/:studentId" element={<StudentProfile />} />
+              <Route path="instrutores" element={<Instructors />} /> {/* New route */}
+              <Route path="admin" element={<Admin />} /> {/* Added missing Admin route */}
             </Route>
           </Route>
           <Route path="/login" element={<Login />} />

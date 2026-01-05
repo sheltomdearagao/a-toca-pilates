@@ -63,7 +63,8 @@ const fetchAppSettings = async (): Promise<AppSettings> => {
     } else if (setting.key === 'revenue_categories') {
       settings.revenue_categories = parseJsonSetting(setting.value, ["Mensalidade", "Aula Avulsa", "Venda de Produto", "Outras Receitas"], 'revenue_categories');
     } else if (setting.key === 'expense_categories') {
-      settings.expense_categories = parseJsonSetting(setting.value, ["Aluguel", "Salários", "Marketing", "Material", "Contas", "Outras Despesas"], 'expense_categories');
+      // Add "Pagamento de Instrutor" to default expense categories
+      settings.expense_categories = parseJsonSetting(setting.value, ["Aluguel", "Salários", "Marketing", "Material", "Contas", "Outras Despesas", "Pagamento de Instrutor"], 'expense_categories');
     } else if (setting.key === 'plan_types') {
       settings.plan_types = parseJsonSetting(setting.value, ["Mensal", "Trimestral", "Avulso"], 'plan_types');
     } else if (setting.key === 'plan_frequencies') {
@@ -82,7 +83,7 @@ const fetchAppSettings = async (): Promise<AppSettings> => {
   return {
     class_capacity: settings.class_capacity ?? 10,
     revenue_categories: settings.revenue_categories ?? ["Mensalidade", "Aula Avulsa", "Venda de Produto", "Outras Receitas"],
-    expense_categories: settings.expense_categories ?? ["Aluguel", "Salários", "Marketing", "Material", "Contas", "Outras Despesas"],
+    expense_categories: settings.expense_categories ?? ["Aluguel", "Salários", "Marketing", "Material", "Contas", "Outras Despesas", "Pagamento de Instrutor"], // Ensure default includes new category
     plan_types: settings.plan_types ?? ["Mensal", "Trimestral", "Avulso"],
     plan_frequencies: settings.plan_frequencies ?? ["2x", "3x", "4x", "5x"],
     payment_methods: settings.payment_methods ?? ["Cartão", "Espécie", "Link"],
