@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Instructor, WorkingDay, InstructorStatus } from '@/types/instructor';
 import { showError, showSuccess } from '@/utils/toast';
 
-interface InstructorFormData {
+export interface InstructorFormData {
   name: string;
   email: string | null;
   phone: string | null;
