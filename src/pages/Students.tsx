@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useQueryClient } from '@tanstack/react-query'; // Adicionado import
+import { useQueryClient, useMutation } from '@tanstack/react-query'; // Adicionado useMutation
 import { supabase } from '@/integrations/supabase/client';
 import { Student } from '@/types/student';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,7 @@ import StudentStatsCards from '@/components/students/StudentStatsCards';
 import AddEditStudentDialog from '@/components/students/AddEditStudentDialog';
 import StudentCSVUploader from '@/components/students/StudentCSVUploader';
 import DeleteStudentAlertDialog from '@/components/students/DeleteStudentAlertDialog';
-import { showSuccess, showError } from '@/utils/toast'; // Adicionado import
+import { showSuccess, showError } from '@/utils/toast';
 import { useAppSettings } from '@/hooks/useAppSettings';
 
 const fetchStudents = async (): Promise<Student[]> => {
@@ -59,7 +59,7 @@ const fetchPaymentStatusMap = async (): Promise<Record<string, 'Em Dia' | 'Atras
 };
 
 const Students = () => {
-  const queryClient = useQueryClient(); // Adicionado useQueryClient
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | Student['status']>('all');
   const [filterPlanType, setFilterPlanType] = useState<'all' | Student['plan_type']>('all');
@@ -159,14 +159,34 @@ const Students = () => {
     showSuccess('Aluno salvo com sucesso!');
   };
 
-  const handleConfirmDelete = async () => {
-    if (!selectedStudent) return;
+  const deleteStudentMutation = useMutation({
+    mutationFn: async (studentId: string) => {
+      const { error } = await supabase.rpc('delete_student', { student_id_to_delete: studentId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['studentStats'] });
+      queryClient.invalidateQueries({ queryKey: ['studentPaymentStatus'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['financialData'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
+      queryClient.invalidateQueries({ queryKey: ['recurringClassTemplates'] });
+      queryClient.invalidateQueries({ queryKey: ['birthdayStudents'] });
+      showSuccess('Aluno excluído com sucesso!');
+      setIsDeleteAlertOpen(false);
+      setSelectedStudent(null);
+    },
+    onError: (error: any) => {
+      showError(error.message || 'Erro ao excluir aluno.');
+    },
+  });
 
-    // TODO: Implementar exclusão do aluno
-    console.log('Excluindo aluno:', selectedStudent.name);
-    setIsDeleteAlertOpen(false);
-    setSelectedStudent(null);
-    showSuccess('Aluno excluído com sucesso!');
+  const handleConfirmDelete = () => {
+    if (selectedStudent) {
+      deleteStudentMutation.mutate(selectedStudent.id);
+    }
   };
 
   // Nova função para atualizar todos os alunos para 'Ativo'
@@ -325,7 +345,7 @@ const Students = () => {
         onOpenChange={setIsDeleteAlertOpen}
         selectedStudentName={selectedStudent?.name}
         onConfirmDelete={handleConfirmDelete}
-        isDeleting={false}
+        isDeleting={deleteStudentMutation.isPending}
       />
     </div>
   );
