@@ -19,6 +19,7 @@ export type Instructor = {
   working_days: WorkingDay[] | null;
   created_at: string;
   updated_at: string;
+  date_of_birth: string | null; // NOVO CAMPO
 };
 
 export type InstructorOption = Pick<Instructor, 'id' | 'name'>;

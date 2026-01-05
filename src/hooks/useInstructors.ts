@@ -12,6 +12,7 @@ export interface InstructorFormData {
   status: InstructorStatus;
   hourly_rate: number | null;
   working_days: WorkingDay[] | null;
+  date_of_birth: string | null; // NOVO CAMPO
 }
 
 const fetchInstructors = async (): Promise<Instructor[]> => {

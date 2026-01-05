@@ -26,6 +26,7 @@ import { Instructor, WorkingDay, InstructorStatus } from '@/types/instructor';
 import { showError } from '@/utils/toast';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
+import { format, parseISO } from 'date-fns'; // Importar format e parseISO
 
 const DAYS_OF_WEEK_FULL = [
   { value: 'monday', label: 'Segunda-feira' },
@@ -58,6 +59,7 @@ const instructorSchema = z.object({
     start_time: z.string().regex(/^\d{2}:\d{2}$/, 'Formato HH:MM inválido'),
     end_time: z.string().regex(/^\d{2}:\d{2}$/, 'Formato HH:MM inválido'),
   })).optional().nullable(),
+  date_of_birth: z.string().optional().nullable().transform(d => d?.trim() === '' ? null : d), // NOVO CAMPO
 }).superRefine((data, ctx) => {
   if (data.working_days) {
     data.working_days.forEach((wd, index) => {
@@ -100,6 +102,7 @@ const AddEditInstructorDialog = ({
       status: 'Ativo',
       hourly_rate: null,
       working_days: [],
+      date_of_birth: null, // Definir default
     },
   });
 
@@ -117,6 +120,7 @@ const AddEditInstructorDialog = ({
           status: selectedInstructor.status,
           hourly_rate: selectedInstructor.hourly_rate,
           working_days: selectedInstructor.working_days || [],
+          date_of_birth: selectedInstructor.date_of_birth ? format(parseISO(selectedInstructor.date_of_birth), 'yyyy-MM-dd') : null, // Formatar para input type="date"
         });
       } else {
         reset({
@@ -128,6 +132,7 @@ const AddEditInstructorDialog = ({
           status: 'Ativo',
           hourly_rate: null,
           working_days: [],
+          date_of_birth: null,
         });
       }
     }
@@ -221,6 +226,15 @@ const AddEditInstructorDialog = ({
                 )} />
                 {errors.hourly_rate && <p className="text-sm text-destructive">{errors.hourly_rate.message}</p>}
               </div>
+            </div>
+
+            {/* NOVO CAMPO: Data de Nascimento */}
+            <div className="space-y-2">
+              <Label htmlFor="date_of_birth">Data de Nascimento (Opcional)</Label>
+              <Controller name="date_of_birth" control={control} render={({ field }) => (
+                <Input id="date_of_birth" type="date" {...field} value={field.value || ''} />
+              )} />
+              {errors.date_of_birth && <p className="text-sm text-destructive">{errors.date_of_birth.message}</p>}
             </div>
 
             <div className="space-y-2 border-t pt-4">
