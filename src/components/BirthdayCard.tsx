@@ -1,4 +1,4 @@
-import { Cake, User, Gift, Phone } from "lucide-react";
+import { Cake, User, Gift, Phone, UserCog } from "lucide-react"; // Adicionado UserCog
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO, getDate } from "date-fns";
@@ -8,15 +8,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
 import { useMemo } from "react";
 
-type BirthdayStudent = {
+type BirthdayPerson = { // Renomeado para ser mais genérico
   id: string;
   name: string;
   date_of_birth: string;
   phone: string | null;
-  status: string;
+  type: 'student' | 'instructor'; // Adicionado o campo 'type'
 };
 
-const fetchBirthdayStudents = async (): Promise<BirthdayStudent[]> => {
+const fetchBirthdayStudents = async (): Promise<BirthdayPerson[]> => {
   console.log('🎂 [BIRTHDAY] Iniciando busca de aniversariantes via RPC...');
   
   const currentMonth = new Date().getMonth() + 1; // 1-12
@@ -34,20 +34,20 @@ const fetchBirthdayStudents = async (): Promise<BirthdayStudent[]> => {
   console.log('✅ [BIRTHDAY] Total de aniversariantes encontrados:', data?.length || 0);
 
   // O RPC retorna todos os alunos com data de nascimento no mês atual, não apenas ativos.
-  return (data || []) as BirthdayStudent[];
+  return (data || []) as BirthdayPerson[];
 };
 
 const BirthdayCard = () => {
-  const { data: students, isLoading, error } = useQuery<BirthdayStudent[]>({
+  const { data: people, isLoading, error } = useQuery<BirthdayPerson[]>({ // Renomeado para 'people'
     queryKey: ["birthdayStudents"],
     queryFn: fetchBirthdayStudents,
     staleTime: 1000 * 60 * 5,
   });
 
   const birthdaysThisMonth = useMemo(() => {
-    if (!students) return [];
+    if (!people) return [];
     
-    return students
+    return people
       .slice()
       .sort((a, b) => {
         // Ordena pelo dia do mês
@@ -59,7 +59,7 @@ const BirthdayCard = () => {
         
         return dayA - dayB;
       });
-  }, [students]);
+  }, [people]);
 
   if (error) {
     console.error("Erro ao carregar aniversariantes:", error);
@@ -94,27 +94,34 @@ const BirthdayCard = () => {
           </div>
         ) : birthdaysThisMonth && birthdaysThisMonth.length > 0 ? (
           <div className="space-y-3">
-            {birthdaysThisMonth.map((student) => (
+            {birthdaysThisMonth.map((person) => (
               <div
-                key={student.id}
+                key={person.id}
                 className="flex items-center justify-between p-4 rounded-xl border bg-secondary/20 transition-colors duration-200 hover:bg-secondary/40 hover:shadow-subtle-glow"
               >
                 <div className="flex items-center space-x-3">
                   <div className="p-2 bg-primary rounded-lg">
-                    <User className="w-4 h-4 text-white" />
+                    {person.type === 'instructor' ? (
+                      <UserCog className="w-4 h-4 text-white" />
+                    ) : (
+                      <User className="w-4 h-4 text-white" />
+                    )}
                   </div>
 
                   <div>
-                    <Link to={`/alunos/${student.id}`} className="font-medium hover:underline hover:text-primary">
-                      {student.name}
+                    <Link 
+                      to={person.type === 'instructor' ? `/instrutores/${person.id}` : `/alunos/${person.id}`} 
+                      className="font-medium hover:underline hover:text-primary"
+                    >
+                      {person.name}
                     </Link>
 
                     <div className="flex items-center space-x-4 text-sm text-muted-foreground mt-1">
-                      <span>{format(parseISO(student.date_of_birth), "dd 'de' MMMM", { locale: ptBR })}</span>
-                      {student.phone && (
+                      <span>{format(parseISO(person.date_of_birth), "dd 'de' MMMM", { locale: ptBR })}</span>
+                      {person.phone && (
                         <span className="flex items-center">
                           <Phone className="w-3 h-3 mr-1.5" />
-                          {student.phone}
+                          {person.phone}
                         </span>
                       )}
                     </div>
