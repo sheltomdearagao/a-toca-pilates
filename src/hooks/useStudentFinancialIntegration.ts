@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { FinancialTransaction } from '@/types/financial';
+import { addDays, parseISO } from 'date-fns';
 
 interface CreateStudentTransactionParams {
   studentId: string;
@@ -17,6 +18,19 @@ interface UpdateStudentCreditParams {
   amount: number;
   reason: string;
   entryType: 'absence' | 'manual_adjustment' | 'payment_bonus';
+}
+
+interface RegisterStudentPaymentParams {
+  studentId: string;
+  amount: number;
+  planType: string;
+  frequency?: string;
+  paymentMethod?: string;
+  dueDate: string; // Próximo vencimento do ciclo
+  paidAt: string; // Data em que o pagamento foi feito
+  validityDays: number;
+  description: string;
+  discountDescription?: string;
 }
 
 export const useStudentFinancialIntegration = () => {
@@ -135,35 +149,30 @@ export const useStudentFinancialIntegration = () => {
     },
   });
 
-  // Criar transação de mensalidade com validade
-  const createMonthlyTransactionMutation = useMutation({
-    mutationFn: async ({ studentId, amount, planType, frequency, validityDays }: {
-      studentId: string;
-      amount: number;
-      planType: string;
-      frequency?: string;
-      validityDays: number;
-    }) => {
+  // NOVA MUTATION: Registrar pagamento completo com atualização de validade
+  const registerStudentPaymentMutation = useMutation({
+    mutationFn: async (params: RegisterStudentPaymentParams) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado.');
 
-      const dueDate = new Date();
-      const validityDate = new Date();
-      validityDate.setDate(validityDate.getDate() + validityDays);
+      const validityDate = addDays(parseISO(params.paidAt), params.validityDays).toISOString();
 
+      // 1. Criar a transação financeira
       const transaction = {
         user_id: user.id,
-        student_id: studentId,
-        description: `Mensalidade - ${planType} ${frequency || ''}`,
-        category: 'Mensalidade',
-        amount: amount,
+        student_id: params.studentId,
+        description: params.description,
+        category: 'Mensalidade', // Sempre Mensalidade para este fluxo
+        amount: params.amount,
         type: 'revenue' as const,
-        status: 'Pendente' as const,
-        due_date: dueDate.toISOString(),
+        status: 'Pago' as const, // Sempre Pago para este fluxo
+        due_date: params.dueDate,
+        paid_at: params.paidAt,
+        payment_method: params.paymentMethod || null,
+        is_recurring: params.planType !== 'Avulso',
       };
 
-      // Cria a transação
-      const { data: transactionData, error: transactionError } = await supabase
+      const { data: newTransaction, error: transactionError } = await supabase
         .from('financial_transactions')
         .insert([transaction])
         .select()
@@ -171,25 +180,103 @@ export const useStudentFinancialIntegration = () => {
 
       if (transactionError) throw transactionError;
 
-      // Atualiza a validade do aluno
-      const { error: studentError } = await supabase
+      // 2. Atualizar o aluno (validade, status, plano, etc.)
+      const { error: studentUpdateError } = await supabase
         .from('students')
-        .update({ 
-          validity_date: validityDate.toISOString(),
-          status: 'Ativo'
+        .update({
+          validity_date: validityDate,
+          status: 'Ativo', // Garante que o aluno fique ativo após o pagamento
+          plan_type: params.planType,
+          plan_frequency: params.frequency || null,
+          monthly_fee: params.amount, // O valor total pago pode ser diferente da mensalidade base
+          payment_method: params.paymentMethod || null,
+          discount_description: params.discountDescription || null,
         })
-        .eq('id', studentId);
+        .eq('id', params.studentId);
 
-      if (studentError) throw studentError;
+      if (studentUpdateError) throw studentUpdateError;
 
-      return transactionData as FinancialTransaction;
+      // 3. Atualizar ou criar assinatura (se for plano recorrente)
+      if (params.planType !== 'Avulso') {
+        // Tenta encontrar uma assinatura ativa existente
+        const { data: existingSubscription, error: fetchSubError } = await supabase
+          .from('subscriptions')
+          .select('id, plan_id')
+          .eq('student_id', params.studentId)
+          .eq('status', 'active')
+          .single();
+
+        if (fetchSubError && fetchSubError.code !== 'PGRST116') { // PGRST116 = no rows found
+          console.error("Erro ao buscar assinatura existente:", fetchSubError);
+          // Não lançar erro fatal, apenas logar
+        }
+
+        // Busca ou cria o plano
+        const { data: planData, error: planError } = await supabase
+          .from('plans')
+          .select('id')
+          .eq('name', params.planType)
+          .single();
+
+        let planId = planData?.id;
+        if (planError && planError.code !== 'PGRST116') {
+          console.error("Erro ao buscar plano:", planError);
+          // Não lançar erro fatal
+        }
+        if (!planId) {
+          const { data: newPlan, error: createPlanError } = await supabase
+            .from('plans')
+            .insert({
+              name: params.planType,
+              frequency: params.frequency ? parseInt(params.frequency) : 0,
+              default_price: params.amount,
+              active: true
+            })
+            .select('id')
+            .single();
+          if (createPlanError) console.error("Erro ao criar novo plano:", createPlanError);
+          planId = newPlan?.id;
+        }
+
+        if (planId) {
+          const subscriptionData = {
+            student_id: params.studentId,
+            plan_id: planId,
+            price: params.amount,
+            frequency: params.frequency ? parseInt(params.frequency) : 0,
+            start_date: params.paidAt,
+            end_date: validityDate,
+            due_day: parseISO(params.dueDate).getDate(), // Dia do mês do vencimento
+            status: 'active' as const,
+          };
+
+          if (existingSubscription) {
+            // Atualiza a assinatura existente
+            const { error: updateSubError } = await supabase
+              .from('subscriptions')
+              .update(subscriptionData)
+              .eq('id', existingSubscription.id);
+            if (updateSubError) console.error("Erro ao atualizar assinatura:", updateSubError);
+          } else {
+            // Cria uma nova assinatura
+            const { error: insertSubError } = await supabase
+              .from('subscriptions')
+              .insert([subscriptionData]);
+            if (insertSubError) console.error("Erro ao inserir nova assinatura:", insertSubError);
+          }
+        }
+      }
+
+      return newTransaction as FinancialTransaction;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['studentProfileData', data.student_id] });
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['financialData'] });
       queryClient.invalidateQueries({ queryKey: ['upcomingPayments'] });
-      showSuccess('Mensalidade criada com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ['studentPaymentStatus'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+      showSuccess('Pagamento registrado e validade do aluno atualizada com sucesso!');
     },
     onError: (error) => {
       showError(error.message);
@@ -200,6 +287,6 @@ export const useStudentFinancialIntegration = () => {
     createStudentTransaction: createStudentTransactionMutation,
     updateStudentCredit: updateStudentCreditMutation,
     markTransactionAsPaid: markTransactionAsPaidMutation,
-    createMonthlyTransaction: createMonthlyTransactionMutation,
+    registerStudentPayment: registerStudentPaymentMutation, // Nova mutação
   };
 };

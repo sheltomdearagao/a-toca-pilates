@@ -17,6 +17,7 @@ import { TransactionFormData } from '@/components/financial/AddEditTransactionDi
 import { useStudentProfileData } from '@/hooks/useStudentProfileData';
 import { Button } from '@/components/ui/button';
 import StudentRepositionCreditsCard from '@/components/students/profile/StudentRepositionCreditsCard';
+import RegisterStudentPaymentDialog from '@/components/students/RegisterStudentPaymentDialog'; // NOVO IMPORT
 
 const StudentProfile = () => {
   const { studentId } = useParams<{ studentId: string }>();
@@ -26,8 +27,7 @@ const StudentProfile = () => {
   const [isDeleteTransactionAlertOpen, setDeleteTransactionAlertOpen] = useState(false);
   const [transactionToDelete, setTransactionToDelete] = useState<FinancialTransaction | null>(null);
 
-  const [isTransactionDialogOpen, setTransactionDialogOpen] = useState(false);
-  const [transactionToEdit, setTransactionToEdit] = useState<FinancialTransaction | undefined>(undefined);
+  const [isRegisterPaymentDialogOpen, setIsRegisterPaymentDialogOpen] = useState(false); // NOVO ESTADO
 
   const { 
     data, 
@@ -51,14 +51,15 @@ const StudentProfile = () => {
   const activeFrequency = data?.activeFrequency;
 
   const handleRegisterPayment = () => {
-    setTransactionToEdit(undefined);
-    setTransactionDialogOpen(true);
+    setIsRegisterPaymentDialogOpen(true); // Abre o novo diálogo
   };
 
+  // A função onSubmitTransaction não será mais usada diretamente para o botão "Registrar Pagamento"
+  // mas pode ser mantida para outros usos do AddEditTransactionDialog se houver.
   const onSubmitTransaction = (formData: TransactionFormData) => {
     mutations.createTransaction.mutate(formData, {
       onSuccess: () => {
-        setTransactionDialogOpen(false);
+        // setTransactionDialogOpen(false); // Este estado não é mais usado para o botão principal
       }
     });
   };
@@ -101,7 +102,7 @@ const StudentProfile = () => {
       <div className="flex gap-2">
         <Button
           className="bg-primary hover:bg-primary/90 text-white"
-          onClick={handleRegisterPayment}
+          onClick={handleRegisterPayment} // Usa o novo handler
         >
           <DollarSign className="w-4 h-4 mr-2" /> Registrar Pagamento
         </Button>
@@ -159,16 +160,11 @@ const StudentProfile = () => {
         preSelectedStudentId={studentId}
       />
 
-      <AddEditTransactionDialog
-        isOpen={isTransactionDialogOpen}
-        onOpenChange={setTransactionDialogOpen}
-        initialStudentId={studentId}
-        defaultType={'revenue'}
-        defaultStatus={'Pago'}
-        onSubmit={onSubmitTransaction}
-        isSubmitting={mutations.createTransaction.isPending}
-        students={[]}
-        isLoadingStudents={false}
+      {/* NOVO DIÁLOGO DE REGISTRO DE PAGAMENTO */}
+      <RegisterStudentPaymentDialog
+        isOpen={isRegisterPaymentDialogOpen}
+        onOpenChange={setIsRegisterPaymentDialogOpen}
+        student={student}
       />
 
       <DeleteTransactionAlertDialog
