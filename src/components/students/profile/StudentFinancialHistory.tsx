@@ -110,7 +110,6 @@ const StudentFinancialHistory = ({
                     className={cn(
                       "hover:bg-muted/50 transition-colors",
                       transaction.status === 'Pago' && "bg-green-50/5",
-                      transaction.status === 'Atrasado' && "bg-red-50/5",
                       transaction.status === 'Pendente' && "bg-yellow-50/5"
                     )}
                   >
@@ -125,8 +124,7 @@ const StudentFinancialHistory = ({
                     <TableCell>
                       <Badge variant={
                         transaction.status === 'Pago' ? 'payment-paid' :
-                        transaction.status === 'Atrasado' ? 'payment-overdue' :
-                        'payment-pending'
+                        'payment-pending' // Atrasado e Pendente usarão a mesma cor de alerta
                       }>
                         {transaction.status}
                       </Badge>

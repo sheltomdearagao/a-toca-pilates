@@ -74,7 +74,7 @@ const UpcomingPaymentsCard = () => {
                   </div>
                 </div>
 
-                <div className="text-lg font-bold text-red-600">
+                <div className="text-lg font-bold text-yellow-800">
                   {formatCurrency(t.amount)}
                 </div>
               </div>
@@ -89,7 +89,7 @@ const UpcomingPaymentsCard = () => {
           </div>
         ) : (
           <div className="text-center py-8">
-            <div className="text-6xl mb-4 opacity-50">🎉</div>
+            <div className="text-6xl mb-4 opacity-50">🎂</div>
             <p className="text-muted-foreground">Nenhum pagamento a vencer nos próximos 10 dias.</p>
           </div>
         )}

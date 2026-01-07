@@ -65,7 +65,7 @@
     /* Cores de Pagamento */
     --payment-pending: 30 80% 55%; /* Laranja para pendente */
     --payment-paid: 140 60% 40%; /* Verde para pago */
-    --payment-overdue: 0 80% 50%; /* Vermelho para atrasado */
+    --payment-overdue: 30 80% 55%; /* Alterado para usar a mesma cor de pending */
 
     /* New subtle light/color touches */
     --glow-h: 200;
@@ -143,7 +143,7 @@
     /* Cores de Pagamento (Admin - Claro) */
     --payment-pending: 30 80% 55%;
     --payment-paid: 140 60% 40%;
-    --payment-overdue: 0 80% 50%;
+    --payment-overdue: 30 80% 55%; /* Alterado para usar a mesma cor de pending */
 
     --glow-h: 220;
     --glow-s: 35%;

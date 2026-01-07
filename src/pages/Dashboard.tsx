@@ -160,7 +160,7 @@ const Dashboard: React.FC = () => {
             value={stats?.overdueStudentCount ?? 0}
             icon={<UserX className="h-6 w-6" />}
             isLoading={isLoading}
-            variant="bordered-red"
+            variant="bordered-yellow" // Alterado de bordered-red para bordered-yellow
           />
         </Link>
 

@@ -61,7 +61,7 @@ const OverdueTransactionsTable = ({
         </TableHeader>
         <TableBody>
           {overdueTransactions?.map((t) => (
-            <TableRow key={t.id} className="bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors">
+            <TableRow key={t.id} className="bg-yellow-50/10 text-yellow-800 hover:bg-yellow-50/20 transition-colors">
               <TableCell className="font-medium">{t.students?.name || 'N/A'}</TableCell>
               <TableCell>{t.description}</TableCell>
               <TableCell>{t.due_date ? format(parseISO(t.due_date), 'dd/MM/yyyy') : '-'}</TableCell>

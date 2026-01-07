@@ -104,14 +104,14 @@ const AllTransactionsTable = ({
         </TableHeader>
         <TableBody>
           {transactions?.map((t) => (
-            <TableRow key={t.id} className="bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors">
+            <TableRow key={t.id} className="hover:bg-muted/50 transition-colors">
               <TableCell className="font-medium">{t.description}</TableCell>
               <TableCell>{t.type === 'revenue' ? 'Receita' : 'Despesa'}</TableCell>
               <TableCell>{t.category}</TableCell>
               <TableCell>
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                   t.status === 'Pago' ? 'bg-green-100 text-green-800' :
-                  t.status === 'Atrasado' ? 'bg-red-100 text-red-800' :
+                  t.status === 'Atrasado' ? 'bg-yellow-100 text-yellow-800' : // Alterado de red para yellow
                   'bg-yellow-100 text-yellow-800'
                 }`}>
                   {t.status}
